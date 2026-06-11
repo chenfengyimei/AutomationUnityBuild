@@ -78,6 +78,30 @@ Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
 ./publish/osx-arm64/AutomationUnityBuildIOS run
 ```
 
+也可以使用数字快捷指令，不用记完整命令：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS 00
+./publish/osx-arm64/AutomationUnityBuildIOS 01
+./publish/osx-arm64/AutomationUnityBuildIOS 05
+./publish/osx-arm64/AutomationUnityBuildIOS 06 --config configs/build-ios.dev.json
+```
+
+快捷指令表：
+
+```text
+00  显示帮助和快捷指令表
+01  初始化配置向导，问答生成可直接使用的配置文件
+02  生成空配置模板 build-ios.json
+03  查看已有配置文件
+04  选择配置并检查环境
+05  选择配置并预览完整打包命令 dry-run
+06  选择配置并执行完整打包流程
+07  选择配置打包，但跳过 Git 同步
+08  选择配置打包，但跳过 Unity 导出
+09  选择配置打包，但跳过 Xcode 编译导出
+```
+
 也可以明确指定：
 
 ```bash
