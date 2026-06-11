@@ -35,24 +35,72 @@ Assets/Editor/BuildIOS.cs
 
 这个脚本提供 `BuildAutomation.IOSBuilder.Build` 静态方法，控制台工具会通过 Unity 的 `-executeMethod` 调用它。
 
-## 配置
+## 初始化配置
 
-复制模板：
+现在不需要手动复制模板再编辑 JSON。直接运行：
 
 ```bash
-cp build-ios.sample.json build-ios.json
+./publish/osx-arm64/AutomationUnityBuildIOS init-config
 ```
 
-至少改这些字段：
+Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
 
-- `repositoryUrl`: Unity 游戏仓库地址，例如 `git@github.com:company/game.git`
-- `branch`: 要打包的分支
-- `unityVersion` 或 `unityExecutablePath`: Mac 上 Unity 的真实路径
-- `teamId`: Apple Developer Team ID
-- `bundleIdentifier`: iOS Bundle ID
-- `exportMethod`: 本地调试常用 `development`，TestFlight/App Store 按当前 Xcode 支持的导出方式配置
+```text
+1. 初始化新配置
+```
 
-`resetRepository` 默认是 `false`，这样不会清掉 Mac 本地未提交内容。专用打包机想每次强制回到远端分支时再改成 `true`。
+向导会依次询问这些信息，并自动生成填好的配置文件：
+
+- 配置名称和保存路径，例如 `configs/build-ios.dev.json`
+- Git 仓库地址和分支
+- Unity 版本或 Unity 可执行文件路径
+- Unity 工程相对路径
+- Product Name、Bundle Identifier、版本号、构建号
+- Apple Developer Team ID
+- Xcode 导出方式，例如 `development`、`ad-hoc`、`app-store`
+- 工作区目录和产物输出目录
+- 是否允许 Xcode 自动处理签名
+- 是否每次打包前强制重置 Git 仓库
+
+生成一次后，后续只需要选择这个配置文件，不需要重复填写。
+
+如果只是想生成空模板，仍然可以用：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS init-config --config build-ios.json --template
+```
+
+## 选择配置打包
+
+如果不传 `--config`，程序会自动列出已有配置文件让你选择：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS run
+```
+
+也可以明确指定：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json
+```
+
+查看已有配置：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS list-configs
+```
+
+只检查环境：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS doctor
+```
+
+只预览命令，不真正执行：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --dry-run --verbose
+```
 
 ## 在 Windows/VS 发布给 Mac 用
 
@@ -68,7 +116,7 @@ Intel Mac：
 .\scripts\publish-mac.ps1 -Runtime osx-x64
 ```
 
-然后把整个项目目录或 `publish/<runtime>`、`build-ios.json`、`scripts/build-ios.sh` 拷到 Mac。
+然后把整个项目目录或 `publish/<runtime>`、`configs/`、`scripts/build-ios.sh` 拷到 Mac。
 
 ## 在 Mac 一键打包
 
@@ -78,16 +126,16 @@ Intel Mac：
 chmod +x scripts/build-ios.sh
 ```
 
-执行：
+指定配置执行：
 
 ```bash
-./scripts/build-ios.sh ./build-ios.json
+./scripts/build-ios.sh ./configs/build-ios.dev.json
 ```
 
-也可以直接运行：
+也可以直接运行可执行文件并选择配置：
 
 ```bash
-dotnet run --project AutomationUnityBuildIOS.csproj -- run --config build-ios.json
+./publish/osx-arm64/AutomationUnityBuildIOS run
 ```
 
 打包成功后，产物会在 `artifactsRoot` 下按时间生成，例如：
@@ -100,28 +148,16 @@ dotnet run --project AutomationUnityBuildIOS.csproj -- run --config build-ios.js
 
 ## 常用调试命令
 
-只检查环境：
+跳过 Git，只用 Mac 本地已有项目：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS doctor --config build-ios.json
-```
-
-只打印命令，不执行：
-
-```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config build-ios.json --dry-run
-```
-
-跳过 git，只用当前已拉好的工程：
-
-```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config build-ios.json --skip-git
+./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-git
 ```
 
 跳过 Unity，只重新执行 Xcode 打包：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config build-ios.json --skip-unity
+./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-unity
 ```
 
 ## 日志系统
