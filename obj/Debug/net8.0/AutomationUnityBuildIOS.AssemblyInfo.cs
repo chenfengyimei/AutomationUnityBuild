@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AutomationUnityBuildIOS")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+deb40fa6814b79b5039a90f7a9951bb8c4209e3e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c2475ace672167365d959e079aa2a489b7f1cbde")]
 [assembly: System.Reflection.AssemblyProductAttribute("AutomationUnityBuildIOS")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AutomationUnityBuildIOS")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

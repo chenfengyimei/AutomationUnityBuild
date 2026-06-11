@@ -49,6 +49,11 @@ internal sealed class AutomationWorkflow : IDisposable
 
             if (!_options.SkipUnity)
             {
+                if (!_options.DryRun)
+                {
+                    RunStep("校验 Unity 工程目录", ValidateUnityProjectDirectory);
+                }
+
                 await RunStepAsync("Unity 导出 iOS Xcode 工程", RunUnityBuildAsync);
             }
             else
@@ -118,12 +123,12 @@ internal sealed class AutomationWorkflow : IDisposable
 
     private void PrepareDirectories()
     {
-        _logger.Info($"工作区目录: {_paths.WorkspaceRoot}");
-        _logger.Info($"本次产物目录: {_paths.ArtifactsRunRoot}");
-        _logger.Info($"日志目录: {_paths.LogsDirectory}");
-        Directory.CreateDirectory(_paths.WorkspaceRoot);
-        Directory.CreateDirectory(_paths.ArtifactsRunRoot);
-        Directory.CreateDirectory(_paths.LogsDirectory);
+        _logger.Info("准备目录：不存在的目录会自动创建。");
+        EnsureDirectoryExists(_paths.WorkspaceRoot, "工作区目录");
+        EnsureDirectoryExists(_paths.ArtifactsRunRoot, "本次产物目录");
+        EnsureDirectoryExists(_paths.LogsDirectory, "日志目录");
+        EnsureParentDirectoryExists(_paths.ArchivePath, "Xcode archive 父目录");
+        EnsureParentDirectoryExists(_paths.ExportOptionsPlistPath, "ExportOptions.plist 父目录");
 
         if (_config.CleanXcodeOutputBeforeBuild && Directory.Exists(_paths.XcodeOutputDirectory))
         {
@@ -131,8 +136,8 @@ internal sealed class AutomationWorkflow : IDisposable
             Directory.Delete(_paths.XcodeOutputDirectory, recursive: true);
         }
 
-        Directory.CreateDirectory(_paths.XcodeOutputDirectory);
-        Directory.CreateDirectory(_paths.ExportPath);
+        EnsureDirectoryExists(_paths.XcodeOutputDirectory, "Xcode 输出目录");
+        EnsureDirectoryExists(_paths.ExportPath, "导出目录");
     }
 
     private async Task SyncRepositoryAsync()
@@ -200,6 +205,116 @@ internal sealed class AutomationWorkflow : IDisposable
             _paths.UnityProjectRoot,
             _paths.UnityProcessLogPath,
             _config.Environment);
+    }
+
+    private void ValidateUnityProjectDirectory()
+    {
+        if (!Directory.Exists(_paths.UnityProjectRoot))
+        {
+            string candidates = FormatUnityProjectCandidates();
+            throw new DirectoryNotFoundException(
+                $"Unity 工程目录不存在: {_paths.UnityProjectRoot}{Environment.NewLine}" +
+                $"请检查配置 unityProjectRelativePath。它必须指向包含 Assets 和 ProjectSettings 的 Unity 工程根目录，通常填 \".\"。{candidates}");
+        }
+
+        bool hasAssets = Directory.Exists(Path.Combine(_paths.UnityProjectRoot, "Assets"));
+        bool hasProjectSettings = Directory.Exists(Path.Combine(_paths.UnityProjectRoot, "ProjectSettings"));
+        if (!hasAssets || !hasProjectSettings)
+        {
+            string candidates = FormatUnityProjectCandidates();
+            throw new InvalidOperationException(
+                $"当前路径不是 Unity 工程根目录: {_paths.UnityProjectRoot}{Environment.NewLine}" +
+                $"缺少目录: {(hasAssets ? "" : "Assets ")}{(hasProjectSettings ? "" : "ProjectSettings")}{Environment.NewLine}" +
+                $"请把 unityProjectRelativePath 改成包含 Assets 和 ProjectSettings 的目录，通常填 \".\"。{candidates}");
+        }
+
+        _logger.Info($"Unity 工程目录校验通过: {_paths.UnityProjectRoot}");
+        if (!Directory.Exists(Path.Combine(_paths.UnityProjectRoot, "Library")))
+        {
+            _logger.Warn("Unity 工程没有 Library 目录，说明这是 Git 新拉下来的干净工程。Unity 命令行会自动导入资源，不需要手动打开；第一次会比较慢。");
+        }
+    }
+
+    private string FormatUnityProjectCandidates()
+    {
+        if (!Directory.Exists(_paths.RepositoryRoot))
+        {
+            return "";
+        }
+
+        string[] candidates = FindUnityProjectCandidates(_paths.RepositoryRoot, maxDepth: 4).Take(5).ToArray();
+        if (candidates.Length == 0)
+        {
+            return "";
+        }
+
+        string lines = string.Join(
+            Environment.NewLine,
+            candidates.Select(path => $"  - {Path.GetRelativePath(_paths.RepositoryRoot, path)}"));
+
+        return $"{Environment.NewLine}仓库里检测到可能的 Unity 工程目录:{Environment.NewLine}{lines}";
+    }
+
+    private static IEnumerable<string> FindUnityProjectCandidates(string root, int maxDepth)
+    {
+        var queue = new Queue<(string Path, int Depth)>();
+        queue.Enqueue((root, 0));
+
+        while (queue.Count > 0)
+        {
+            (string path, int depth) = queue.Dequeue();
+            if (Directory.Exists(Path.Combine(path, "Assets")) &&
+                Directory.Exists(Path.Combine(path, "ProjectSettings")))
+            {
+                yield return path;
+            }
+
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+
+            foreach (string child in EnumerateDirectoriesSafe(path))
+            {
+                string name = Path.GetFileName(child);
+                if (name is ".git" or "Library" or "Temp" or "Obj" or "Build" or "Builds")
+                {
+                    continue;
+                }
+
+                queue.Enqueue((child, depth + 1));
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateDirectoriesSafe(string path)
+    {
+        try
+        {
+            return Directory.EnumerateDirectories(path).ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private void EnsureDirectoryExists(string path, string description)
+    {
+        Directory.CreateDirectory(path);
+        _logger.Info($"{description}: {path}");
+    }
+
+    private void EnsureParentDirectoryExists(string filePath, string description)
+    {
+        string? parent = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(parent))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(parent);
+        _logger.Info($"{description}: {parent}");
     }
 
     private async Task RunXcodeArchiveAndExportAsync()

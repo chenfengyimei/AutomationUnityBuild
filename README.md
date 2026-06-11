@@ -25,6 +25,42 @@ xcodebuild -version
 /Applications/Unity/Hub/Editor/<UnityVersion>/Unity.app/Contents/MacOS/Unity -version
 ```
 
+## Mac 首次打开被拦截
+
+如果 Mac 提示“无法验证是不是恶意软件”或“不明开发者”，这是因为这个工具是你自己从 Windows 发布出来的，没有 Apple 开发者签名。首次拷到 Mac 后，在工具目录执行：
+
+```bash
+chmod +x scripts/fix-mac-gatekeeper.sh
+./scripts/fix-mac-gatekeeper.sh
+```
+
+如果你已经 `cd` 到了 `publish` 文件夹，直接执行：
+
+```bash
+xattr -cr .
+chmod +x ./osx-arm64/AutomationUnityBuildIOS
+codesign --force --deep --sign - ./osx-arm64/AutomationUnityBuildIOS
+./osx-arm64/AutomationUnityBuildIOS 00
+```
+
+Intel Mac 把 `osx-arm64` 换成 `osx-x64`。
+
+也可以手动处理：
+
+```bash
+chmod +x ./publish/osx-arm64/AutomationUnityBuildIOS
+xattr -dr com.apple.quarantine ./publish/osx-arm64/AutomationUnityBuildIOS
+codesign --force --deep --sign - ./publish/osx-arm64/AutomationUnityBuildIOS
+```
+
+Intel Mac 把 `osx-arm64` 换成 `osx-x64`。
+
+处理完再运行：
+
+```bash
+./publish/osx-arm64/AutomationUnityBuildIOS 00
+```
+
 ## Unity 工程需要加的脚本
 
 把本项目里的 `UnityBuildScripts/BuildIOS.cs` 复制到你的 Unity 游戏仓库：
@@ -52,15 +88,32 @@ Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
 向导会依次询问这些信息，并自动生成填好的配置文件：
 
 - 配置名称和保存路径，例如 `configs/build-ios.dev.json`
-- Git 仓库地址和分支
+- Git 仓库地址和分支，推荐填 `https://github.com/company/game.git` 或 `git@github.com:company/game.git`
+- Unity 工程相对路径，必须是包含 `Assets` 和 `ProjectSettings` 的目录；仓库根目录就是 Unity 工程时填 `.`
 - Unity 版本或 Unity 可执行文件路径
-- Unity 工程相对路径
 - Product Name、Bundle Identifier、版本号、构建号
-- Apple Developer Team ID
+- Apple Developer Team ID，必须是 10 位字母数字，不是公司名
 - Xcode 导出方式，例如 `development`、`ad-hoc`、`app-store`
 - 工作区目录和产物输出目录
 - 是否允许 Xcode 自动处理签名
 - 是否每次打包前强制重置 Git 仓库
+
+最容易填错的三个地方：
+
+```text
+Git 仓库地址: 不要填网页标题，填 clone 地址。
+Unity 工程相对路径: 不要填 build、Builds、XcodeProject，通常填 .
+Apple Team ID: 不要填公司名，填 10 位 Team ID。
+```
+
+路径创建规则：
+
+```text
+Mac 工作区目录、产物目录、日志目录、Xcode 输出目录：不用提前创建，工具会自动创建。
+Unity 工程目录：不能自动创建，必须是 Git 仓库里真实存在的 Unity 项目目录。
+```
+
+Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一次运行时会自动导入资源并生成 `Library`，只是第一次会比较慢。前提是 Unity 版本正确、iOS Build Support 已安装、Unity License 已激活。
 
 生成一次后，后续只需要选择这个配置文件，不需要重复填写。
 
