@@ -1,0 +1,5 @@
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish\AutomationUnityBuildIOS.exe
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish\AutomationUnityBuildIOS.dll
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish\AutomationUnityBuildIOS.deps.json
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish\AutomationUnityBuildIOS.runtimeconfig.json
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish\AutomationUnityBuildIOS.pdb

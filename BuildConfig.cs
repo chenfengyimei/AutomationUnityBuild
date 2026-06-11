@@ -70,6 +70,7 @@ internal sealed class BuildConfig
         config.XcodeBuildSettings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         config.Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         config.ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        config.RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(config.RepositoryUrl);
         config.Validate();
         return config;
     }
@@ -89,6 +90,12 @@ internal sealed class BuildConfig
         if (string.IsNullOrWhiteSpace(UnityBuildMethod))
         {
             throw new InvalidOperationException("配置 unityBuildMethod 不能为空。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(TeamId) &&
+            (TeamId.Length != 10 || !TeamId.All(char.IsLetterOrDigit)))
+        {
+            throw new InvalidOperationException("配置 teamId 必须是 10 位 Apple Developer Team ID，例如 ABCDE12345，不能填公司名。");
         }
 
         if (!GenerateExportOptionsPlist && string.IsNullOrWhiteSpace(ExportOptionsPlistPath))
