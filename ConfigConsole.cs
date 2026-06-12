@@ -58,6 +58,7 @@ internal static class ConfigWizard
         string bundleIdentifier = AskBundleIdentifier();
         string bundleVersion = ConsolePrompts.AskOptional("版本号 Bundle Version，例如 1.0.0", "1.0.0");
         string buildNumber = ConsolePrompts.AskOptional("构建号 Build Number，例如 1、2、100", "1");
+        string iosDeploymentTarget = AskIosDeploymentTarget();
 
         PrintSection("6. Apple 签名和导出");
         Console.WriteLine("Team ID 是 10 位字母数字，不是公司名。");
@@ -121,6 +122,7 @@ internal static class ConfigWizard
             ProductName = productName,
             BundleVersion = bundleVersion,
             BuildNumber = buildNumber,
+            IosDeploymentTarget = iosDeploymentTarget,
 
             AllowProvisioningUpdates = allowProvisioningUpdates,
             ResetRepository = resetRepository,
@@ -223,6 +225,23 @@ internal static class ConfigWizard
         }
     }
 
+    private static string AskIosDeploymentTarget()
+    {
+        while (true)
+        {
+            string value = ConsolePrompts.AskOptional(
+                "iOS 最低系统版本 Deployment Target。LevelPlay/IronSource 新版本通常需要 13.0 或更高",
+                "13.0");
+
+            if (Version.TryParse(value, out _))
+            {
+                return value;
+            }
+
+            Console.WriteLine("iOS Deployment Target 必须是版本号格式，例如 13.0 或 14.0。");
+        }
+    }
+
     private static string AskAppleTeamId()
     {
         while (true)
@@ -252,6 +271,7 @@ internal static class ConfigWizard
         Console.WriteLine($"Unity 版本: {(string.IsNullOrWhiteSpace(config.UnityVersion) ? "(自动或使用完整路径)" : config.UnityVersion)}");
         Console.WriteLine($"Unity 完整路径: {(string.IsNullOrWhiteSpace(config.UnityExecutablePath) ? "(未指定)" : config.UnityExecutablePath)}");
         Console.WriteLine($"Bundle ID: {config.BundleIdentifier}");
+        Console.WriteLine($"iOS Deployment Target: {(string.IsNullOrWhiteSpace(config.IosDeploymentTarget) ? "(使用 Unity 项目原配置)" : config.IosDeploymentTarget)}");
         Console.WriteLine($"Team ID: {config.TeamId}");
         Console.WriteLine($"导出方式: {config.ExportMethod}");
         Console.WriteLine($"产物目录: {config.ArtifactsRoot}");

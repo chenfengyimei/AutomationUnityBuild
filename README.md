@@ -91,7 +91,7 @@ Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
 - Git 仓库地址和分支，推荐填 `https://github.com/company/game.git` 或 `git@github.com:company/game.git`
 - Unity 工程相对路径，必须是包含 `Assets` 和 `ProjectSettings` 的目录；仓库根目录就是 Unity 工程时填 `.`
 - Unity 版本或 Unity 可执行文件路径
-- Product Name、Bundle Identifier、版本号、构建号
+- Product Name、Bundle Identifier、版本号、构建号、iOS Deployment Target
 - Apple Developer Team ID，必须是 10 位字母数字，不是公司名
 - Xcode 导出方式，例如 `development`、`ad-hoc`、`app-store`
 - 工作区目录和产物输出目录

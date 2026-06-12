@@ -34,6 +34,7 @@ namespace BuildAutomation
             string bundleIdentifier = args.Get("-customBundleIdentifier", "");
             string productName = args.Get("-customProductName", "");
             string appleTeamId = args.Get("-customAppleTeamId", "");
+            string iosDeploymentTarget = args.Get("-customIosDeploymentTarget", "");
 
             Directory.CreateDirectory(outputPath);
 
@@ -42,7 +43,7 @@ namespace BuildAutomation
                 throw new InvalidOperationException("切换到 iOS BuildTarget 失败，请确认当前 Unity 安装了 iOS Build Support。");
             }
 
-            ApplyPlayerSettings(bundleIdentifier, productName, bundleVersion, buildNumber, appleTeamId);
+            ApplyPlayerSettings(bundleIdentifier, productName, bundleVersion, buildNumber, appleTeamId, iosDeploymentTarget);
 
             string[] scenes = EditorBuildSettings.scenes
                 .Where(scene => scene.enabled)
@@ -84,7 +85,8 @@ namespace BuildAutomation
             string productName,
             string bundleVersion,
             string buildNumber,
-            string appleTeamId)
+            string appleTeamId,
+            string iosDeploymentTarget)
         {
             if (!string.IsNullOrWhiteSpace(bundleIdentifier))
             {
@@ -110,6 +112,11 @@ namespace BuildAutomation
             {
                 PlayerSettings.iOS.appleDeveloperTeamID = appleTeamId;
                 PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(iosDeploymentTarget))
+            {
+                PlayerSettings.iOS.targetOSVersionString = iosDeploymentTarget;
             }
         }
     }
