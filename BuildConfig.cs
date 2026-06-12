@@ -32,6 +32,7 @@ internal sealed class BuildConfig
     public string ProductName { get; set; } = "";
     public string BundleVersion { get; set; } = "";
     public string BuildNumber { get; set; } = "";
+    public string IosDeploymentTarget { get; set; } = "";
 
     public bool AllowProvisioningUpdates { get; set; } = true;
     public bool ResetRepository { get; set; }
@@ -71,6 +72,7 @@ internal sealed class BuildConfig
         config.Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         config.ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         config.RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(config.RepositoryUrl);
+        config.IosDeploymentTarget = config.IosDeploymentTarget.Trim();
         config.Validate();
         return config;
     }
@@ -101,6 +103,11 @@ internal sealed class BuildConfig
         if (!GenerateExportOptionsPlist && string.IsNullOrWhiteSpace(ExportOptionsPlistPath))
         {
             throw new InvalidOperationException("generateExportOptionsPlist=false 时必须配置 exportOptionsPlistPath。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(IosDeploymentTarget) && !Version.TryParse(IosDeploymentTarget, out _))
+        {
+            throw new InvalidOperationException("配置 iosDeploymentTarget 必须是版本号格式，例如 13.0 或 14.0。");
         }
     }
 }

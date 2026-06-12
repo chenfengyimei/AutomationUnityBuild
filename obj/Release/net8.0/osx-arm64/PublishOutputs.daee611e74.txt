@@ -1,0 +1,2 @@
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_c1\AutomationUnityBuildIOS.pdb
+C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_c1\AutomationUnityBuildIOS

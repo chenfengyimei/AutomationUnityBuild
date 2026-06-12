@@ -8,7 +8,7 @@
     "net8.0": []
   },
   "packageFolders": {
-    "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\": {},
+    "C:\\Users\\Administrator\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
@@ -17,7 +17,7 @@
       "projectUniqueName": "C:\\Users\\Administrator\\source\\repos\\AutomationUnityBuildIOS\\AutomationUnityBuildIOS.csproj",
       "projectName": "AutomationUnityBuildIOS",
       "projectPath": "C:\\Users\\Administrator\\source\\repos\\AutomationUnityBuildIOS\\AutomationUnityBuildIOS.csproj",
-      "packagesPath": "C:\\Users\\CodexSandboxOffline\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\Administrator\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\Administrator\\source\\repos\\AutomationUnityBuildIOS\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [

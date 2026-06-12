@@ -225,6 +225,7 @@ internal sealed class AutomationWorkflow : IDisposable
         AddUnityPair(args, "-customBundleIdentifier", _config.BundleIdentifier);
         AddUnityPair(args, "-customProductName", _config.ProductName);
         AddUnityPair(args, "-customAppleTeamId", _config.TeamId);
+        AddUnityPair(args, "-customIosDeploymentTarget", _config.IosDeploymentTarget);
 
         try
         {
@@ -235,6 +236,7 @@ internal sealed class AutomationWorkflow : IDisposable
                 _paths.UnityProcessLogPath,
                 _config.Environment);
             ValidateXcodeProjectExported();
+            ValidateCocoaPodsInstallation();
         }
         catch
         {
@@ -267,6 +269,42 @@ internal sealed class AutomationWorkflow : IDisposable
         throw new FileNotFoundException(
             $"Unity 没有导出 Xcode 工程到指定目录: {_paths.XcodeOutputDirectory}{Environment.NewLine}" +
             "请确认 Unity 项目中的 Assets/Editor/BuildIOS.cs 使用了 -customBuildPath 参数，并且 BuildPipeline.BuildPlayer 的 locationPathName 指向该路径。");
+    }
+
+    private void ValidateCocoaPodsInstallation()
+    {
+        if (!File.Exists(_paths.UnityLogPath))
+        {
+            return;
+        }
+
+        string[] failureMarkers =
+        [
+            "CocoaPods installation failure",
+            "pod install output:",
+            "CocoaPods could not find compatible versions",
+            "required a higher minimum deployment target"
+        ];
+
+        string[] matches = File.ReadLines(_paths.UnityLogPath)
+            .Where(line => failureMarkers.Any(marker => line.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+            .TakeLast(80)
+            .ToArray();
+
+        if (matches.Length == 0)
+        {
+            return;
+        }
+
+        _logger.Error("Unity 导出的 Xcode 工程存在，但 CocoaPods 依赖安装失败，Xcode 编译会缺少 iOS SDK/framework。");
+        _logger.Error("----- Unity CocoaPods 关键错误 -----");
+        foreach (string line in matches)
+        {
+            _logger.Error(line);
+        }
+
+        throw new InvalidOperationException(
+            "CocoaPods 依赖安装失败。请在 unity-editor.log 中搜索 \"pod install output\"，先修复 Podfile/Deployment Target/CocoaPods repo 后再打包。");
     }
 
     private string? FindXcodeProjectOrWorkspace()
