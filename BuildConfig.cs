@@ -33,6 +33,7 @@ internal sealed class BuildConfig
     public string BundleVersion { get; set; } = "";
     public string BuildNumber { get; set; } = "";
     public string IosDeploymentTarget { get; set; } = "";
+    public bool AutoIncrementBuildNumber { get; set; } = true;
 
     public bool AllowProvisioningUpdates { get; set; } = true;
     public bool ResetRepository { get; set; }

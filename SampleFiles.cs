@@ -32,6 +32,7 @@ internal static class SampleFiles
           "productName": "Your Game",
           "bundleVersion": "1.0.0",
           "buildNumber": "1",
+          "autoIncrementBuildNumber": true,
           "iosDeploymentTarget": "13.0",
 
           "allowProvisioningUpdates": true,
