@@ -1,2 +1,81 @@
-/.vs
-/bin/Release
+# =========================
+# Visual Studio / .NET
+# =========================
+
+## 编译生成的文件 (Binaries)
+bin/
+obj/
+
+## Visual Studio 用户特定文件
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Visual Studio 2015+ 配置文件夹
+.vs/
+
+## Rider 缓存文件夹
+.idea/
+
+## Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+## NCrunch
+*.ncrunch*
+.*.ncrunch*
+
+## StyleCop
+StyleCopSettings.xml
+
+## DotCover
+*.dotCover
+
+## Visual Studio Code
+.vscode/
+
+# =========================
+# NuGet
+# =========================
+
+## 包还原生成的文件夹
+packages/
+
+## 项目特定的 NuGet 配置
+!packages.config
+!*.csproj
+
+# =========================
+# 日志与临时文件
+# =========================
+
+## 常见的日志文件扩展名
+*.log
+!*.config  # 保留配置文件
+
+## Windows 临时文件
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+
+## 输出文件 (如果你的控制台项目直接输出到当前目录)
+*.exe
+*.dll
+*.pdb
+*.dll.config
+*.exe.config
+
+# =========================
+# Unity (如果你的控制台项目是Unity的辅助工具)
+# =========================
+
+## 如果你用控制台项目处理Unity数据，取消注释下面几行
+# [Ll]ibrary/
+# [Tt]emp/
+# [Oo]bj/
+# [Bb]uild/
+# *.pidb
+# *.mdb
