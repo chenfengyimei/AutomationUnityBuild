@@ -78,7 +78,7 @@ internal static class Cli
     {
         options = options with { ConfigPath = ResolveConfigPath(options, "检查环境") };
         BuildConfig config = BuildConfig.Load(options.ConfigPath);
-        using var workflow = new AutomationWorkflow(config, options with { DryRun = true });
+        using var workflow = new AutomationWorkflow(config, options);
         await workflow.CheckPrerequisitesAsync();
         return 0;
     }

@@ -118,6 +118,78 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
             }
         }
     }
+
+    public async Task<string> RunCaptureStdoutAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string? workingDirectory = null,
+        IReadOnlyDictionary<string, string>? environment = null)
+    {
+        string commandText = CommandLineFormatter.Format(fileName, args);
+        string resolvedWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
+            ? Environment.CurrentDirectory
+            : workingDirectory;
+
+        if (dryRun)
+        {
+            logger.DryRun(commandText);
+            return "";
+        }
+
+        if (verbose)
+        {
+            Console.WriteLine(commandText);
+        }
+
+        logger.CommandStarted(commandText, resolvedWorkingDirectory, commandLogPath: null);
+        var stopwatch = Stopwatch.StartNew();
+
+        using var process = new Process();
+        process.StartInfo.FileName = fileName;
+        process.StartInfo.WorkingDirectory = resolvedWorkingDirectory;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.UseShellExecute = false;
+
+        foreach (string arg in args)
+        {
+            process.StartInfo.ArgumentList.Add(arg);
+        }
+
+        if (environment is not null)
+        {
+            foreach ((string key, string value) in environment)
+            {
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    process.StartInfo.Environment[key] = value;
+                }
+            }
+        }
+
+        try
+        {
+            process.Start();
+            string stdout = await process.StandardOutput.ReadToEndAsync();
+            string stderr = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                logger.CommandFailed(commandText, stopwatch.Elapsed, process.ExitCode);
+                string detail = string.IsNullOrWhiteSpace(stderr) ? "" : $"{Environment.NewLine}{stderr.Trim()}";
+                throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {commandText}{detail}");
+            }
+
+            logger.CommandCompleted(commandText, stopwatch.Elapsed);
+            return stdout;
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            logger.CommandFailed(commandText, stopwatch.Elapsed, ex);
+            throw;
+        }
+    }
 }
 
 internal static class CommandLineFormatter
