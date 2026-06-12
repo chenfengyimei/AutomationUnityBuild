@@ -120,6 +120,7 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 ./AutomationUnityBuildIOS 01
 ./AutomationUnityBuildIOS 05
 ./AutomationUnityBuildIOS 06 --config configs/build-ios.dev.json
+./AutomationUnityBuildIOS 10 --config configs/build-ios.dev.json
 ```
 
 快捷指令表：
@@ -135,6 +136,7 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 07  选择配置打包，但跳过 Git 同步
 08  选择配置打包，但跳过 Unity 导出
 09  选择配置打包，但跳过 Xcode 编译导出
+10  选择配置并修改配置内容
 ```
 
 也可以明确指定：
@@ -142,6 +144,22 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 ```bash
 ./AutomationUnityBuildIOS run --config configs/build-ios.dev.json
 ```
+
+## 修改已有配置
+
+如果只是要改版本号、构建号、Bundle ID、导出方式、签名、Git 分支等配置，不需要重新初始化，也不需要手动编辑 JSON。直接运行：
+
+```bash
+./AutomationUnityBuildIOS 10
+```
+
+也可以指定配置文件：
+
+```bash
+./AutomationUnityBuildIOS edit-config --config configs/build-ios.dev.json
+```
+
+进入后选择要修改的字段编号，输入新值后会立即保存到配置文件。输入 `s` 可以查看当前摘要，输入 `0` 或直接回车退出。
 
 查看已有配置：
 
