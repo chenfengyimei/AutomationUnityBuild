@@ -35,6 +35,7 @@ namespace BuildAutomation
             string productName = args.Get("-customProductName", "");
             string appleTeamId = args.Get("-customAppleTeamId", "");
             string iosDeploymentTarget = args.Get("-customIosDeploymentTarget", "");
+            string metadataPath = args.Get("-customBuildMetadataPath", "");
 
             Directory.CreateDirectory(outputPath);
 
@@ -78,6 +79,7 @@ namespace BuildAutomation
             }
 
             Debug.Log($"Unity iOS 导出完成: {outputPath}, size={summary.totalSize} bytes");
+            WriteBuildMetadata(metadataPath);
         }
 
         private static void ApplyPlayerSettings(
@@ -118,6 +120,42 @@ namespace BuildAutomation
             {
                 PlayerSettings.iOS.targetOSVersionString = iosDeploymentTarget;
             }
+        }
+
+        private static void WriteBuildMetadata(string metadataPath)
+        {
+            if (string.IsNullOrWhiteSpace(metadataPath))
+            {
+                return;
+            }
+
+            string directory = Path.GetDirectoryName(metadataPath) ?? "";
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var metadata = new BuildMetadata
+            {
+                bundleVersion = PlayerSettings.bundleVersion,
+                buildNumber = PlayerSettings.iOS.buildNumber,
+                bundleIdentifier = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.iOS),
+                productName = PlayerSettings.productName,
+                iosDeploymentTarget = PlayerSettings.iOS.targetOSVersionString
+            };
+
+            File.WriteAllText(metadataPath, JsonUtility.ToJson(metadata, true));
+            Debug.Log($"Unity iOS 构建元数据已写出: {metadataPath}");
+        }
+
+        [Serializable]
+        private sealed class BuildMetadata
+        {
+            public string bundleVersion;
+            public string buildNumber;
+            public string bundleIdentifier;
+            public string productName;
+            public string iosDeploymentTarget;
         }
     }
 
