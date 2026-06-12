@@ -38,9 +38,9 @@ chmod +x scripts/fix-mac-gatekeeper.sh
 
 ```bash
 xattr -cr .
-chmod +x ./osx-arm64/AutomationUnityBuildIOS
-codesign --force --deep --sign - ./osx-arm64/AutomationUnityBuildIOS
-./osx-arm64/AutomationUnityBuildIOS 00
+chmod +x ./AutomationUnityBuildIOS
+codesign --force --deep --sign - ./AutomationUnityBuildIOS
+./AutomationUnityBuildIOS 00
 ```
 
 Intel Mac 把 `osx-arm64` 换成 `osx-x64`。
