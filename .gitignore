@@ -79,3 +79,5 @@ Desktop.ini
 # [Bb]uild/
 # *.pidb
 # *.mdb
+/obj
+/bin
