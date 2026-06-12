@@ -5,6 +5,7 @@ internal static class SampleFiles
     public const string BuildIosConfigJson =
         """
         {
+          "configName": "dev",
           "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
           "branch": "main",
           "workspaceRoot": "~/UnityBuildWorkspace",

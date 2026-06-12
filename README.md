@@ -67,7 +67,7 @@ Assets/Editor/BuildIOS.cs
 
 向导会依次询问这些信息，并自动生成填好的配置文件：
 
-- 配置名称和保存路径，例如 `configs/build-ios.dev.json`
+- 配置名称和保存路径，例如配置名 `dev`、路径 `configs/build-ios.dev.json`
 - Git 仓库地址和分支，推荐填 `https://github.com/company/game.git` 或 `git@github.com:company/game.git`
 - Unity 工程相对路径，必须是包含 `Assets` 和 `ProjectSettings` 的目录；仓库根目录就是 Unity 工程时填 `.`
 - Unity 版本或 Unity 可执行文件路径
@@ -137,6 +137,13 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 08  选择配置打包，但跳过 Unity 导出
 09  选择配置打包，但跳过 Xcode 编译导出
 10  选择配置并修改配置内容
+```
+
+选择配置或查看已有配置时，会优先显示初始化时填写的配置名称，并在括号里显示路径，例如：
+
+```text
+1. dev (configs/build-ios.dev.json)
+2. testflight (configs/build-ios.testflight.json)
 ```
 
 也可以明确指定：

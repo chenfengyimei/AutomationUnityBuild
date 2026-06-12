@@ -117,7 +117,7 @@ internal static class Cli
 
     private static int ListConfigs()
     {
-        IReadOnlyList<string> configs = ConfigFileSelector.FindConfigFiles();
+        IReadOnlyList<ConfigFileEntry> configs = ConfigFileSelector.FindConfigFiles();
         if (configs.Count == 0)
         {
             Console.WriteLine("没有找到配置文件。可以先运行 init-config 创建。");
@@ -127,7 +127,7 @@ internal static class Cli
         Console.WriteLine("可用配置文件:");
         for (int i = 0; i < configs.Count; i++)
         {
-            Console.WriteLine($"  {i + 1}. {configs[i]}");
+            Console.WriteLine($"  {i + 1}. {configs[i].DisplayText}");
         }
 
         return 0;

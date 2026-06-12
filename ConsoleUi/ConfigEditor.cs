@@ -159,6 +159,11 @@ internal static class ConfigEditor
         {
             config.Configuration = ConsolePrompts.AskChoice("Configuration", ["Release", "Debug"], Default(config.Configuration, "Release"));
             return true;
+        }),
+        new(27, "配置文件信息", "Config Name", config => Display(config.ConfigName), config =>
+        {
+            config.ConfigName = AskString("Config Name", config.ConfigName);
+            return true;
         })
     ];
 
@@ -240,6 +245,7 @@ internal static class ConfigEditor
     {
         Console.WriteLine();
         Console.WriteLine("----- 当前配置摘要 -----");
+        Console.WriteLine($"配置名称: {Display(config.ConfigName)}");
         Console.WriteLine($"配置文件: {fullPath}");
         Console.WriteLine($"仓库: {config.RepositoryUrl} [{config.Branch}]");
         Console.WriteLine($"Unity 工程: {config.ProjectDirectoryName}/{config.UnityProjectRelativePath}");

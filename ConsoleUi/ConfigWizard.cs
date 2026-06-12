@@ -117,6 +117,7 @@ internal static class ConfigWizard
 
         var config = new BuildConfig
         {
+            ConfigName = profileName,
             RepositoryUrl = repositoryUrl,
             Branch = branch,
             WorkspaceRoot = workspaceRoot,
@@ -302,6 +303,7 @@ internal static class ConfigWizard
     private static void PrintSummary(BuildConfig config, string outputPath)
     {
         PrintSection("8. 配置确认");
+        Console.WriteLine($"配置名称: {DisplayOptional(config.ConfigName)}");
         Console.WriteLine($"配置文件: {Path.GetFullPath(outputPath)}");
         Console.WriteLine($"仓库: {config.RepositoryUrl}");
         Console.WriteLine($"分支: {config.Branch}");
