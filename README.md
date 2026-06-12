@@ -71,7 +71,7 @@ Assets/Editor/BuildIOS.cs
 - Git 仓库地址和分支，推荐填 `https://github.com/company/game.git` 或 `git@github.com:company/game.git`
 - Unity 工程相对路径，必须是包含 `Assets` 和 `ProjectSettings` 的目录；仓库根目录就是 Unity 工程时填 `.`
 - Unity 版本或 Unity 可执行文件路径
-- Product Name、Bundle Identifier、版本号、构建号、iOS Deployment Target
+- Product Name、Bundle Identifier、版本号、构建号、是否自动增加 Build Number、iOS Deployment Target
 - Apple Developer Team ID，必须是 10 位字母数字，不是公司名
 - Xcode 导出方式，例如 `development`、`ad-hoc`、`app-store`
 - 工作区目录和产物输出目录
@@ -147,7 +147,7 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 
 ## 修改已有配置
 
-如果只是要改版本号、构建号、Bundle ID、导出方式、签名、Git 分支等配置，不需要重新初始化，也不需要手动编辑 JSON。直接运行：
+如果只是要改版本号、构建号、是否自动增加 Build Number、Bundle ID、导出方式、签名、Git 分支等配置，不需要重新初始化，也不需要手动编辑 JSON。直接运行：
 
 ```bash
 ./AutomationUnityBuildIOS 10
@@ -160,6 +160,8 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 ```
 
 进入后选择要修改的字段编号，输入新值后会立即保存到配置文件。输入 `s` 可以查看当前摘要，输入 `0` 或直接回车退出。
+
+`autoIncrementBuildNumber` 默认开启。正式打包时会在 Unity 导出前把 `buildNumber` 自动 +1，本次打包使用加一后的值；完整流程成功后会把新的 `buildNumber` 保存回配置文件。`--dry-run` 或 `--skip-unity` 不会修改配置文件。
 
 查看已有配置：
 

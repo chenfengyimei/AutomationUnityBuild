@@ -9,6 +9,7 @@ internal sealed class AutomationWorkflow : IDisposable
     private readonly BuildPaths _paths;
     private readonly ProcessRunner _processRunner;
     private readonly BuildLogger _logger;
+    private bool _buildNumberAutoIncremented;
 
     public AutomationWorkflow(BuildConfig config, CliOptions options)
     {
@@ -25,6 +26,7 @@ internal sealed class AutomationWorkflow : IDisposable
         try
         {
             _logger.StepStarted("自动化打包流程");
+            PrepareBuildNumberForRun();
             PrintSummary();
             EnsureMacOrAllowed();
             await CheckPrerequisitesAsync();
@@ -70,6 +72,7 @@ internal sealed class AutomationWorkflow : IDisposable
                 _logger.Warn("跳过 Xcode 编译导出。");
             }
 
+            SaveRuntimeConfigChanges();
             _logger.StepCompleted("自动化打包流程", workflowStopwatch.Elapsed);
             Console.ForegroundColor = ConsoleColor.Green;
             _logger.Info("自动化打包流程完成。");
@@ -89,6 +92,74 @@ internal sealed class AutomationWorkflow : IDisposable
     public async Task CheckPrerequisitesAsync()
     {
         await RunStepAsync("检查环境", CheckPrerequisitesCoreAsync);
+    }
+
+    private void PrepareBuildNumberForRun()
+    {
+        if (!_config.AutoIncrementBuildNumber)
+        {
+            _logger.Info("Build Number 自动+1: 关闭");
+            return;
+        }
+
+        if (_options.DryRun)
+        {
+            _logger.Info($"[dry-run] Build Number 自动+1: {DisplayBuildNumber(_config.BuildNumber)} -> {NextBuildNumber(_config.BuildNumber)}");
+            return;
+        }
+
+        if (_options.SkipUnity)
+        {
+            _logger.Info("跳过 Unity 导出，本次不自动增加 Build Number。");
+            return;
+        }
+
+        string previousBuildNumber = _config.BuildNumber;
+        _config.BuildNumber = NextBuildNumber(previousBuildNumber);
+        _buildNumberAutoIncremented = true;
+        _logger.Info($"Build Number 自动+1: {DisplayBuildNumber(previousBuildNumber)} -> {_config.BuildNumber}");
+    }
+
+    private void SaveRuntimeConfigChanges()
+    {
+        if (!_buildNumberAutoIncremented)
+        {
+            return;
+        }
+
+        string configPath = Path.GetFullPath(_options.ConfigPath);
+        ConfigFileWriter.Save(configPath, _config);
+        _logger.Info($"已保存新的 Build Number 到配置文件: {configPath}");
+    }
+
+    private static string NextBuildNumber(string currentBuildNumber)
+    {
+        string current = currentBuildNumber.Trim();
+        if (string.IsNullOrWhiteSpace(current))
+        {
+            return "1";
+        }
+
+        if (!current.All(char.IsDigit) || !ulong.TryParse(current, out ulong numericBuildNumber))
+        {
+            throw new InvalidOperationException(
+                $"autoIncrementBuildNumber=true 时 buildNumber 必须是纯数字，当前值是 {currentBuildNumber}。可以改成数字，或在配置里关闭 autoIncrementBuildNumber。");
+        }
+
+        checked
+        {
+            numericBuildNumber++;
+        }
+
+        string next = numericBuildNumber.ToString();
+        return current.Length > next.Length && current.StartsWith('0')
+            ? next.PadLeft(current.Length, '0')
+            : next;
+    }
+
+    private static string DisplayBuildNumber(string buildNumber)
+    {
+        return string.IsNullOrWhiteSpace(buildNumber) ? "(空)" : buildNumber;
     }
 
     private async Task CheckPrerequisitesCoreAsync()
@@ -755,6 +826,7 @@ internal sealed class AutomationWorkflow : IDisposable
         _logger.Info($"工作区: {_paths.WorkspaceRoot}");
         _logger.Info($"Git 仓库目录: {_paths.RepositoryRoot}");
         _logger.Info($"Unity 工程: {_paths.UnityProjectRoot}");
+        _logger.Info($"Build Number: {DisplayBuildNumber(_config.BuildNumber)}，自动+1: {(_config.AutoIncrementBuildNumber ? "启用" : "关闭")}");
         _logger.Info($"Xcode 输出: {_paths.XcodeOutputDirectory}");
         _logger.Info($"归档: {_paths.ArchivePath}");
         _logger.Info($"导出目录: {_paths.ExportPath}");
