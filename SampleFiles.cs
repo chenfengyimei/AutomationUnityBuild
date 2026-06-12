@@ -36,9 +36,11 @@ internal static class SampleFiles
 
           "allowProvisioningUpdates": true,
           "resetRepository": false,
+          "preserveUnityLibraryOnReset": true,
           "cleanXcodeOutputBeforeBuild": true,
           "useWorkspaceIfPresent": true,
           "generateExportOptionsPlist": true,
+          "copyArchiveToOrganizer": true,
           "compileBitcode": null,
           "uploadSymbols": true,
 

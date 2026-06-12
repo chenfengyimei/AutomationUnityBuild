@@ -36,9 +36,11 @@ internal sealed class BuildConfig
 
     public bool AllowProvisioningUpdates { get; set; } = true;
     public bool ResetRepository { get; set; }
+    public bool PreserveUnityLibraryOnReset { get; set; } = true;
     public bool CleanXcodeOutputBeforeBuild { get; set; } = true;
     public bool UseWorkspaceIfPresent { get; set; } = true;
     public bool GenerateExportOptionsPlist { get; set; } = true;
+    public bool CopyArchiveToOrganizer { get; set; } = true;
 
     public bool? CompileBitcode { get; set; }
     public bool? UploadSymbols { get; set; } = true;
