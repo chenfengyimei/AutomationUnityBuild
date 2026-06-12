@@ -31,6 +31,7 @@ internal static class SampleFiles
           "bundleIdentifier": "com.company.game",
           "productName": "Your Game",
           "bundleVersion": "1.0.0",
+          "syncBundleVersionFromUnity": true,
           "buildNumber": "1",
           "autoIncrementBuildNumber": true,
           "iosDeploymentTarget": "13.0",

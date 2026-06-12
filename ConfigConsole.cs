@@ -56,7 +56,20 @@ internal static class ConfigWizard
         PrintSection("5. App 信息");
         string productName = ConsolePrompts.AskOptional("游戏显示名称 Product Name", projectDirectoryName);
         string bundleIdentifier = AskBundleIdentifier();
-        string bundleVersion = ConsolePrompts.AskOptional("版本号 Bundle Version，例如 1.0.0", "1.0.0");
+        bool syncBundleVersionFromUnity = ConsolePrompts.AskBool(
+            "版本号 Bundle Version 是否同步 Unity 项目设置（推荐开启）",
+            true);
+        string bundleVersion = "";
+        if (syncBundleVersionFromUnity)
+        {
+            Console.WriteLine("已选择同步 Unity 项目版本号：打包时不会用配置文件覆盖 PlayerSettings.bundleVersion。");
+            Console.WriteLine("打包成功后，工具会把 Unity 实际版本号记录回配置文件。");
+        }
+        else
+        {
+            bundleVersion = AskBundleVersion();
+        }
+
         string buildNumber = ConsolePrompts.AskOptional("构建号 Build Number，例如 1、2、100", "1");
         bool autoIncrementBuildNumber = ConsolePrompts.AskBool(
             "每次正式打包前自动将 Build Number +1",
@@ -130,6 +143,7 @@ internal static class ConfigWizard
             BundleIdentifier = bundleIdentifier,
             ProductName = productName,
             BundleVersion = bundleVersion,
+            SyncBundleVersionFromUnity = syncBundleVersionFromUnity,
             BuildNumber = buildNumber,
             AutoIncrementBuildNumber = autoIncrementBuildNumber,
             IosDeploymentTarget = iosDeploymentTarget,
@@ -237,6 +251,20 @@ internal static class ConfigWizard
         }
     }
 
+    private static string AskBundleVersion()
+    {
+        while (true)
+        {
+            string value = ConsolePrompts.AskOptional("强制使用的版本号 Bundle Version，例如 1.0.0", "1.0.0");
+            if (Version.TryParse(value, out _))
+            {
+                return value.Trim();
+            }
+
+            Console.WriteLine("Bundle Version 请输入版本号格式，例如 1.0.0 或 1.2.3。");
+        }
+    }
+
     private static string AskIosDeploymentTarget()
     {
         while (true)
@@ -283,6 +311,9 @@ internal static class ConfigWizard
         Console.WriteLine($"Unity 版本: {(string.IsNullOrWhiteSpace(config.UnityVersion) ? "(自动或使用完整路径)" : config.UnityVersion)}");
         Console.WriteLine($"Unity 完整路径: {(string.IsNullOrWhiteSpace(config.UnityExecutablePath) ? "(未指定)" : config.UnityExecutablePath)}");
         Console.WriteLine($"Bundle ID: {config.BundleIdentifier}");
+        Console.WriteLine(config.SyncBundleVersionFromUnity
+            ? $"Bundle Version: 同步 Unity 项目设置（当前记录值: {DisplayOptional(config.BundleVersion)}）"
+            : $"Bundle Version: 使用固定值 {config.BundleVersion}");
         Console.WriteLine($"Build Number: {config.BuildNumber}");
         Console.WriteLine($"Build Number 自动+1: {(config.AutoIncrementBuildNumber ? "是" : "否")}");
         Console.WriteLine($"iOS Deployment Target: {(string.IsNullOrWhiteSpace(config.IosDeploymentTarget) ? "(使用 Unity 项目原配置)" : config.IosDeploymentTarget)}");
@@ -292,6 +323,11 @@ internal static class ConfigWizard
         Console.WriteLine($"复制 archive 到 Organizer: {(config.CopyArchiveToOrganizer ? "是" : "否")}");
         Console.WriteLine($"强制重置 Git: {(config.ResetRepository ? "是" : "否")}");
         Console.WriteLine($"强制重置时保留 Unity Library: {(config.PreserveUnityLibraryOnReset ? "是" : "否")}");
+    }
+
+    private static string DisplayOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "(空)" : value;
     }
 
     private static string WriteConfig(BuildConfig config, string outputPath, bool force)
@@ -405,36 +441,37 @@ internal static class ConfigEditor
         Console.WriteLine($"  01. Product Name: {Display(config.ProductName)}");
         Console.WriteLine($"  02. Bundle Identifier: {Display(config.BundleIdentifier)}");
         Console.WriteLine($"  03. Bundle Version: {Display(config.BundleVersion)}");
-        Console.WriteLine($"  04. Build Number: {Display(config.BuildNumber)}");
-        Console.WriteLine($"  05. Auto Increment Build Number: {BoolText(config.AutoIncrementBuildNumber)}");
-        Console.WriteLine($"  06. iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
+        Console.WriteLine($"  04. Sync Bundle Version From Unity: {BoolText(config.SyncBundleVersionFromUnity)}");
+        Console.WriteLine($"  05. Build Number: {Display(config.BuildNumber)}");
+        Console.WriteLine($"  06. Auto Increment Build Number: {BoolText(config.AutoIncrementBuildNumber)}");
+        Console.WriteLine($"  07. iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
         Console.WriteLine();
         Console.WriteLine("签名和导出");
-        Console.WriteLine($"  07. Apple Team ID: {Display(config.TeamId)}");
-        Console.WriteLine($"  08. Signing Style: {Display(config.SigningStyle)}");
-        Console.WriteLine($"  09. Export Method: {Display(config.ExportMethod)}");
-        Console.WriteLine($"  10. Allow Provisioning Updates: {BoolText(config.AllowProvisioningUpdates)}");
-        Console.WriteLine($"  11. Copy Archive To Organizer: {BoolText(config.CopyArchiveToOrganizer)}");
+        Console.WriteLine($"  08. Apple Team ID: {Display(config.TeamId)}");
+        Console.WriteLine($"  09. Signing Style: {Display(config.SigningStyle)}");
+        Console.WriteLine($"  10. Export Method: {Display(config.ExportMethod)}");
+        Console.WriteLine($"  11. Allow Provisioning Updates: {BoolText(config.AllowProvisioningUpdates)}");
+        Console.WriteLine($"  12. Copy Archive To Organizer: {BoolText(config.CopyArchiveToOrganizer)}");
         Console.WriteLine();
         Console.WriteLine("Git 和 Unity");
-        Console.WriteLine($"  12. Repository Url: {Display(config.RepositoryUrl)}");
-        Console.WriteLine($"  13. Branch: {Display(config.Branch)}");
-        Console.WriteLine($"  14. Repository Folder Name: {Display(config.ProjectDirectoryName)}");
-        Console.WriteLine($"  15. Unity Project Relative Path: {Display(config.UnityProjectRelativePath)}");
-        Console.WriteLine($"  16. Unity Version: {Display(config.UnityVersion)}");
-        Console.WriteLine($"  17. Unity Executable Path: {Display(config.UnityExecutablePath)}");
-        Console.WriteLine($"  18. Unity Build Method: {Display(config.UnityBuildMethod)}");
+        Console.WriteLine($"  13. Repository Url: {Display(config.RepositoryUrl)}");
+        Console.WriteLine($"  14. Branch: {Display(config.Branch)}");
+        Console.WriteLine($"  15. Repository Folder Name: {Display(config.ProjectDirectoryName)}");
+        Console.WriteLine($"  16. Unity Project Relative Path: {Display(config.UnityProjectRelativePath)}");
+        Console.WriteLine($"  17. Unity Version: {Display(config.UnityVersion)}");
+        Console.WriteLine($"  18. Unity Executable Path: {Display(config.UnityExecutablePath)}");
+        Console.WriteLine($"  19. Unity Build Method: {Display(config.UnityBuildMethod)}");
         Console.WriteLine();
         Console.WriteLine("路径和清理策略");
-        Console.WriteLine($"  19. Workspace Root: {Display(config.WorkspaceRoot)}");
-        Console.WriteLine($"  20. Artifacts Root: {Display(config.ArtifactsRoot)}");
-        Console.WriteLine($"  21. Reset Repository: {BoolText(config.ResetRepository)}");
-        Console.WriteLine($"  22. Preserve Unity Library On Reset: {BoolText(config.PreserveUnityLibraryOnReset)}");
-        Console.WriteLine($"  23. Clean Xcode Output Before Build: {BoolText(config.CleanXcodeOutputBeforeBuild)}");
+        Console.WriteLine($"  20. Workspace Root: {Display(config.WorkspaceRoot)}");
+        Console.WriteLine($"  21. Artifacts Root: {Display(config.ArtifactsRoot)}");
+        Console.WriteLine($"  22. Reset Repository: {BoolText(config.ResetRepository)}");
+        Console.WriteLine($"  23. Preserve Unity Library On Reset: {BoolText(config.PreserveUnityLibraryOnReset)}");
+        Console.WriteLine($"  24. Clean Xcode Output Before Build: {BoolText(config.CleanXcodeOutputBeforeBuild)}");
         Console.WriteLine();
         Console.WriteLine("Xcode 高级项");
-        Console.WriteLine($"  24. Scheme: {Display(config.Scheme)}");
-        Console.WriteLine($"  25. Configuration: {Display(config.Configuration)}");
+        Console.WriteLine($"  25. Scheme: {Display(config.Scheme)}");
+        Console.WriteLine($"  26. Configuration: {Display(config.Configuration)}");
     }
 
     private static bool EditField(BuildConfig config, int number)
@@ -448,12 +485,27 @@ internal static class ConfigEditor
                 config.BundleIdentifier = AskBundleIdentifier(config.BundleIdentifier);
                 return true;
             case 3:
-                config.BundleVersion = AskString("Bundle Version", config.BundleVersion);
+                if (config.SyncBundleVersionFromUnity)
+                {
+                    Console.WriteLine("当前已开启同步 Unity 项目版本号；这里的 Bundle Version 只是记录值，打包成功后会被 Unity 实际版本号更新。");
+                }
+
+                config.BundleVersion = AskVersion("Bundle Version", config.BundleVersion, allowEmpty: config.SyncBundleVersionFromUnity);
                 return true;
             case 4:
-                config.BuildNumber = AskBuildNumber(config.BuildNumber, config.AutoIncrementBuildNumber);
+                bool syncBundleVersionFromUnity = ConsolePrompts.AskBool("Sync Bundle Version From Unity", config.SyncBundleVersionFromUnity);
+                config.SyncBundleVersionFromUnity = syncBundleVersionFromUnity;
+                if (!syncBundleVersionFromUnity)
+                {
+                    Console.WriteLine("关闭同步后，打包时会用下面这个 Bundle Version 强制覆盖 Unity 项目设置。");
+                    config.BundleVersion = AskVersion("Bundle Version", Default(config.BundleVersion, "1.0.0"), allowEmpty: false);
+                }
+
                 return true;
             case 5:
+                config.BuildNumber = AskBuildNumber(config.BuildNumber, config.AutoIncrementBuildNumber);
+                return true;
+            case 6:
                 bool autoIncrementBuildNumber = ConsolePrompts.AskBool("Auto Increment Build Number", config.AutoIncrementBuildNumber);
                 if (autoIncrementBuildNumber && !CanAutoIncrementBuildNumber(config.BuildNumber))
                 {
@@ -463,68 +515,68 @@ internal static class ConfigEditor
 
                 config.AutoIncrementBuildNumber = autoIncrementBuildNumber;
                 return true;
-            case 6:
+            case 7:
                 config.IosDeploymentTarget = AskVersion("iOS Deployment Target", config.IosDeploymentTarget, allowEmpty: true);
                 return true;
-            case 7:
+            case 8:
                 config.TeamId = AskAppleTeamId(config.TeamId);
                 return true;
-            case 8:
+            case 9:
                 config.SigningStyle = ConsolePrompts.AskChoice("Signing Style", ["automatic", "manual"], Default(config.SigningStyle, "automatic"));
                 return true;
-            case 9:
+            case 10:
                 config.ExportMethod = ConsolePrompts.AskChoice("Export Method", ["development", "ad-hoc", "app-store", "enterprise"], Default(config.ExportMethod, "development"));
                 return true;
-            case 10:
+            case 11:
                 config.AllowProvisioningUpdates = ConsolePrompts.AskBool("Allow Provisioning Updates", config.AllowProvisioningUpdates);
                 return true;
-            case 11:
+            case 12:
                 config.CopyArchiveToOrganizer = ConsolePrompts.AskBool("Copy Archive To Organizer", config.CopyArchiveToOrganizer);
                 return true;
-            case 12:
+            case 13:
                 config.RepositoryUrl = AskRepositoryUrl(config.RepositoryUrl);
                 return true;
-            case 13:
+            case 14:
                 config.Branch = AskRequiredWithDefault("Branch", config.Branch);
                 return true;
-            case 14:
+            case 15:
                 config.ProjectDirectoryName = AskString("Repository Folder Name", config.ProjectDirectoryName);
                 return true;
-            case 15:
+            case 16:
                 config.UnityProjectRelativePath = AskUnityProjectRelativePath(config.UnityProjectRelativePath);
                 return true;
-            case 16:
+            case 17:
                 config.UnityVersion = AskString("Unity Version", config.UnityVersion);
                 return true;
-            case 17:
+            case 18:
                 config.UnityExecutablePath = AskString("Unity Executable Path", config.UnityExecutablePath);
                 return true;
-            case 18:
+            case 19:
                 config.UnityBuildMethod = AskRequiredWithDefault("Unity Build Method", config.UnityBuildMethod);
                 return true;
-            case 19:
+            case 20:
                 config.WorkspaceRoot = AskRequiredWithDefault("Workspace Root", config.WorkspaceRoot);
                 return true;
-            case 20:
+            case 21:
                 config.ArtifactsRoot = AskRequiredWithDefault("Artifacts Root", config.ArtifactsRoot);
                 return true;
-            case 21:
+            case 22:
                 config.ResetRepository = ConsolePrompts.AskBool("Reset Repository", config.ResetRepository);
                 if (!config.ResetRepository)
                 {
                     config.PreserveUnityLibraryOnReset = true;
                 }
                 return true;
-            case 22:
+            case 23:
                 config.PreserveUnityLibraryOnReset = ConsolePrompts.AskBool("Preserve Unity Library On Reset", config.PreserveUnityLibraryOnReset);
                 return true;
-            case 23:
+            case 24:
                 config.CleanXcodeOutputBeforeBuild = ConsolePrompts.AskBool("Clean Xcode Output Before Build", config.CleanXcodeOutputBeforeBuild);
                 return true;
-            case 24:
+            case 25:
                 config.Scheme = AskRequiredWithDefault("Scheme", config.Scheme);
                 return true;
-            case 25:
+            case 26:
                 config.Configuration = ConsolePrompts.AskChoice("Configuration", ["Release", "Debug"], Default(config.Configuration, "Release"));
                 return true;
             default:
@@ -541,7 +593,7 @@ internal static class ConfigEditor
         Console.WriteLine($"仓库: {config.RepositoryUrl} [{config.Branch}]");
         Console.WriteLine($"Unity 工程: {config.ProjectDirectoryName}/{config.UnityProjectRelativePath}");
         Console.WriteLine($"Unity: {(string.IsNullOrWhiteSpace(config.UnityExecutablePath) ? config.UnityVersion : config.UnityExecutablePath)}");
-        Console.WriteLine($"App: {config.ProductName}, {config.BundleIdentifier}, version={config.BundleVersion}, build={config.BuildNumber}, autoIncrementBuild={config.AutoIncrementBuildNumber}");
+        Console.WriteLine($"App: {config.ProductName}, {config.BundleIdentifier}, version={Display(config.BundleVersion)}, syncUnityVersion={config.SyncBundleVersionFromUnity}, build={config.BuildNumber}, autoIncrementBuild={config.AutoIncrementBuildNumber}");
         Console.WriteLine($"iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
         Console.WriteLine($"签名: team={config.TeamId}, style={config.SigningStyle}, export={config.ExportMethod}");
         Console.WriteLine($"工作区: {config.WorkspaceRoot}");

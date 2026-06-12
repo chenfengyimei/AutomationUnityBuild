@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AutomationUnityBuildIOS;
 
@@ -9,7 +11,7 @@ internal sealed class AutomationWorkflow : IDisposable
     private readonly BuildPaths _paths;
     private readonly ProcessRunner _processRunner;
     private readonly BuildLogger _logger;
-    private bool _buildNumberAutoIncremented;
+    private bool _runtimeConfigChanged;
 
     public AutomationWorkflow(BuildConfig config, CliOptions options)
     {
@@ -116,20 +118,20 @@ internal sealed class AutomationWorkflow : IDisposable
 
         string previousBuildNumber = _config.BuildNumber;
         _config.BuildNumber = NextBuildNumber(previousBuildNumber);
-        _buildNumberAutoIncremented = true;
+        _runtimeConfigChanged = true;
         _logger.Info($"Build Number 自动+1: {DisplayBuildNumber(previousBuildNumber)} -> {_config.BuildNumber}");
     }
 
     private void SaveRuntimeConfigChanges()
     {
-        if (!_buildNumberAutoIncremented)
+        if (!_runtimeConfigChanged)
         {
             return;
         }
 
         string configPath = Path.GetFullPath(_options.ConfigPath);
         ConfigFileWriter.Save(configPath, _config);
-        _logger.Info($"已保存新的 Build Number 到配置文件: {configPath}");
+        _logger.Info($"已保存运行时更新到配置文件: {configPath}");
     }
 
     private static string NextBuildNumber(string currentBuildNumber)
@@ -160,6 +162,11 @@ internal sealed class AutomationWorkflow : IDisposable
     private static string DisplayBuildNumber(string buildNumber)
     {
         return string.IsNullOrWhiteSpace(buildNumber) ? "(空)" : buildNumber;
+    }
+
+    private static string DisplayBundleVersion(string bundleVersion)
+    {
+        return string.IsNullOrWhiteSpace(bundleVersion) ? "(空)" : bundleVersion;
     }
 
     private async Task CheckPrerequisitesCoreAsync()
@@ -329,11 +336,21 @@ internal sealed class AutomationWorkflow : IDisposable
         };
 
         AddUnityPair(args, "-customBuildNumber", _config.BuildNumber);
-        AddUnityPair(args, "-customBundleVersion", _config.BundleVersion);
+        if (_config.SyncBundleVersionFromUnity)
+        {
+            _logger.Info("Bundle Version 同步 Unity 项目设置，本次不会用配置文件强制覆盖。");
+        }
+        else
+        {
+            AddUnityPair(args, "-customBundleVersion", _config.BundleVersion);
+            _logger.Info($"Bundle Version 使用配置文件固定值: {_config.BundleVersion}");
+        }
+
         AddUnityPair(args, "-customBundleIdentifier", _config.BundleIdentifier);
         AddUnityPair(args, "-customProductName", _config.ProductName);
         AddUnityPair(args, "-customAppleTeamId", _config.TeamId);
         AddUnityPair(args, "-customIosDeploymentTarget", _config.IosDeploymentTarget);
+        AddUnityPair(args, "-customBuildMetadataPath", _paths.UnityBuildMetadataPath);
 
         try
         {
@@ -343,8 +360,15 @@ internal sealed class AutomationWorkflow : IDisposable
                 _paths.UnityProjectRoot,
                 _paths.UnityProcessLogPath,
                 _config.Environment);
+
+            if (_options.DryRun)
+            {
+                return;
+            }
+
             ValidateXcodeProjectExported();
             ValidateCocoaPodsInstallation();
+            SyncBundleVersionFromUnityMetadata();
         }
         catch
         {
@@ -413,6 +437,56 @@ internal sealed class AutomationWorkflow : IDisposable
 
         throw new InvalidOperationException(
             "CocoaPods 依赖安装失败。请在 unity-editor.log 中搜索 \"pod install output\"，先修复 Podfile/Deployment Target/CocoaPods repo 后再打包。");
+    }
+
+    private void SyncBundleVersionFromUnityMetadata()
+    {
+        if (!_config.SyncBundleVersionFromUnity)
+        {
+            return;
+        }
+
+        if (_options.SkipUnity)
+        {
+            return;
+        }
+
+        if (!File.Exists(_paths.UnityBuildMetadataPath))
+        {
+            _logger.Warn($"已开启 Bundle Version 同步，但没有找到 Unity 构建元数据: {_paths.UnityBuildMetadataPath}");
+            _logger.Warn("请确认 Unity 项目里的 Assets/Editor/BuildIOS.cs 已更新到当前工具版本。");
+            return;
+        }
+
+        UnityBuildMetadata? metadata;
+        try
+        {
+            metadata = JsonSerializer.Deserialize<UnityBuildMetadata>(
+                File.ReadAllText(_paths.UnityBuildMetadataPath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"读取 Unity 构建元数据失败，跳过 Bundle Version 同步: {ex.Message}");
+            return;
+        }
+
+        string unityBundleVersion = metadata?.BundleVersion?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(unityBundleVersion))
+        {
+            _logger.Warn("Unity 构建元数据里没有 bundleVersion，跳过 Bundle Version 同步。");
+            return;
+        }
+
+        if (string.Equals(_config.BundleVersion, unityBundleVersion, StringComparison.Ordinal))
+        {
+            _logger.Info($"Bundle Version 已与 Unity 项目一致: {unityBundleVersion}");
+            return;
+        }
+
+        _logger.Info($"同步 Unity 项目 Bundle Version: {DisplayBundleVersion(_config.BundleVersion)} -> {unityBundleVersion}");
+        _config.BundleVersion = unityBundleVersion;
+        _runtimeConfigChanged = true;
     }
 
     private string? FindXcodeProjectOrWorkspace()
@@ -826,6 +900,9 @@ internal sealed class AutomationWorkflow : IDisposable
         _logger.Info($"工作区: {_paths.WorkspaceRoot}");
         _logger.Info($"Git 仓库目录: {_paths.RepositoryRoot}");
         _logger.Info($"Unity 工程: {_paths.UnityProjectRoot}");
+        _logger.Info(_config.SyncBundleVersionFromUnity
+            ? $"Bundle Version: 同步 Unity 项目设置（配置记录值: {DisplayBundleVersion(_config.BundleVersion)}）"
+            : $"Bundle Version: 使用配置固定值 {_config.BundleVersion}");
         _logger.Info($"Build Number: {DisplayBuildNumber(_config.BuildNumber)}，自动+1: {(_config.AutoIncrementBuildNumber ? "启用" : "关闭")}");
         _logger.Info($"Xcode 输出: {_paths.XcodeOutputDirectory}");
         _logger.Info($"归档: {_paths.ArchivePath}");
@@ -899,5 +976,23 @@ internal sealed class AutomationWorkflow : IDisposable
         return signingStyle.Equals("manual", StringComparison.OrdinalIgnoreCase)
             ? "Manual"
             : "Automatic";
+    }
+
+    private sealed class UnityBuildMetadata
+    {
+        [JsonPropertyName("bundleVersion")]
+        public string? BundleVersion { get; set; }
+
+        [JsonPropertyName("buildNumber")]
+        public string? BuildNumber { get; set; }
+
+        [JsonPropertyName("bundleIdentifier")]
+        public string? BundleIdentifier { get; set; }
+
+        [JsonPropertyName("productName")]
+        public string? ProductName { get; set; }
+
+        [JsonPropertyName("iosDeploymentTarget")]
+        public string? IosDeploymentTarget { get; set; }
     }
 }

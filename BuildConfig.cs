@@ -31,6 +31,7 @@ internal sealed class BuildConfig
     public string BundleIdentifier { get; set; } = "";
     public string ProductName { get; set; } = "";
     public string BundleVersion { get; set; } = "";
+    public bool SyncBundleVersionFromUnity { get; set; } = true;
     public string BuildNumber { get; set; } = "";
     public string IosDeploymentTarget { get; set; } = "";
     public bool AutoIncrementBuildNumber { get; set; } = true;
@@ -112,6 +113,11 @@ internal sealed class BuildConfig
         {
             throw new InvalidOperationException("配置 iosDeploymentTarget 必须是版本号格式，例如 13.0 或 14.0。");
         }
+
+        if (!SyncBundleVersionFromUnity && string.IsNullOrWhiteSpace(BundleVersion))
+        {
+            throw new InvalidOperationException("syncBundleVersionFromUnity=false 时必须配置 bundleVersion。");
+        }
     }
 }
 
@@ -129,6 +135,7 @@ internal sealed record BuildPaths(
     string AutomationLogPath,
     string UnityLogPath,
     string UnityProcessLogPath,
+    string UnityBuildMetadataPath,
     string XcodeArchiveLogPath,
     string XcodeExportLogPath,
     string ExportOptionsPlistPath)
@@ -162,6 +169,7 @@ internal sealed record BuildPaths(
             Path.Combine(logsDirectory, "automation.log"),
             Path.Combine(logsDirectory, "unity-editor.log"),
             Path.Combine(logsDirectory, "unity-process.log"),
+            Path.Combine(logsDirectory, "unity-build-metadata.json"),
             Path.Combine(logsDirectory, "xcode-archive.log"),
             Path.Combine(logsDirectory, "xcode-export.log"),
             exportOptionsPlistPath);
