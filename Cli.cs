@@ -46,6 +46,7 @@ internal static class Cli
                 "run" => await RunWorkflowAsync(options),
                 "doctor" => await RunDoctorAsync(options),
                 "init-config" => InitConfig(options),
+                "edit-config" => EditConfig(options),
                 "list-configs" => ListConfigs(),
                 _ => UnknownCommand(command)
             };
@@ -90,6 +91,13 @@ internal static class Cli
         }
 
         ConfigWizard.Run(options.ConfigPath, options.ConfigWasSpecified, options.Force);
+        return 0;
+    }
+
+    private static int EditConfig(CliOptions options)
+    {
+        string configPath = ResolveConfigPath(options, "修改");
+        ConfigEditor.Run(configPath);
         return 0;
     }
 
@@ -163,7 +171,8 @@ internal static class InteractiveMenu
             Console.WriteLine("  04. 选择配置并检查环境");
             Console.WriteLine("  05. 选择配置并预览命令 dry-run");
             Console.WriteLine("  06. 选择配置并正式打包");
-            Console.WriteLine("  10. 手动输入完整命令");
+            Console.WriteLine("  10. 选择配置并修改配置内容");
+            Console.WriteLine("  11. 手动输入完整命令");
             Console.WriteLine("  0. 退出");
             Console.Write("> ");
 
@@ -200,6 +209,9 @@ internal static class InteractiveMenu
                     await Cli.ExecuteAsync(["run"]);
                     break;
                 case "10":
+                    await Cli.ExecuteAsync(["edit-config"]);
+                    break;
+                case "11":
                     Console.WriteLine("请输入命令，不需要输入 exe 名称。例: run --config configs/build-ios.dev.json --dry-run --allow-non-mac");
                     Console.Write("> ");
                     string? commandLine = Console.ReadLine();
@@ -363,6 +375,7 @@ internal static class HelpPrinter
 
             用法:
               AutomationUnityBuildIOS init-config
+              AutomationUnityBuildIOS edit-config
               AutomationUnityBuildIOS list-configs
               AutomationUnityBuildIOS run
               AutomationUnityBuildIOS run --config configs/build-ios.dev.json
@@ -370,6 +383,7 @@ internal static class HelpPrinter
 
             初始化:
               init-config       进入问答式配置向导，生成已填写好的配置文件
+              edit-config       选择并修改已有配置文件中的常用字段
               --template        只生成模板文件，不进入问答
               --force           允许覆盖已有配置文件
 

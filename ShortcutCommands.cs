@@ -14,7 +14,8 @@ internal static class ShortcutCommands
         new("06", "选择配置并执行完整打包流程", ["run"]),
         new("07", "选择配置打包，但跳过 Git 同步", ["run", "--skip-git"]),
         new("08", "选择配置打包，但跳过 Unity 导出", ["run", "--skip-unity"]),
-        new("09", "选择配置打包，但跳过 Xcode 编译导出", ["run", "--skip-xcode"])
+        new("09", "选择配置打包，但跳过 Xcode 编译导出", ["run", "--skip-xcode"]),
+        new("10", "选择配置并修改配置内容", ["edit-config"])
     ];
 
     public static bool IsShortcut(string? value)
@@ -60,6 +61,7 @@ internal static class ShortcutCommands
         Console.WriteLine("快捷指令也可以追加参数，例如:");
         Console.WriteLine("  05 --config configs/build-ios.dev.json");
         Console.WriteLine("  06 --config configs/build-ios.release.json");
+        Console.WriteLine("  10 --config configs/build-ios.release.json");
     }
 
     private static bool TryNormalize(string? value, out string code)
