@@ -1,4 +1,5 @@
 {
+  "configName": "dev",
   "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
   "branch": "main",
   "workspaceRoot": "~/UnityBuildWorkspace",

@@ -5,6 +5,7 @@ namespace AutomationUnityBuildIOS;
 
 internal sealed class BuildConfig
 {
+    public string ConfigName { get; set; } = "";
     public string RepositoryUrl { get; set; } = "";
     public string Branch { get; set; } = "main";
     public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
@@ -79,6 +80,7 @@ internal sealed class BuildConfig
 
     private void NormalizeLoadedValues()
     {
+        ConfigName ??= "";
         RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(RepositoryUrl ?? "");
         Branch ??= "";
         WorkspaceRoot ??= "";
