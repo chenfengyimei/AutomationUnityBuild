@@ -1,0 +1,29 @@
+﻿using System.Text;
+using System.Text.Json;
+
+namespace AutomationUnityBuildIOS;
+
+internal static class JsonOptions
+{
+    public static readonly JsonSerializerOptions IndentedCamelCase = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+}
+
+internal static class ConfigFileWriter
+{
+    public static void Save(string fullPath, BuildConfig config)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        string json = JsonSerializer.Serialize(config, JsonOptions.IndentedCamelCase);
+        File.WriteAllText(fullPath, json + Environment.NewLine, TextEncodings.Utf8Bom);
+    }
+}
+
+internal static class TextEncodings
+{
+    public static readonly Encoding Utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+}
+
