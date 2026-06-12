@@ -17,6 +17,7 @@ internal sealed class BuildDirectoryPreparer(BuildRunContext context)
 
         if (_config.CleanXcodeOutputBeforeBuild && Directory.Exists(_paths.XcodeOutputDirectory))
         {
+            EnsureSafeCleanTarget(_paths.XcodeOutputDirectory, _paths.ArtifactsRunRoot);
             _logger.Warn($"清理旧 Xcode 输出目录: {_paths.XcodeOutputDirectory}");
             Directory.Delete(_paths.XcodeOutputDirectory, recursive: true);
         }
@@ -41,5 +42,37 @@ internal sealed class BuildDirectoryPreparer(BuildRunContext context)
 
         Directory.CreateDirectory(parent);
         _logger.Info($"{description}: {parent}");
+    }
+
+    private static void EnsureSafeCleanTarget(string targetDirectory, string allowedRoot)
+    {
+        if (IsStrictChildPath(targetDirectory, allowedRoot))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"拒绝清理 Xcode 输出目录: {targetDirectory}{Environment.NewLine}" +
+            $"为了防止误删，cleanXcodeOutputBeforeBuild=true 时 xcodeOutputDirectory 必须位于本次产物目录内: {allowedRoot}{Environment.NewLine}" +
+            "如果你确实要使用外部固定目录，请把 cleanXcodeOutputBeforeBuild 改为 false，或把 xcodeOutputDirectory 改到 artifactsRoot 下面。");
+    }
+
+    private static bool IsStrictChildPath(string targetDirectory, string allowedRoot)
+    {
+        string normalizedTarget = NormalizeDirectoryPath(targetDirectory);
+        string normalizedRoot = NormalizeDirectoryPath(allowedRoot);
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        return normalizedTarget.Length > normalizedRoot.Length &&
+               normalizedTarget.StartsWith(normalizedRoot, comparison);
+    }
+
+    private static string NormalizeDirectoryPath(string path)
+    {
+        string fullPath = Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
     }
 }

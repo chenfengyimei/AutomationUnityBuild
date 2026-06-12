@@ -72,13 +72,40 @@ internal sealed class BuildConfig
             throw new InvalidOperationException($"配置文件为空或格式不正确: {fullPath}");
         }
 
-        config.XcodeBuildSettings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        config.Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        config.ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        config.RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(config.RepositoryUrl);
-        config.IosDeploymentTarget = config.IosDeploymentTarget.Trim();
+        config.NormalizeLoadedValues();
         config.Validate();
         return config;
+    }
+
+    private void NormalizeLoadedValues()
+    {
+        RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(RepositoryUrl ?? "");
+        Branch ??= "";
+        WorkspaceRoot ??= "";
+        ProjectDirectoryName ??= "";
+        UnityProjectRelativePath ??= "";
+        UnityVersion ??= "";
+        UnityExecutablePath ??= "";
+        UnityBuildMethod ??= "";
+        ArtifactsRoot ??= "";
+        XcodeOutputDirectory ??= "";
+        ArchivePath ??= "";
+        ExportPath ??= "";
+        LogsDirectory ??= "";
+        Scheme ??= "";
+        Configuration ??= "";
+        ExportMethod ??= "";
+        TeamId ??= "";
+        SigningStyle ??= "";
+        ExportOptionsPlistPath ??= "";
+        BundleIdentifier ??= "";
+        ProductName ??= "";
+        BundleVersion ??= "";
+        BuildNumber ??= "";
+        IosDeploymentTarget = (IosDeploymentTarget ?? "").Trim();
+        XcodeBuildSettings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     private void Validate()

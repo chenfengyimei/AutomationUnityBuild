@@ -26,6 +26,7 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         }
 
         _logger.Info($"仓库已存在，准备更新: {_paths.RepositoryRoot}");
+        await ValidateExistingRepositoryRemoteAsync(gitEnvironment);
         await _processRunner.RunAsync("git", ["fetch", "--prune", "origin"], _paths.RepositoryRoot, environment: gitEnvironment);
         await _processRunner.RunAsync("git", ["checkout", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
 
@@ -39,6 +40,36 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         {
             await _processRunner.RunAsync("git", ["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
         }
+    }
+
+    private async Task ValidateExistingRepositoryRemoteAsync(IReadOnlyDictionary<string, string> gitEnvironment)
+    {
+        if (_options.DryRun)
+        {
+            _logger.Info("[dry-run] 检查已有仓库 remote origin 是否匹配配置。");
+            return;
+        }
+
+        string originUrl = (await _processRunner.RunCaptureStdoutAsync(
+            "git",
+            ["remote", "get-url", "origin"],
+            _paths.RepositoryRoot,
+            gitEnvironment)).Trim();
+
+        string configuredKey = CanonicalRepositoryKey(_config.RepositoryUrl);
+        string originKey = CanonicalRepositoryKey(originUrl);
+        if (string.Equals(configuredKey, originKey, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.Info("Git remote origin 与配置仓库匹配。");
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"已有仓库目录的 remote origin 与配置不一致，已停止打包，避免打错项目。{Environment.NewLine}" +
+            $"仓库目录: {_paths.RepositoryRoot}{Environment.NewLine}" +
+            $"配置仓库: {RedactRepositoryUrl(_config.RepositoryUrl)}{Environment.NewLine}" +
+            $"当前 origin: {RedactRepositoryUrl(originUrl)}{Environment.NewLine}" +
+            "处理方式：修改配置里的 projectDirectoryName 使用新的目录，或手动确认后删除/重命名旧仓库目录。");
     }
 
     private IReadOnlyList<string> GitCleanArguments()
@@ -76,6 +107,51 @@ internal sealed class GitRepositoryService(BuildRunContext context)
             .Replace(Path.DirectorySeparatorChar, '/')
             .Replace(Path.AltDirectorySeparatorChar, '/')
             .TrimEnd('/') + "/";
+    }
+
+    private static string CanonicalRepositoryKey(string url)
+    {
+        string normalized = ConfigValueNormalizer.NormalizeRepositoryUrl(url).Trim().TrimEnd('/', '\\');
+        if (normalized.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+        {
+            int atIndex = normalized.IndexOf('@');
+            int colonIndex = normalized.IndexOf(':', atIndex + 1);
+            if (atIndex >= 0 && colonIndex > atIndex)
+            {
+                string host = normalized[(atIndex + 1)..colonIndex];
+                string path = normalized[(colonIndex + 1)..];
+                return TrimGitSuffix($"{host}/{path}").ToLowerInvariant();
+            }
+        }
+
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri))
+        {
+            return TrimGitSuffix($"{uri.Host}{uri.AbsolutePath}").TrimEnd('/').ToLowerInvariant();
+        }
+
+        return TrimGitSuffix(normalized).ToLowerInvariant();
+    }
+
+    private static string TrimGitSuffix(string value)
+    {
+        return value.EndsWith(".git", StringComparison.OrdinalIgnoreCase)
+            ? value[..^4]
+            : value;
+    }
+
+    private static string RedactRepositoryUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || string.IsNullOrEmpty(uri.UserInfo))
+        {
+            return url;
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            UserName = "***",
+            Password = ""
+        };
+        return builder.Uri.ToString();
     }
 
     private void ValidateRepositoryUrlForGit()
