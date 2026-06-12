@@ -27,39 +27,19 @@ xcodebuild -version
 
 ## Mac 首次打开被拦截
 
-如果 Mac 提示“无法验证是不是恶意软件”或“不明开发者”，这是因为这个工具是你自己从 Windows 发布出来的，没有 Apple 开发者签名。首次拷到 Mac 后，在工具目录执行：
+如果 Mac 提示“无法验证是不是恶意软件”或“不明开发者”，这是因为这个工具是你自己从 Windows 发布出来的，没有 Apple 开发者签名。
+
+推荐做法是：把 Windows 发布出来的 `publish/osx-arm64` 整个文件夹拷到 Mac，例如放到 `~/Downloads/publish_m1`，然后进入这个发布目录执行：
 
 ```bash
-chmod +x scripts/fix-mac-gatekeeper.sh
-./scripts/fix-mac-gatekeeper.sh
-```
-
-如果你已经 `cd` 到了 `publish` 文件夹，直接执行：
-
-```bash
+cd ~/Downloads/publish_m1
 xattr -cr .
 chmod +x ./AutomationUnityBuildIOS
 codesign --force --deep --sign - ./AutomationUnityBuildIOS
 ./AutomationUnityBuildIOS 00
 ```
 
-Intel Mac 把 `osx-arm64` 换成 `osx-x64`。
-
-也可以手动处理：
-
-```bash
-chmod +x ./publish/osx-arm64/AutomationUnityBuildIOS
-xattr -dr com.apple.quarantine ./publish/osx-arm64/AutomationUnityBuildIOS
-codesign --force --deep --sign - ./publish/osx-arm64/AutomationUnityBuildIOS
-```
-
-Intel Mac 把 `osx-arm64` 换成 `osx-x64`。
-
-处理完再运行：
-
-```bash
-./publish/osx-arm64/AutomationUnityBuildIOS 00
-```
+`00` 会打开帮助和快捷指令菜单。Apple Silicon Mac 使用 `osx-arm64` 发布包；Intel Mac 使用 `osx-x64` 发布包，但进入发布目录后的命令一样。
 
 ## Unity 工程需要加的脚本
 
@@ -76,13 +56,13 @@ Assets/Editor/BuildIOS.cs
 现在不需要手动复制模板再编辑 JSON。直接运行：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS init-config
+./AutomationUnityBuildIOS 01
 ```
 
-Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
+也可以使用完整命令：
 
-```text
-1. 初始化新配置
+```bash
+./AutomationUnityBuildIOS init-config
 ```
 
 向导会依次询问这些信息，并自动生成填好的配置文件：
@@ -96,7 +76,9 @@ Windows/VS 里直接 F5 启动后，也可以在菜单里选择：
 - Xcode 导出方式，例如 `development`、`ad-hoc`、`app-store`
 - 工作区目录和产物输出目录
 - 是否允许 Xcode 自动处理签名
+- 是否复制 `.xcarchive` 到 Xcode Organizer
 - 是否每次打包前强制重置 Git 仓库
+- 强制重置 Git 时是否保留 Unity `Library` 缓存，避免每次重新导入资源
 
 最容易填错的三个地方：
 
@@ -120,7 +102,7 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 如果只是想生成空模板，仍然可以用：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS init-config --config build-ios.json --template
+./AutomationUnityBuildIOS init-config --config build-ios.json --template
 ```
 
 ## 选择配置打包
@@ -128,16 +110,16 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 如果不传 `--config`，程序会自动列出已有配置文件让你选择：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run
+./AutomationUnityBuildIOS run
 ```
 
 也可以使用数字快捷指令，不用记完整命令：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS 00
-./publish/osx-arm64/AutomationUnityBuildIOS 01
-./publish/osx-arm64/AutomationUnityBuildIOS 05
-./publish/osx-arm64/AutomationUnityBuildIOS 06 --config configs/build-ios.dev.json
+./AutomationUnityBuildIOS 00
+./AutomationUnityBuildIOS 01
+./AutomationUnityBuildIOS 05
+./AutomationUnityBuildIOS 06 --config configs/build-ios.dev.json
 ```
 
 快捷指令表：
@@ -158,25 +140,25 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 也可以明确指定：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json
+./AutomationUnityBuildIOS run --config configs/build-ios.dev.json
 ```
 
 查看已有配置：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS list-configs
+./AutomationUnityBuildIOS list-configs
 ```
 
 只检查环境：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS doctor
+./AutomationUnityBuildIOS doctor
 ```
 
 只预览命令，不真正执行：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --dry-run --verbose
+./AutomationUnityBuildIOS run --config configs/build-ios.dev.json --dry-run --verbose
 ```
 
 ## 在 Windows/VS 发布给 Mac 用
@@ -193,26 +175,43 @@ Intel Mac：
 .\scripts\publish-mac.ps1 -Runtime osx-x64
 ```
 
-然后把整个项目目录或 `publish/<runtime>`、`configs/`、`scripts/build-ios.sh` 拷到 Mac。
+然后把 `publish/<runtime>` 这个发布文件夹整个拷到 Mac。建议在 Mac 上改一个容易区分的目录名，例如：
+
+```text
+~/Downloads/publish_m1
+~/Downloads/publish_release
+```
+
+后续所有命令都在这个发布目录里执行。
 
 ## 在 Mac 一键打包
 
-首次给脚本执行权限：
+进入发布目录并完成首次启动处理：
 
 ```bash
-chmod +x scripts/build-ios.sh
+cd ~/Downloads/publish_m1
+xattr -cr .
+chmod +x ./AutomationUnityBuildIOS
+codesign --force --deep --sign - ./AutomationUnityBuildIOS
+./AutomationUnityBuildIOS 00
 ```
 
-指定配置执行：
+第一次使用先初始化配置：
 
 ```bash
-./scripts/build-ios.sh ./configs/build-ios.dev.json
+./AutomationUnityBuildIOS 01
 ```
 
-也可以直接运行可执行文件并选择配置：
+后续打包直接选择已有配置并执行完整流程：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run
+./AutomationUnityBuildIOS 06
+```
+
+也可以指定配置文件：
+
+```bash
+./AutomationUnityBuildIOS 06 --config configs/build-ios.dev.json
 ```
 
 打包成功后，产物会在 `artifactsRoot` 下按时间生成，例如：
@@ -228,13 +227,13 @@ chmod +x scripts/build-ios.sh
 跳过 Git，只用 Mac 本地已有项目：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-git
+./AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-git
 ```
 
 跳过 Unity，只重新执行 Xcode 打包：
 
 ```bash
-./publish/osx-arm64/AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-unity
+./AutomationUnityBuildIOS run --config configs/build-ios.dev.json --skip-unity
 ```
 
 ## 日志系统

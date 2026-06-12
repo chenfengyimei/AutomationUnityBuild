@@ -89,8 +89,14 @@ internal static class ConfigWizard
         bool resetRepository = ConsolePrompts.AskBool(
             "每次打包前强制重置 Git 仓库到远端分支",
             false);
+        bool preserveUnityLibraryOnReset = !resetRepository || ConsolePrompts.AskBool(
+            "强制重置时保留 Unity Library 缓存，避免每次重新导入资源",
+            true);
         bool cleanXcodeOutputBeforeBuild = ConsolePrompts.AskBool(
             "每次打包前清理旧 Xcode 输出目录",
+            true);
+        bool copyArchiveToOrganizer = ConsolePrompts.AskBool(
+            "Xcode archive 成功后复制 .xcarchive 到 Xcode Organizer",
             true);
 
         var config = new BuildConfig
@@ -126,9 +132,11 @@ internal static class ConfigWizard
 
             AllowProvisioningUpdates = allowProvisioningUpdates,
             ResetRepository = resetRepository,
+            PreserveUnityLibraryOnReset = preserveUnityLibraryOnReset,
             CleanXcodeOutputBeforeBuild = cleanXcodeOutputBeforeBuild,
             UseWorkspaceIfPresent = true,
             GenerateExportOptionsPlist = true,
+            CopyArchiveToOrganizer = copyArchiveToOrganizer,
             CompileBitcode = null,
             UploadSymbols = true,
 
@@ -275,7 +283,9 @@ internal static class ConfigWizard
         Console.WriteLine($"Team ID: {config.TeamId}");
         Console.WriteLine($"导出方式: {config.ExportMethod}");
         Console.WriteLine($"产物目录: {config.ArtifactsRoot}");
+        Console.WriteLine($"复制 archive 到 Organizer: {(config.CopyArchiveToOrganizer ? "是" : "否")}");
         Console.WriteLine($"强制重置 Git: {(config.ResetRepository ? "是" : "否")}");
+        Console.WriteLine($"强制重置时保留 Unity Library: {(config.PreserveUnityLibraryOnReset ? "是" : "否")}");
     }
 
     private static string WriteConfig(BuildConfig config, string outputPath, bool force)

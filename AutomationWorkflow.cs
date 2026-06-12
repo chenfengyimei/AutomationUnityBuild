@@ -165,12 +165,49 @@ internal sealed class AutomationWorkflow : IDisposable
         {
             _logger.Warn($"resetRepository=true，将强制重置到 origin/{_config.Branch} 并清理未跟踪文件。");
             await _processRunner.RunAsync("git", ["reset", "--hard", $"origin/{_config.Branch}"], _paths.RepositoryRoot, environment: gitEnvironment);
-            await _processRunner.RunAsync("git", ["clean", "-fdx"], _paths.RepositoryRoot, environment: gitEnvironment);
+            await _processRunner.RunAsync("git", GitCleanArguments(), _paths.RepositoryRoot, environment: gitEnvironment);
         }
         else
         {
             await _processRunner.RunAsync("git", ["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
         }
+    }
+
+    private IReadOnlyList<string> GitCleanArguments()
+    {
+        var args = new List<string> { "clean", "-fdx" };
+        if (!_config.PreserveUnityLibraryOnReset)
+        {
+            return args;
+        }
+
+        string? excludePattern = UnityLibraryGitCleanExcludePattern();
+        if (excludePattern is null)
+        {
+            _logger.Warn("无法计算 Unity Library 相对仓库路径，将按原始 git clean -fdx 清理。");
+            return args;
+        }
+
+        args.AddRange(["-e", excludePattern]);
+        _logger.Info($"保留 Unity Library 缓存: {Path.Combine(_paths.UnityProjectRoot, "Library")}");
+        return args;
+    }
+
+    private string? UnityLibraryGitCleanExcludePattern()
+    {
+        string repositoryRoot = Path.GetFullPath(_paths.RepositoryRoot);
+        string libraryPath = Path.GetFullPath(Path.Combine(_paths.UnityProjectRoot, "Library"));
+        string relativePath = Path.GetRelativePath(repositoryRoot, libraryPath);
+
+        if (Path.IsPathRooted(relativePath) || relativePath.StartsWith("..", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return relativePath
+            .Replace(Path.DirectorySeparatorChar, '/')
+            .Replace(Path.AltDirectorySeparatorChar, '/')
+            .TrimEnd('/') + "/";
     }
 
     private void ValidateRepositoryUrlForGit()
@@ -603,6 +640,8 @@ internal sealed class AutomationWorkflow : IDisposable
             _paths.XcodeArchiveLogPath,
             _config.Environment);
 
+        CopyArchiveToOrganizer();
+
         await _processRunner.RunAsync(
             "xcodebuild",
             [
@@ -616,16 +655,111 @@ internal sealed class AutomationWorkflow : IDisposable
             _config.Environment);
     }
 
+    private void CopyArchiveToOrganizer()
+    {
+        if (!_config.CopyArchiveToOrganizer)
+        {
+            _logger.Info("未启用复制 archive 到 Xcode Organizer。");
+            return;
+        }
+
+        string organizerDateDirectory = PathTools.ExpandHome(
+            Path.Combine("~/Library/Developer/Xcode/Archives", DateTime.Now.ToString("yyyy-MM-dd")));
+        string targetArchivePath = GetUniqueDirectoryPath(
+            Path.Combine(organizerDateDirectory, $"{SanitizePathComponent(ArchiveDisplayName())}-{_paths.RunId}.xcarchive"));
+
+        if (_options.DryRun)
+        {
+            _logger.Info($"[dry-run] 复制 archive 到 Xcode Organizer: {_paths.ArchivePath} -> {targetArchivePath}");
+            return;
+        }
+
+        if (!Directory.Exists(_paths.ArchivePath))
+        {
+            throw new DirectoryNotFoundException($"Xcode archive 命令已完成，但没有找到归档目录: {_paths.ArchivePath}");
+        }
+
+        Directory.CreateDirectory(organizerDateDirectory);
+        CopyDirectory(_paths.ArchivePath, targetArchivePath);
+        _logger.Info($"已复制 archive 到 Xcode Organizer: {targetArchivePath}");
+    }
+
+    private string ArchiveDisplayName()
+    {
+        if (!string.IsNullOrWhiteSpace(_config.ProductName))
+        {
+            return _config.ProductName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_config.ProjectDirectoryName))
+        {
+            return _config.ProjectDirectoryName;
+        }
+
+        return _config.Scheme;
+    }
+
+    private static string GetUniqueDirectoryPath(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return path;
+        }
+
+        string directory = Path.GetDirectoryName(path) ?? "";
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+        string extension = Path.GetExtension(path);
+
+        for (int index = 2; ; index++)
+        {
+            string candidate = Path.Combine(directory, $"{fileNameWithoutExtension}-{index}{extension}");
+            if (!Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private static string SanitizePathComponent(string value)
+    {
+        string sanitized = string.IsNullOrWhiteSpace(value) ? "UnityArchive" : value.Trim();
+        foreach (char invalidChar in Path.GetInvalidFileNameChars())
+        {
+            sanitized = sanitized.Replace(invalidChar, '-');
+        }
+
+        return sanitized.Replace(' ', '-');
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string targetDirectory)
+    {
+        Directory.CreateDirectory(targetDirectory);
+
+        foreach (string filePath in Directory.EnumerateFiles(sourceDirectory))
+        {
+            string targetFilePath = Path.Combine(targetDirectory, Path.GetFileName(filePath));
+            File.Copy(filePath, targetFilePath, overwrite: false);
+        }
+
+        foreach (string directoryPath in Directory.EnumerateDirectories(sourceDirectory))
+        {
+            string targetSubdirectory = Path.Combine(targetDirectory, Path.GetFileName(directoryPath));
+            CopyDirectory(directoryPath, targetSubdirectory);
+        }
+    }
+
     private void PrintSummary()
     {
         _logger.Info($"RunId: {_paths.RunId}");
         _logger.Info($"仓库: {_config.RepositoryUrl} [{_config.Branch}]");
         _logger.Info($"工作区: {_paths.WorkspaceRoot}");
+        _logger.Info($"Git 仓库目录: {_paths.RepositoryRoot}");
         _logger.Info($"Unity 工程: {_paths.UnityProjectRoot}");
         _logger.Info($"Xcode 输出: {_paths.XcodeOutputDirectory}");
         _logger.Info($"归档: {_paths.ArchivePath}");
         _logger.Info($"导出目录: {_paths.ExportPath}");
         _logger.Info($"日志目录: {_paths.LogsDirectory}");
+        _logger.Info($"复制 archive 到 Organizer: {(_config.CopyArchiveToOrganizer ? "启用" : "关闭")}");
     }
 
     private StepTimer StartStep(string name)
