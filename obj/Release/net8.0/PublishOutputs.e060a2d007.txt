@@ -1,5 +1,0 @@
-C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_mac_cs\AutomationUnityBuildIOS.exe
-C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_mac_cs\AutomationUnityBuildIOS.dll
-C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_mac_cs\AutomationUnityBuildIOS.deps.json
-C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_mac_cs\AutomationUnityBuildIOS.runtimeconfig.json
-C:\Users\Administrator\source\repos\AutomationUnityBuildIOS\bin\Release\net8.0\publish_mac_cs\AutomationUnityBuildIOS.pdb
