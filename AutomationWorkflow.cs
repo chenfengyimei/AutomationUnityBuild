@@ -142,6 +142,9 @@ internal sealed class AutomationWorkflow : IDisposable
 
     private async Task SyncRepositoryAsync()
     {
+        ValidateRepositoryUrlForGit();
+        IReadOnlyDictionary<string, string> gitEnvironment = GitEnvironment();
+
         if (!Directory.Exists(Path.Combine(_paths.RepositoryRoot, ".git")))
         {
             _logger.Info($"仓库不存在，准备 clone 到: {_paths.RepositoryRoot}");
@@ -150,24 +153,48 @@ internal sealed class AutomationWorkflow : IDisposable
                 "git",
                 ["clone", "--branch", _config.Branch, _config.RepositoryUrl, _paths.RepositoryRoot],
                 _paths.WorkspaceRoot,
-                environment: _config.Environment);
+                environment: gitEnvironment);
             return;
         }
 
         _logger.Info($"仓库已存在，准备更新: {_paths.RepositoryRoot}");
-        await _processRunner.RunAsync("git", ["fetch", "--prune", "origin"], _paths.RepositoryRoot, environment: _config.Environment);
-        await _processRunner.RunAsync("git", ["checkout", _config.Branch], _paths.RepositoryRoot, environment: _config.Environment);
+        await _processRunner.RunAsync("git", ["fetch", "--prune", "origin"], _paths.RepositoryRoot, environment: gitEnvironment);
+        await _processRunner.RunAsync("git", ["checkout", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
 
         if (_config.ResetRepository)
         {
             _logger.Warn($"resetRepository=true，将强制重置到 origin/{_config.Branch} 并清理未跟踪文件。");
-            await _processRunner.RunAsync("git", ["reset", "--hard", $"origin/{_config.Branch}"], _paths.RepositoryRoot, environment: _config.Environment);
-            await _processRunner.RunAsync("git", ["clean", "-fdx"], _paths.RepositoryRoot, environment: _config.Environment);
+            await _processRunner.RunAsync("git", ["reset", "--hard", $"origin/{_config.Branch}"], _paths.RepositoryRoot, environment: gitEnvironment);
+            await _processRunner.RunAsync("git", ["clean", "-fdx"], _paths.RepositoryRoot, environment: gitEnvironment);
         }
         else
         {
-            await _processRunner.RunAsync("git", ["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, environment: _config.Environment);
+            await _processRunner.RunAsync("git", ["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
         }
+    }
+
+    private void ValidateRepositoryUrlForGit()
+    {
+        if (_config.RepositoryUrl.Any(char.IsWhiteSpace) ||
+            _config.RepositoryUrl.Contains('[') ||
+            _config.RepositoryUrl.Contains(']'))
+        {
+            throw new InvalidOperationException(
+                $"Git 仓库地址格式不正确: {_config.RepositoryUrl}{Environment.NewLine}" +
+                "请填写 git clone 可直接使用的地址，例如 https://github.com/owner/repo.git 或 git@github.com:owner/repo.git。");
+        }
+
+        if (_config.RepositoryUrl.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.Info("GitHub HTTPS 地址不会支持账号密码登录。公开仓库可直接 clone；私有仓库建议改用 SSH 地址 git@github.com:owner/repo.git。");
+        }
+    }
+
+    private IReadOnlyDictionary<string, string> GitEnvironment()
+    {
+        var environment = new Dictionary<string, string>(_config.Environment, StringComparer.OrdinalIgnoreCase);
+        environment.TryAdd("GIT_TERMINAL_PROMPT", "0");
+        return environment;
     }
 
     private async Task RunUnityBuildAsync()
@@ -199,12 +226,158 @@ internal sealed class AutomationWorkflow : IDisposable
         AddUnityPair(args, "-customProductName", _config.ProductName);
         AddUnityPair(args, "-customAppleTeamId", _config.TeamId);
 
-        await _processRunner.RunAsync(
-            _paths.UnityExecutable,
-            args,
-            _paths.UnityProjectRoot,
-            _paths.UnityProcessLogPath,
-            _config.Environment);
+        try
+        {
+            await _processRunner.RunAsync(
+                _paths.UnityExecutable,
+                args,
+                _paths.UnityProjectRoot,
+                _paths.UnityProcessLogPath,
+                _config.Environment);
+            ValidateXcodeProjectExported();
+        }
+        catch
+        {
+            LogUnityFailureDetails();
+            throw;
+        }
+    }
+
+    private void LogUnityFailureDetails()
+    {
+        _logger.Error("Unity 进程失败。下面是 Unity 日志里的关键错误线索。");
+        LogMatchingLogLines(_paths.UnityLogPath, "Unity Editor", ["error", "exception", "executeMethod", "BuildAutomation", "IOSBuilder", "compilation", "license"]);
+        LogTail(_paths.UnityLogPath, "Unity Editor", 80);
+        LogTail(_paths.UnityProcessLogPath, "Unity Process", 80);
+    }
+
+    private void ValidateXcodeProjectExported()
+    {
+        if (FindXcodeProjectOrWorkspace() is not null)
+        {
+            _logger.Info($"Unity Xcode 工程导出校验通过: {_paths.XcodeOutputDirectory}");
+            return;
+        }
+
+        _logger.Error($"Unity 进程返回成功，但没有在目标目录找到 .xcodeproj/.xcworkspace: {_paths.XcodeOutputDirectory}");
+        LogDirectorySnapshot(_paths.XcodeOutputDirectory, "Unity 指定的 Xcode 输出目录");
+        LogDirectorySnapshot(_paths.ArtifactsRunRoot, "本次产物目录");
+        LogMatchingLogLines(_paths.UnityLogPath, "Unity Editor", ["Unity iOS", "BuildPipeline", "BuildReport", "BuildPlayer", "locationPathName", "customBuildPath", "error", "exception"]);
+
+        throw new FileNotFoundException(
+            $"Unity 没有导出 Xcode 工程到指定目录: {_paths.XcodeOutputDirectory}{Environment.NewLine}" +
+            "请确认 Unity 项目中的 Assets/Editor/BuildIOS.cs 使用了 -customBuildPath 参数，并且 BuildPipeline.BuildPlayer 的 locationPathName 指向该路径。");
+    }
+
+    private string? FindXcodeProjectOrWorkspace()
+    {
+        if (!Directory.Exists(_paths.XcodeOutputDirectory))
+        {
+            return null;
+        }
+
+        if (_config.UseWorkspaceIfPresent)
+        {
+            string? workspace = FindXcodeBundleDirectory("*.xcworkspace");
+            if (workspace is not null)
+            {
+                return workspace;
+            }
+        }
+
+        return FindXcodeBundleDirectory("*.xcodeproj");
+    }
+
+    private string? FindXcodeBundleDirectory(string pattern)
+    {
+        string? topLevelBundle = Directory
+            .EnumerateDirectories(_paths.XcodeOutputDirectory, pattern, SearchOption.TopDirectoryOnly)
+            .OrderBy(BundlePriority)
+            .ThenBy(path => path.Length)
+            .FirstOrDefault();
+
+        if (topLevelBundle is not null)
+        {
+            return topLevelBundle;
+        }
+
+        return Directory
+            .EnumerateDirectories(_paths.XcodeOutputDirectory, pattern, SearchOption.AllDirectories)
+            .Where(path => !IsNestedInsideXcodeProject(path))
+            .OrderBy(BundlePriority)
+            .ThenBy(path => path.Length)
+            .FirstOrDefault();
+    }
+
+    private static int BundlePriority(string path)
+    {
+        string name = Path.GetFileName(path);
+        return name.StartsWith("Unity-iPhone", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+    }
+
+    private static bool IsNestedInsideXcodeProject(string path)
+    {
+        string directory = Path.GetDirectoryName(path) ?? "";
+        char[] separators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
+        return directory
+            .Split(separators, StringSplitOptions.RemoveEmptyEntries)
+            .Any(part => part.EndsWith(".xcodeproj", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void LogDirectorySnapshot(string directory, string title)
+    {
+        if (!Directory.Exists(directory))
+        {
+            _logger.Error($"{title}不存在: {directory}");
+            return;
+        }
+
+        _logger.Error($"----- {title}: {directory} -----");
+        foreach (string entry in Directory.EnumerateFileSystemEntries(directory).Take(80))
+        {
+            _logger.Error(entry);
+        }
+    }
+
+    private void LogMatchingLogLines(string logPath, string title, IReadOnlyList<string> keywords)
+    {
+        if (!File.Exists(logPath))
+        {
+            _logger.Warn($"{title} 日志不存在: {logPath}");
+            return;
+        }
+
+        string[] matches = File.ReadLines(logPath)
+            .Where(line => keywords.Any(keyword => line.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+            .TakeLast(60)
+            .ToArray();
+
+        if (matches.Length == 0)
+        {
+            _logger.Warn($"{title} 日志里没有匹配到常见错误关键字。");
+            return;
+        }
+
+        _logger.Error($"----- {title} 关键错误行 -----");
+        foreach (string line in matches)
+        {
+            _logger.Error(line);
+        }
+    }
+
+    private void LogTail(string logPath, string title, int lineCount)
+    {
+        if (!File.Exists(logPath))
+        {
+            _logger.Warn($"{title} 日志不存在: {logPath}");
+            return;
+        }
+
+        _logger.Error($"----- {title} 日志最后 {lineCount} 行 -----");
+        foreach (string line in File.ReadLines(logPath).TakeLast(lineCount))
+        {
+            _logger.Error(line);
+        }
     }
 
     private void ValidateUnityProjectDirectory()
@@ -322,38 +495,32 @@ internal sealed class AutomationWorkflow : IDisposable
         _logger.Info($"Xcode archive 日志: {_paths.XcodeArchiveLogPath}");
         _logger.Info($"Xcode export 日志: {_paths.XcodeExportLogPath}");
 
-        string? workspacePath;
-        string? projectPath;
+        string? selectedProjectOrWorkspace;
 
         if (_options.DryRun)
         {
-            workspacePath = null;
-            projectPath = Path.Combine(_paths.XcodeOutputDirectory, "Unity-iPhone.xcodeproj");
+            selectedProjectOrWorkspace = Path.Combine(_paths.XcodeOutputDirectory, "Unity-iPhone.xcodeproj");
         }
         else
         {
-            workspacePath = _config.UseWorkspaceIfPresent
-                ? Directory.EnumerateFiles(_paths.XcodeOutputDirectory, "*.xcworkspace", SearchOption.TopDirectoryOnly).FirstOrDefault()
-                : null;
-
-            projectPath = Directory.EnumerateFiles(_paths.XcodeOutputDirectory, "*.xcodeproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+            selectedProjectOrWorkspace = FindXcodeProjectOrWorkspace();
         }
 
-        if (workspacePath is null && projectPath is null)
+        if (selectedProjectOrWorkspace is null)
         {
             throw new FileNotFoundException($"Unity 导出的 Xcode 工程不存在: {_paths.XcodeOutputDirectory}");
         }
 
         var archiveArgs = new List<string>();
-        if (workspacePath is not null)
+        if (selectedProjectOrWorkspace.EndsWith(".xcworkspace", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.Info($"使用 Xcode workspace: {workspacePath}");
-            archiveArgs.AddRange(["-workspace", workspacePath]);
+            _logger.Info($"使用 Xcode workspace: {selectedProjectOrWorkspace}");
+            archiveArgs.AddRange(["-workspace", selectedProjectOrWorkspace]);
         }
         else
         {
-            _logger.Info($"使用 Xcode project: {projectPath}");
-            archiveArgs.AddRange(["-project", projectPath!]);
+            _logger.Info($"使用 Xcode project: {selectedProjectOrWorkspace}");
+            archiveArgs.AddRange(["-project", selectedProjectOrWorkspace]);
         }
 
         archiveArgs.AddRange([

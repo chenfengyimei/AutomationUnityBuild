@@ -70,6 +70,12 @@ namespace BuildAutomation
                 throw new InvalidOperationException($"Unity iOS 导出失败: {summary.result}, errors={summary.totalErrors}, warnings={summary.totalWarnings}");
             }
 
+            string xcodeProjectPath = Path.Combine(outputPath, "Unity-iPhone.xcodeproj");
+            if (!Directory.Exists(xcodeProjectPath))
+            {
+                throw new DirectoryNotFoundException($"BuildPipeline 返回成功，但没有找到 Xcode 工程: {xcodeProjectPath}");
+            }
+
             Debug.Log($"Unity iOS 导出完成: {outputPath}, size={summary.totalSize} bytes");
         }
 
