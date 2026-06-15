@@ -1,8 +1,14 @@
 {
   "configName": "dev",
   "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
+  "allowedRepositoryUrls": [
+    "git@github.com:your-org/your-unity-game.git"
+  ],
   "branch": "main",
   "workspaceRoot": "~/UnityBuildWorkspace",
+  "allowedWorkspaceRoots": [
+    "~/UnityBuildWorkspace"
+  ],
   "projectDirectoryName": "YourUnityGame",
   "unityProjectRelativePath": ".",
 
@@ -11,6 +17,9 @@
   "unityBuildMethod": "BuildAutomation.IOSBuilder.Build",
 
   "artifactsRoot": "~/UnityBuildArtifacts/YourUnityGame",
+  "allowedArtifactsRoots": [
+    "~/UnityBuildArtifacts/YourUnityGame"
+  ],
   "xcodeOutputDirectory": "",
   "archivePath": "",
   "exportPath": "",
@@ -38,6 +47,7 @@
   "useWorkspaceIfPresent": true,
   "generateExportOptionsPlist": true,
   "copyArchiveToOrganizer": true,
+  "saveConfigSnapshot": true,
   "compileBitcode": null,
   "uploadSymbols": true,
 

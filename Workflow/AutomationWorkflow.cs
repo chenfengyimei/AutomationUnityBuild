@@ -8,6 +8,8 @@ internal sealed class AutomationWorkflow : IDisposable
 {
     private readonly BuildRunContext _context;
     private readonly EnvironmentDoctor _environmentDoctor;
+    private readonly PathSafetyValidator _pathSafetyValidator;
+    private readonly GitRepositoryPolicyValidator _gitRepositoryPolicyValidator;
     private readonly BuildDirectoryPreparer _directoryPreparer;
     private readonly GitRepositoryService _gitRepository;
     private readonly UnityProjectValidator _unityProjectValidator;
@@ -15,6 +17,7 @@ internal sealed class AutomationWorkflow : IDisposable
     private readonly UnityBuildService _unityBuildService;
     private readonly XcodeBuildService _xcodeBuildService;
     private readonly RuntimeConfigUpdater _runtimeConfigUpdater;
+    private readonly BuildConfigSnapshotWriter _configSnapshotWriter;
     private BuildConfig _config => _context.Config;
     private CliOptions _options => _context.Options;
     private BuildPaths _paths => _context.Paths;
@@ -24,6 +27,8 @@ internal sealed class AutomationWorkflow : IDisposable
     {
         _context = BuildRunContext.Create(config, options);
         _environmentDoctor = new EnvironmentDoctor(_context);
+        _pathSafetyValidator = new PathSafetyValidator(_context);
+        _gitRepositoryPolicyValidator = new GitRepositoryPolicyValidator(_context);
         _directoryPreparer = new BuildDirectoryPreparer(_context);
         _gitRepository = new GitRepositoryService(_context);
         _unityProjectValidator = new UnityProjectValidator(_context);
@@ -31,6 +36,7 @@ internal sealed class AutomationWorkflow : IDisposable
         _unityBuildService = new UnityBuildService(_context, _xcodeProjectLocator);
         _xcodeBuildService = new XcodeBuildService(_context, _xcodeProjectLocator);
         _runtimeConfigUpdater = new RuntimeConfigUpdater(_context);
+        _configSnapshotWriter = new BuildConfigSnapshotWriter(_context);
     }
 
     public async Task RunAsync()
@@ -43,6 +49,7 @@ internal sealed class AutomationWorkflow : IDisposable
             PrintSummary();
             _environmentDoctor.EnsureMacOrAllowed();
             await CheckPrerequisitesAsync();
+            RunStep("生成配置快照", _configSnapshotWriter.Write);
 
             if (_options.DryRun)
             {
@@ -104,6 +111,8 @@ internal sealed class AutomationWorkflow : IDisposable
 
     public async Task CheckPrerequisitesAsync()
     {
+        RunStep("校验配置安全边界", _pathSafetyValidator.Validate);
+        RunStep("校验 Git 仓库策略", _gitRepositoryPolicyValidator.Validate);
         await RunStepAsync("检查环境", _environmentDoctor.CheckAsync);
     }
 

@@ -278,6 +278,7 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 - `automation.log`: 总流程日志，包含时间、步骤、命令、工作目录、耗时、失败原因。
 - `unity-editor.log`: Unity Editor 自己写出的构建日志，对应 Unity 的 `-logFile`。
 - `unity-process.log`: 启动 Unity 进程时捕获到的 stdout/stderr。
+- `build-config-snapshot.json`: 本次运行使用的配置快照和解析后的路径，已做基础脱敏。
 - `xcode-archive.log`: `xcodebuild archive` 的完整输出。
 - `xcode-export.log`: `xcodebuild -exportArchive` 的完整输出。
 
@@ -294,3 +295,23 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 [2026-06-11 16:18:40.110 +08:00] [DRYRUN] git --version
 [2026-06-11 16:18:40.111 +08:00] [STEP] DONE 检查环境 (00:00.022)
 ```
+
+## 安全与审计配置
+
+为了后续接 Web 后端、Worker、MCP/Agent，配置文件里已经预留了第一批安全字段：
+
+```json
+{
+  "allowedRepositoryUrls": ["git@github.com:your-org/your-unity-game.git"],
+  "allowedWorkspaceRoots": ["~/UnityBuildWorkspace"],
+  "allowedArtifactsRoots": ["~/UnityBuildArtifacts/YourUnityGame"],
+  "saveConfigSnapshot": true
+}
+```
+
+- `allowedRepositoryUrls`: Git 仓库白名单。配置里的 `repositoryUrl` 必须在白名单里，避免误打到陌生仓库。
+- `allowedWorkspaceRoots`: Git 工作区允许根目录。仓库目录和 Unity 工程不能逃出这个范围。
+- `allowedArtifactsRoots`: 产物允许根目录。日志、Xcode 工程、archive、ipa 导出目录都必须在这个范围内。
+- `saveConfigSnapshot`: 正式运行时生成配置快照，方便之后追溯“谁用什么配置打出了这个包”。
+
+日志系统会对常见敏感内容做基础脱敏，例如 URL 里的账号/Token、GitHub/GitLab token、`Bearer` token、`password/token/secret/apiKey` 这类键值。不要主动把证书、私钥、长期 Token 写进配置文件或命令参数。

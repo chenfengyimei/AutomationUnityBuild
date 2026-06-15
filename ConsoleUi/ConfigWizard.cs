@@ -119,8 +119,10 @@ internal static class ConfigWizard
         {
             ConfigName = profileName,
             RepositoryUrl = repositoryUrl,
+            AllowedRepositoryUrls = [repositoryUrl],
             Branch = branch,
             WorkspaceRoot = workspaceRoot,
+            AllowedWorkspaceRoots = [workspaceRoot],
             ProjectDirectoryName = projectDirectoryName,
             UnityProjectRelativePath = unityProjectRelativePath,
 
@@ -129,6 +131,7 @@ internal static class ConfigWizard
             UnityBuildMethod = unityBuildMethod,
 
             ArtifactsRoot = artifactsRoot,
+            AllowedArtifactsRoots = [artifactsRoot],
             XcodeOutputDirectory = "",
             ArchivePath = "",
             ExportPath = "",
@@ -156,6 +159,7 @@ internal static class ConfigWizard
             UseWorkspaceIfPresent = true,
             GenerateExportOptionsPlist = true,
             CopyArchiveToOrganizer = copyArchiveToOrganizer,
+            SaveConfigSnapshot = true,
             CompileBitcode = null,
             UploadSymbols = true,
 

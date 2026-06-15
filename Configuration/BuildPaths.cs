@@ -6,6 +6,7 @@ internal sealed record BuildPaths(
     string RepositoryRoot,
     string UnityProjectRoot,
     string UnityExecutable,
+    string ArtifactsRoot,
     string ArtifactsRunRoot,
     string XcodeOutputDirectory,
     string ArchivePath,
@@ -15,6 +16,7 @@ internal sealed record BuildPaths(
     string UnityLogPath,
     string UnityProcessLogPath,
     string UnityBuildMetadataPath,
+    string ConfigSnapshotPath,
     string XcodeArchiveLogPath,
     string XcodeExportLogPath,
     string ExportOptionsPlistPath)
@@ -40,6 +42,7 @@ internal sealed record BuildPaths(
             repositoryRoot,
             unityProjectRoot,
             ResolveUnityExecutable(config),
+            artifactsRoot,
             artifactsRunRoot,
             xcodeOutputDirectory,
             archivePath,
@@ -49,6 +52,7 @@ internal sealed record BuildPaths(
             Path.Combine(logsDirectory, "unity-editor.log"),
             Path.Combine(logsDirectory, "unity-process.log"),
             Path.Combine(logsDirectory, "unity-build-metadata.json"),
+            Path.Combine(logsDirectory, "build-config-snapshot.json"),
             Path.Combine(logsDirectory, "xcode-archive.log"),
             Path.Combine(logsDirectory, "xcode-export.log"),
             exportOptionsPlistPath);

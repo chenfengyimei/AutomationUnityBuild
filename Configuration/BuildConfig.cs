@@ -7,8 +7,10 @@ internal sealed class BuildConfig
 {
     public string ConfigName { get; set; } = "";
     public string RepositoryUrl { get; set; } = "";
+    public List<string> AllowedRepositoryUrls { get; set; } = [];
     public string Branch { get; set; } = "main";
     public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
+    public List<string> AllowedWorkspaceRoots { get; set; } = [];
     public string ProjectDirectoryName { get; set; } = "";
     public string UnityProjectRelativePath { get; set; } = ".";
 
@@ -17,6 +19,7 @@ internal sealed class BuildConfig
     public string UnityBuildMethod { get; set; } = "BuildAutomation.IOSBuilder.Build";
 
     public string ArtifactsRoot { get; set; } = "~/UnityBuildArtifacts/UnityGame";
+    public List<string> AllowedArtifactsRoots { get; set; } = [];
     public string XcodeOutputDirectory { get; set; } = "";
     public string ArchivePath { get; set; } = "";
     public string ExportPath { get; set; } = "";
@@ -44,6 +47,7 @@ internal sealed class BuildConfig
     public bool UseWorkspaceIfPresent { get; set; } = true;
     public bool GenerateExportOptionsPlist { get; set; } = true;
     public bool CopyArchiveToOrganizer { get; set; } = true;
+    public bool SaveConfigSnapshot { get; set; } = true;
 
     public bool? CompileBitcode { get; set; }
     public bool? UploadSymbols { get; set; } = true;
@@ -82,14 +86,17 @@ internal sealed class BuildConfig
     {
         ConfigName ??= "";
         RepositoryUrl = ConfigValueNormalizer.NormalizeRepositoryUrl(RepositoryUrl ?? "");
+        AllowedRepositoryUrls = NormalizeRepositoryList(AllowedRepositoryUrls);
         Branch ??= "";
         WorkspaceRoot ??= "";
+        AllowedWorkspaceRoots = NormalizeStringList(AllowedWorkspaceRoots);
         ProjectDirectoryName ??= "";
         UnityProjectRelativePath ??= "";
         UnityVersion ??= "";
         UnityExecutablePath ??= "";
         UnityBuildMethod ??= "";
         ArtifactsRoot ??= "";
+        AllowedArtifactsRoots = NormalizeStringList(AllowedArtifactsRoots);
         XcodeOutputDirectory ??= "";
         ArchivePath ??= "";
         ExportPath ??= "";
@@ -108,6 +115,24 @@ internal sealed class BuildConfig
         XcodeBuildSettings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static List<string> NormalizeRepositoryList(List<string>? values)
+    {
+        return NormalizeStringList(values)
+            .Select(ConfigValueNormalizer.NormalizeRepositoryUrl)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<string> NormalizeStringList(List<string>? values)
+    {
+        return values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
     }
 
     private void Validate()
