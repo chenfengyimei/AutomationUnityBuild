@@ -7,4 +7,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="BuildServer\**\*.cs" />
+    <Content Remove="BuildServer\**\*" />
+    <None Remove="BuildServer\**\*" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unity iOS 打包平台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main id="app">
+    <section id="loginView" class="login">
+      <form id="loginForm" class="panel">
+        <h1>Unity iOS 打包平台</h1>
+        <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
+        <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="默认 admin123"></label>
+        <button type="submit">登录</button>
+        <p class="hint">首次启动默认账号 admin；生产环境请设置 BUILD_SERVER_ADMIN_PASSWORD。</p>
+      </form>
+    </section>
+
+    <section id="mainView" class="shell hidden">
+      <aside>
+        <h2>BuildServer</h2>
+        <button data-tab="builds" class="active">打包任务</button>
+        <button data-tab="projects">项目配置</button>
+        <button data-tab="workers">Worker</button>
+        <button data-tab="audit">审计日志</button>
+        <button id="logoutBtn">退出</button>
+      </aside>
+
+      <section class="content">
+        <header>
+          <div>
+            <h1 id="pageTitle">打包任务</h1>
+            <p id="userInfo"></p>
+          </div>
+          <button id="refreshBtn">刷新</button>
+        </header>
+
+        <section id="buildsTab" class="tab">
+          <div class="grid two">
+            <form id="buildForm" class="panel">
+              <h3>发起打包</h3>
+              <label>项目<select id="buildProject"></select></label>
+              <label>配置<select id="buildConfig"></select></label>
+              <label>分支<input id="buildBranch" placeholder="留空使用项目默认分支"></label>
+              <label>Build Number<input id="buildNumber" placeholder="留空由服务器分配"></label>
+              <div class="checks">
+                <label><input id="dryRun" type="checkbox"> dry-run</label>
+                <label><input id="skipGit" type="checkbox"> 跳过 Git</label>
+                <label><input id="skipUnity" type="checkbox"> 跳过 Unity</label>
+                <label><input id="skipXcode" type="checkbox"> 跳过 Xcode</label>
+                <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
+              </div>
+              <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
+              <button type="submit">提交任务</button>
+            </form>
+
+            <section class="panel">
+              <h3>任务列表</h3>
+              <div id="jobsList" class="list"></div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <h3>任务详情</h3>
+            <div id="jobDetail" class="detail"></div>
+            <pre id="jobLog"></pre>
+            <div id="artifactsList" class="list"></div>
+          </section>
+        </section>
+
+        <section id="projectsTab" class="tab hidden">
+          <div class="grid two">
+            <form id="projectForm" class="panel">
+              <h3>新增项目</h3>
+              <label>项目名<input id="projectName" required></label>
+              <label>Git 仓库<input id="projectRepo" placeholder="git@github.com:org/game.git" required></label>
+              <label>默认分支<input id="projectBranch" value="main"></label>
+              <label>允许分支<input id="projectAllowedBranches" value="main" placeholder="main,release/*"></label>
+              <label>Workspace Root<input id="projectWorkspace" value="~/UnityBuildWorkspace"></label>
+              <label>Artifacts Root<input id="projectArtifacts" value="~/UnityBuildArtifacts"></label>
+              <label>说明<textarea id="projectDescription" rows="3"></textarea></label>
+              <button type="submit">保存项目</button>
+            </form>
+
+            <form id="configForm" class="panel">
+              <h3>新增配置</h3>
+              <label>项目<select id="configProject"></select></label>
+              <label>配置名<input id="configName" placeholder="release"></label>
+              <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-ios.release.json"></label>
+              <label><input id="configAllowMcp" type="checkbox" checked> 允许 MCP 使用</label>
+              <button type="submit">保存配置</button>
+            </form>
+          </div>
+          <section class="panel">
+            <h3>已有项目和配置</h3>
+            <div id="projectsList" class="list"></div>
+          </section>
+        </section>
+
+        <section id="workersTab" class="tab hidden">
+          <section class="panel">
+            <h3>Worker 节点</h3>
+            <div id="workersList" class="list"></div>
+          </section>
+        </section>
+
+        <section id="auditTab" class="tab hidden">
+          <section class="panel">
+            <h3>审计日志</h3>
+            <div id="auditList" class="list"></div>
+          </section>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
