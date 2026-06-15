@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.automationunity.buildserver</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/share/AutomationUnityBuildIOS/scripts/run-build-server.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ASPNETCORE_URLS</key>
+    <string>http://127.0.0.1:5088</string>
+    <key>BUILD_SERVER_DATA_ROOT</key>
+    <string>/Users/buildbot/BuildServerData</string>
+    <key>BUILD_SERVER_AUTOMATION_EXE</key>
+    <string>/usr/local/share/AutomationUnityBuildIOS/AutomationUnityBuildIOS</string>
+    <key>BUILD_SERVER_ADMIN_PASSWORD</key>
+    <string>change-this-password</string>
+    <key>BUILD_SERVER_AGENT_TOKEN</key>
+    <string>change-this-agent-token</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/usr/local/share/AutomationUnityBuildIOS</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/buildbot/BuildServerData/buildserver.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/buildbot/BuildServerData/buildserver.err.log</string>
+</dict>
+</plist>

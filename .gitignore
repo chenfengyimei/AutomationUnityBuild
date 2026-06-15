@@ -54,6 +54,8 @@ packages/
 ## 常见的日志文件扩展名
 *.log
 !*.config  # 保留配置文件
+buildserver-data/
+BuildServer/buildserver-data/
 
 ## Windows 临时文件
 Thumbs.db

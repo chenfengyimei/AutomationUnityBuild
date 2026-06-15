@@ -190,6 +190,30 @@ Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一
 ./AutomationUnityBuildIOS run --config configs/build-ios.dev.json --dry-run --verbose
 ```
 
+## Web 打包平台 BuildServer
+
+除了控制台 CLI，本仓库还包含一个可部署在 Mac 上的 Web 打包平台。它提供网页登录、项目/配置管理、任务队列、实时日志、产物下载、审计日志和 MCP/Agent 入口。
+
+Windows 调试：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-build-server.ps1
+```
+
+Mac 启动：
+
+```bash
+./scripts/run-build-server.sh
+```
+
+默认访问地址：
+
+```text
+http://127.0.0.1:5088
+```
+
+默认账号是 `admin / admin123`。生产环境请设置 `BUILD_SERVER_ADMIN_PASSWORD` 和 `BUILD_SERVER_AGENT_TOKEN`，详细说明见 [docs/build-server.md](docs/build-server.md)。
+
 ## 在 Windows/VS 发布给 Mac 用
 
 Apple Silicon Mac：
