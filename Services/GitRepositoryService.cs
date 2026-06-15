@@ -10,7 +10,7 @@ internal sealed class GitRepositoryService(BuildRunContext context)
 
     public async Task SyncAsync()
     {
-        ValidateRepositoryUrlForGit();
+        GitRepositoryPolicy.Validate(_config, _logger);
         IReadOnlyDictionary<string, string> gitEnvironment = GitEnvironment();
 
         if (!Directory.Exists(Path.Combine(_paths.RepositoryRoot, ".git")))
@@ -56,8 +56,8 @@ internal sealed class GitRepositoryService(BuildRunContext context)
             _paths.RepositoryRoot,
             gitEnvironment)).Trim();
 
-        string configuredKey = CanonicalRepositoryKey(_config.RepositoryUrl);
-        string originKey = CanonicalRepositoryKey(originUrl);
+        string configuredKey = GitRepositoryUrl.CanonicalKey(_config.RepositoryUrl);
+        string originKey = GitRepositoryUrl.CanonicalKey(originUrl);
         if (string.Equals(configuredKey, originKey, StringComparison.OrdinalIgnoreCase))
         {
             _logger.Info("Git remote origin 与配置仓库匹配。");
@@ -67,8 +67,8 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         throw new InvalidOperationException(
             $"已有仓库目录的 remote origin 与配置不一致，已停止打包，避免打错项目。{Environment.NewLine}" +
             $"仓库目录: {_paths.RepositoryRoot}{Environment.NewLine}" +
-            $"配置仓库: {RedactRepositoryUrl(_config.RepositoryUrl)}{Environment.NewLine}" +
-            $"当前 origin: {RedactRepositoryUrl(originUrl)}{Environment.NewLine}" +
+            $"配置仓库: {GitRepositoryUrl.Redact(_config.RepositoryUrl)}{Environment.NewLine}" +
+            $"当前 origin: {GitRepositoryUrl.Redact(originUrl)}{Environment.NewLine}" +
             "处理方式：修改配置里的 projectDirectoryName 使用新的目录，或手动确认后删除/重命名旧仓库目录。");
     }
 
@@ -107,68 +107,6 @@ internal sealed class GitRepositoryService(BuildRunContext context)
             .Replace(Path.DirectorySeparatorChar, '/')
             .Replace(Path.AltDirectorySeparatorChar, '/')
             .TrimEnd('/') + "/";
-    }
-
-    private static string CanonicalRepositoryKey(string url)
-    {
-        string normalized = ConfigValueNormalizer.NormalizeRepositoryUrl(url).Trim().TrimEnd('/', '\\');
-        if (normalized.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
-        {
-            int atIndex = normalized.IndexOf('@');
-            int colonIndex = normalized.IndexOf(':', atIndex + 1);
-            if (atIndex >= 0 && colonIndex > atIndex)
-            {
-                string host = normalized[(atIndex + 1)..colonIndex];
-                string path = normalized[(colonIndex + 1)..];
-                return TrimGitSuffix($"{host}/{path}").ToLowerInvariant();
-            }
-        }
-
-        if (Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri))
-        {
-            return TrimGitSuffix($"{uri.Host}{uri.AbsolutePath}").TrimEnd('/').ToLowerInvariant();
-        }
-
-        return TrimGitSuffix(normalized).ToLowerInvariant();
-    }
-
-    private static string TrimGitSuffix(string value)
-    {
-        return value.EndsWith(".git", StringComparison.OrdinalIgnoreCase)
-            ? value[..^4]
-            : value;
-    }
-
-    private static string RedactRepositoryUrl(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || string.IsNullOrEmpty(uri.UserInfo))
-        {
-            return url;
-        }
-
-        var builder = new UriBuilder(uri)
-        {
-            UserName = "***",
-            Password = ""
-        };
-        return builder.Uri.ToString();
-    }
-
-    private void ValidateRepositoryUrlForGit()
-    {
-        if (_config.RepositoryUrl.Any(char.IsWhiteSpace) ||
-            _config.RepositoryUrl.Contains('[') ||
-            _config.RepositoryUrl.Contains(']'))
-        {
-            throw new InvalidOperationException(
-                $"Git 仓库地址格式不正确: {_config.RepositoryUrl}{Environment.NewLine}" +
-                "请填写 git clone 可直接使用的地址，例如 https://github.com/owner/repo.git 或 git@github.com:owner/repo.git。");
-        }
-
-        if (_config.RepositoryUrl.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.Info("GitHub HTTPS 地址不会支持账号密码登录。公开仓库可直接 clone；私有仓库建议改用 SSH 地址 git@github.com:owner/repo.git。");
-        }
     }
 
     private IReadOnlyDictionary<string, string> GitEnvironment()

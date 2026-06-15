@@ -104,7 +104,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         {
             string hint = string.IsNullOrWhiteSpace(logPath) ? "" : $"，日志: {logPath}";
             logger.CommandFailed(commandText, stopwatch.Elapsed, process.ExitCode);
-            throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {commandText}{hint}");
+            throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {SensitiveText.Redact(commandText)}{hint}");
         }
 
         logger.CommandCompleted(commandText, stopwatch.Elapsed);
@@ -178,7 +178,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
             {
                 logger.CommandFailed(commandText, stopwatch.Elapsed, process.ExitCode);
                 string detail = string.IsNullOrWhiteSpace(stderr) ? "" : $"{Environment.NewLine}{stderr.Trim()}";
-                throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {commandText}{detail}");
+                throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {SensitiveText.Redact(commandText)}{SensitiveText.Redact(detail)}");
             }
 
             logger.CommandCompleted(commandText, stopwatch.Elapsed);

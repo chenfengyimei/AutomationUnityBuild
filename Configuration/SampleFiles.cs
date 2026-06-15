@@ -7,8 +7,14 @@ internal static class SampleFiles
         {
           "configName": "dev",
           "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
+          "allowedRepositoryUrls": [
+            "git@github.com:your-org/your-unity-game.git"
+          ],
           "branch": "main",
           "workspaceRoot": "~/UnityBuildWorkspace",
+          "allowedWorkspaceRoots": [
+            "~/UnityBuildWorkspace"
+          ],
           "projectDirectoryName": "YourUnityGame",
           "unityProjectRelativePath": ".",
 
@@ -17,6 +23,9 @@ internal static class SampleFiles
           "unityBuildMethod": "BuildAutomation.IOSBuilder.Build",
 
           "artifactsRoot": "~/UnityBuildArtifacts/YourUnityGame",
+          "allowedArtifactsRoots": [
+            "~/UnityBuildArtifacts/YourUnityGame"
+          ],
           "xcodeOutputDirectory": "",
           "archivePath": "",
           "exportPath": "",
@@ -44,6 +53,7 @@ internal static class SampleFiles
           "useWorkspaceIfPresent": true,
           "generateExportOptionsPlist": true,
           "copyArchiveToOrganizer": true,
+          "saveConfigSnapshot": true,
           "compileBitcode": null,
           "uploadSymbols": true,
 

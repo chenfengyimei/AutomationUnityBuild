@@ -122,7 +122,7 @@ internal sealed class BuildLogger : IDisposable
 
     private void Write(string level, string message, bool writeToConsole, TextWriter? console = null)
     {
-        string line = $"[{Timestamp()}] [{level}] {message}";
+        string line = $"[{Timestamp()}] [{level}] {SensitiveText.Redact(message)}";
 
         lock (_lock)
         {
@@ -209,7 +209,7 @@ internal static class CommandLogWriter
 
     public static void WriteLine(StreamWriter? writer, string line, bool isError)
     {
-        writer?.WriteLine($"[{Timestamp()}] [{(isError ? "STDERR" : "STDOUT")}] {line}");
+        writer?.WriteLine($"[{Timestamp()}] [{(isError ? "STDERR" : "STDOUT")}] {SensitiveText.Redact(line)}");
     }
 
     private static string Timestamp()
@@ -223,9 +223,31 @@ internal static class SensitiveText
     private static readonly Regex UrlCredentialRegex = new(
         @"(?<scheme>https?://)[^\s/@]+@",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex GitHubTokenRegex = new(
+        @"\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}\b",
+        RegexOptions.Compiled);
+    private static readonly Regex GitLabTokenRegex = new(
+        @"\bglpat-[A-Za-z0-9_\-]{20,}\b",
+        RegexOptions.Compiled);
+    private static readonly Regex BearerTokenRegex = new(
+        @"(?<prefix>\bBearer\s+)[A-Za-z0-9._\-+/=]{12,}",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex KeyValueSecretRegex = new(
+        @"(?<key>\b(password|passwd|pwd|token|secret|api[-_]?key|access[-_]?key)\b\s*[:=]\s*)(?<value>[^\s,;]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static string Redact(string value)
     {
-        return UrlCredentialRegex.Replace(value, "${scheme}***@");
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        string redacted = UrlCredentialRegex.Replace(value, "${scheme}***@");
+        redacted = GitHubTokenRegex.Replace(redacted, "***");
+        redacted = GitLabTokenRegex.Replace(redacted, "***");
+        redacted = BearerTokenRegex.Replace(redacted, "${prefix}***");
+        redacted = KeyValueSecretRegex.Replace(redacted, "${key}***");
+        return redacted;
     }
 }
