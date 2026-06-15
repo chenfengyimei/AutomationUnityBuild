@@ -34,14 +34,22 @@ public static class ApiRoutes
         app.MapGet("/api/settings", SettingsAsync);
     }
 
-    private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, AuthService auth)
+    private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, AuthService auth, LoginRateLimiter limiter)
     {
+        string limiterKey = $"{context.Connection.RemoteIpAddress}|{request.UserName}";
+        if (!limiter.IsAllowed(limiterKey))
+        {
+            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+        }
+
         UserRecord? user = await auth.ValidateLoginAsync(request.UserName, request.Password);
         if (user is null)
         {
+            limiter.RecordFailure(limiterKey);
             return Results.Unauthorized();
         }
 
+        limiter.RecordSuccess(limiterKey);
         string token = await auth.CreateSessionAsync(user);
         context.Response.Cookies.Append(AuthService.CookieName, token, new CookieOptions
         {
@@ -73,7 +81,7 @@ public static class ApiRoutes
         return Results.Ok(await database.ReadAsync(db => db.Projects.OrderBy(project => project.Name).ToList()));
     }
 
-    private static async Task<IResult> CreateProjectAsync(ProjectRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> CreateProjectAsync(ProjectRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -85,11 +93,11 @@ public static class ApiRoutes
             {
                 Id = Ids.New("prj"),
                 Name = Required(request.Name, "项目名称"),
-                RepositoryUrl = Required(request.RepositoryUrl, "Git 仓库"),
+                RepositoryUrl = ValidateGitUrl(Required(request.RepositoryUrl, "Git 仓库"), options),
                 DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim(),
                 AllowedBranches = request.AllowedBranches?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? ["main"],
-                WorkspaceRoot = Required(request.WorkspaceRoot, "工作区目录"),
-                ArtifactsRoot = Required(request.ArtifactsRoot, "产物目录"),
+                WorkspaceRoot = ValidatePathUnderAllowedRoots(Required(request.WorkspaceRoot, "工作区目录"), options.AllowedWorkspaceRoots, "工作区目录"),
+                ArtifactsRoot = ValidatePathUnderAllowedRoots(Required(request.ArtifactsRoot, "产物目录"), options.AllowedArtifactsRoots, "产物目录"),
                 Description = request.Description ?? "",
                 CreatedAt = DateTimeOffset.Now
             };
@@ -111,7 +119,7 @@ public static class ApiRoutes
             .ToList()));
     }
 
-    private static async Task<IResult> CreateConfigAsync(BuildConfigRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> CreateConfigAsync(BuildConfigRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -124,8 +132,8 @@ public static class ApiRoutes
                 throw new InvalidOperationException("项目不存在或已禁用。");
             }
 
-            string configPath = Required(request.ConfigPath, "配置文件路径");
-            if (!File.Exists(BuildQueueService.ExpandPath(configPath)))
+            string configPath = ValidatePathUnderAllowedRoots(Required(request.ConfigPath, "配置文件路径"), options.AllowedConfigRoots, "配置文件路径");
+            if (!File.Exists(configPath))
             {
                 throw new FileNotFoundException($"配置文件不存在: {configPath}");
             }
@@ -218,6 +226,11 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         BuildArtifactRecord? artifact = await database.ReadAsync(db => db.Artifacts.FirstOrDefault(artifact => artifact.Id == artifactId));
         if (artifact is null) return Results.NotFound();
+        BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == artifact.JobId));
+        if (job is null || !IsAllowedArtifactPath(artifact.Path, job))
+        {
+            return Results.Forbid();
+        }
 
         if (File.Exists(artifact.Path))
         {
@@ -300,6 +313,99 @@ public static class ApiRoutes
         return string.IsNullOrWhiteSpace(value)
             ? throw new InvalidOperationException($"{field} 不能为空。")
             : value.Trim();
+    }
+
+    private static string ValidateGitUrl(string value, BuildServerOptions options)
+    {
+        if (value.Any(char.IsWhiteSpace) || value.Contains('[') || value.Contains(']'))
+        {
+            throw new InvalidOperationException("Git 仓库地址格式不正确。");
+        }
+
+        bool looksLikeGitUrl =
+            value.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase);
+        if (!looksLikeGitUrl)
+        {
+            throw new InvalidOperationException("Git 仓库地址必须是 git clone 可用的 HTTPS 或 SSH 地址。");
+        }
+
+        string? host = TryGetGitHost(value);
+        if (options.AllowedRepositoryHosts.Count > 0 &&
+            (string.IsNullOrWhiteSpace(host) || !options.AllowedRepositoryHosts.Contains(host, StringComparer.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException($"Git 仓库 Host 不在服务端白名单内: {host ?? "(无法识别)"}");
+        }
+
+        return value;
+    }
+
+    private static string? TryGetGitHost(string value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out Uri? uri))
+        {
+            return uri.Host.ToLowerInvariant();
+        }
+
+        if (value.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+        {
+            string withoutUser = value["git@".Length..];
+            int separatorIndex = withoutUser.IndexOfAny([':', '/']);
+            return separatorIndex <= 0 ? null : withoutUser[..separatorIndex].ToLowerInvariant();
+        }
+
+        return null;
+    }
+
+    private static string ValidatePathUnderAllowedRoots(string value, IReadOnlyList<string> allowedRoots, string field)
+    {
+        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(value));
+        if (IsUnsafeRoot(fullPath))
+        {
+            throw new InvalidOperationException($"{field} 不能指向磁盘根目录。");
+        }
+
+        if (allowedRoots.Count > 0 && !allowedRoots.Any(root => IsSameOrChild(fullPath, root)))
+        {
+            throw new InvalidOperationException($"{field} 不在服务端允许目录内: {fullPath}");
+        }
+
+        return fullPath;
+    }
+
+    private static bool IsUnsafeRoot(string path)
+    {
+        string? root = Path.GetPathRoot(path);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return true;
+        }
+
+        string normalized = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return normalized.Length == 0 || normalized.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllowedArtifactPath(string path, BuildJobRecord job)
+    {
+        string? jobRoot = string.IsNullOrWhiteSpace(job.WorkerLogPath) ? null : Path.GetDirectoryName(job.WorkerLogPath);
+        return (!string.IsNullOrWhiteSpace(job.ArtifactRoot) && IsSameOrChild(path, job.ArtifactRoot)) ||
+               (!string.IsNullOrWhiteSpace(jobRoot) && IsSameOrChild(path, jobRoot));
+    }
+
+    private static bool IsSameOrChild(string path, string root)
+    {
+        string normalizedPath = NormalizeDirectory(path);
+        string normalizedRoot = NormalizeDirectory(root);
+        return normalizedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
+               normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDirectory(string path)
+    {
+        string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
     }
 
     private static string Tail(string path, int lines)

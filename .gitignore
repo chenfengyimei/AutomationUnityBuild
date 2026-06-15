@@ -5,6 +5,7 @@
 ## 编译生成的文件 (Binaries)
 bin/
 obj/
+artifacts/
 
 ## Visual Studio 用户特定文件
 *.suo

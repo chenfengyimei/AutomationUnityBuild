@@ -25,15 +25,41 @@ http://127.0.0.1:5088
 默认账号：
 
 ```text
-admin / admin123
+admin
 ```
 
-生产环境必须通过环境变量修改：
+如果没有设置 `BUILD_SERVER_ADMIN_PASSWORD`，服务首次启动会生成随机密码并写入：
+
+```text
+<DataRoot>/initial-admin.txt
+```
+
+如果没有设置 `BUILD_SERVER_AGENT_TOKEN`，服务首次启动会生成随机 Agent API Key 并写入：
+
+```text
+<DataRoot>/initial-agent-token.txt
+```
+
+生产环境建议显式设置：
 
 ```bash
 export BUILD_SERVER_ADMIN_PASSWORD="strong-password"
 export BUILD_SERVER_AGENT_TOKEN="strong-agent-token"
+export BUILD_SERVER_PUBLIC_BASE_URL="https://build.example.com"
+export BUILD_SERVER_ALLOWED_ORIGINS="https://build.example.com"
+export BUILD_SERVER_ALLOWED_WORKSPACE_ROOTS="/Users/build/UnityBuildWorkspace"
+export BUILD_SERVER_ALLOWED_ARTIFACTS_ROOTS="/Users/build/UnityBuildArtifacts"
+export BUILD_SERVER_ALLOWED_CONFIG_ROOTS="/Users/build/BuildServerData/configs"
+export BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS="github.com"
 ```
+
+安全相关默认值：
+
+- 工作区默认限制在 `~/UnityBuildWorkspace` 下面。
+- 产物默认限制在 `~/UnityBuildArtifacts` 下面。
+- 配置文件默认限制在 BuildServer 数据目录的 `configs` 和程序目录的 `configs` 下面。
+- Git 仓库默认允许 HTTPS/SSH 地址；生产环境建议设置 `BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS`，例如 `github.com` 或公司 Git 服务器域名。
+- 如果经过 Nginx/Caddy 等反向代理访问网页，设置 `BUILD_SERVER_PUBLIC_BASE_URL` 和 `BUILD_SERVER_ALLOWED_ORIGINS`，否则跨站请求防护会拒绝来源不一致的写操作。
 
 ## Mac 发布
 
@@ -76,6 +102,8 @@ Header: X-Agent-Token: <BUILD_SERVER_AGENT_TOKEN>
 - `list_build_artifacts`
 
 默认 Agent 只允许 `dryRun=true`。要允许正式打包，需要在数据中把对应 `McpClientRecord.allowFullBuild` 改为 `true`，并建议只给特定项目授权。
+
+新建配置默认不允许 MCP 使用，需要在网页里显式勾选“允许 MCP 使用”。
 
 ## 安全边界
 

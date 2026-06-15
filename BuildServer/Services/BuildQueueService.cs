@@ -51,7 +51,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
             string jobRoot = Path.Combine(options.DataRoot, "jobs", jobId);
             Directory.CreateDirectory(jobRoot);
             string materializedConfigPath = Path.Combine(jobRoot, "build-config.json");
-            MaterializeConfig(config.ConfigPath, materializedConfigPath, branch, buildNumber);
+            MaterializeConfig(project, config, materializedConfigPath, branch, buildNumber);
 
             var job = new BuildJobRecord
             {
@@ -127,8 +127,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
     private static void EnsureBranchAllowed(ProjectRecord project, string branch)
     {
         if (project.AllowedBranches.Count == 0 ||
-            project.AllowedBranches.Contains("*") ||
-            project.AllowedBranches.Contains(branch, StringComparer.OrdinalIgnoreCase))
+            project.AllowedBranches.Any(pattern => BranchMatches(pattern, branch)))
         {
             return;
         }
@@ -136,13 +135,43 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         throw new InvalidOperationException($"分支 {branch} 不在项目允许分支内。");
     }
 
-    private static void MaterializeConfig(string sourcePath, string targetPath, string branch, string buildNumber)
+    private static bool BranchMatches(string pattern, string branch)
     {
-        string fullSourcePath = ExpandPath(sourcePath);
-        JsonObject json = JsonNode.Parse(File.ReadAllText(fullSourcePath))?.AsObject()
-            ?? throw new InvalidOperationException($"配置文件不是有效 JSON: {sourcePath}");
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            return false;
+        }
 
+        pattern = pattern.Trim();
+        if (pattern == "*")
+        {
+            return true;
+        }
+
+        if (!pattern.Contains('*'))
+        {
+            return string.Equals(pattern, branch, StringComparison.OrdinalIgnoreCase);
+        }
+
+        string[] parts = pattern.Split('*', 2);
+        return branch.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase) &&
+               branch.EndsWith(parts[1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void MaterializeConfig(ProjectRecord project, BuildConfigRecord config, string targetPath, string branch, string buildNumber)
+    {
+        string fullSourcePath = ExpandPath(config.ConfigPath);
+        JsonObject json = JsonNode.Parse(File.ReadAllText(fullSourcePath))?.AsObject()
+            ?? throw new InvalidOperationException($"配置文件不是有效 JSON: {config.ConfigPath}");
+
+        json["configName"] = config.Name;
+        json["repositoryUrl"] = project.RepositoryUrl;
+        json["allowedRepositoryUrls"] = new JsonArray(project.RepositoryUrl);
         json["branch"] = branch;
+        json["workspaceRoot"] = project.WorkspaceRoot;
+        json["allowedWorkspaceRoots"] = new JsonArray(project.WorkspaceRoot);
+        json["artifactsRoot"] = project.ArtifactsRoot;
+        json["allowedArtifactsRoots"] = new JsonArray(project.ArtifactsRoot);
         json["buildNumber"] = buildNumber;
         json["autoIncrementBuildNumber"] = false;
         json["saveConfigSnapshot"] = true;

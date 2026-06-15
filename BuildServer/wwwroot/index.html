@@ -12,9 +12,9 @@
       <form id="loginForm" class="panel">
         <h1>Unity iOS 打包平台</h1>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
-        <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="默认 admin123"></label>
+        <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="查看数据目录 initial-admin.txt"></label>
         <button type="submit">登录</button>
-        <p class="hint">首次启动默认账号 admin；生产环境请设置 BUILD_SERVER_ADMIN_PASSWORD。</p>
+        <p class="hint">首次启动默认账号 admin；生产环境请设置 BUILD_SERVER_ADMIN_PASSWORD，未设置时会生成随机密码。</p>
       </form>
     </section>
 
@@ -89,7 +89,7 @@
               <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-ios.release.json"></label>
-              <label><input id="configAllowMcp" type="checkbox" checked> 允许 MCP 使用</label>
+              <label><input id="configAllowMcp" type="checkbox"> 允许 MCP 使用</label>
               <button type="submit">保存配置</button>
             </form>
           </div>

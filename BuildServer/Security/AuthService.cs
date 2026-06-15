@@ -4,14 +4,18 @@ using BuildServer.Persistence;
 
 namespace BuildServer.Security;
 
-public sealed class AuthService(JsonDatabase database)
+public sealed class AuthService(JsonDatabase database, BuildServerOptions options)
 {
     public const string CookieName = "aub_session";
 
     public async Task SeedDefaultsAsync()
     {
-        string adminPassword = Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD") ?? "admin123";
-        string agentToken = Environment.GetEnvironmentVariable("BUILD_SERVER_AGENT_TOKEN") ?? "dev-agent-token";
+        string adminPassword = Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD") ?? Ids.Secret();
+        string agentToken = Environment.GetEnvironmentVariable("BUILD_SERVER_AGENT_TOKEN") ?? Ids.Secret();
+        bool generatedAdminPassword = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD"));
+        bool generatedAgentToken = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BUILD_SERVER_AGENT_TOKEN"));
+        bool adminCreated = false;
+        bool agentCreated = false;
 
         await database.UpdateAsync(db =>
         {
@@ -28,6 +32,7 @@ public sealed class AuthService(JsonDatabase database)
             {
                 admin.PasswordHash = PasswordHasher.Hash(adminPassword);
                 db.Users.Add(admin);
+                adminCreated = true;
             }
 
             UserRecord agentUser = db.Users.FirstOrDefault(user => user.Role == Roles.Agent) ?? new UserRecord
@@ -58,10 +63,14 @@ public sealed class AuthService(JsonDatabase database)
                     Enabled = true,
                     CreatedAt = DateTimeOffset.Now
                 });
+                agentCreated = true;
             }
 
             AddAudit(db, admin.Id, admin.UserName, "seed-defaults", "system", "build-server", "初始化默认管理员、Agent 和本机配置。");
         });
+
+        WriteInitialSecretFile("initial-admin.txt", generatedAdminPassword && adminCreated, $"admin password: {adminPassword}");
+        WriteInitialSecretFile("initial-agent-token.txt", generatedAgentToken && agentCreated, $"agent token: {agentToken}");
     }
 
     public async Task<UserRecord?> ValidateLoginAsync(string userName, string password)
@@ -205,18 +214,81 @@ public sealed class AuthService(JsonDatabase database)
                 .ToList();
         }
     }
+
+    private void WriteInitialSecretFile(string fileName, bool shouldWrite, string content)
+    {
+        if (!shouldWrite)
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(options.DataRoot);
+        string path = Path.Combine(options.DataRoot, fileName);
+        if (!File.Exists(path))
+        {
+            File.WriteAllText(path, content + Environment.NewLine);
+            TryRestrictSecretFile(path);
+        }
+    }
+
+    private static void TryRestrictSecretFile(string path)
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+        }
+        catch
+        {
+            // 文件权限收紧失败不阻止服务启动；部署文档会提醒手动保护数据目录。
+        }
+    }
 }
 
 public static class PasswordHasher
 {
+    private const int Pbkdf2Iterations = 210_000;
+
     public static string Hash(string password)
     {
         byte[] salt = RandomNumberGenerator.GetBytes(16);
-        byte[] hash = SHA256.HashData(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
-        return $"{Convert.ToBase64String(salt)}:{Convert.ToBase64String(hash)}";
+        byte[] hash = Rfc2898DeriveBytes.Pbkdf2(
+            Encoding.UTF8.GetBytes(password),
+            salt,
+            Pbkdf2Iterations,
+            HashAlgorithmName.SHA256,
+            32);
+        return $"pbkdf2-sha256:{Pbkdf2Iterations}:{Convert.ToBase64String(salt)}:{Convert.ToBase64String(hash)}";
     }
 
     public static bool Verify(string password, string storedHash)
+    {
+        string[] parts = storedHash.Split(':');
+        if (parts.Length == 4 && parts[0] == "pbkdf2-sha256")
+        {
+            int iterations = int.Parse(parts[1]);
+            byte[] salt = Convert.FromBase64String(parts[2]);
+            byte[] expected = Convert.FromBase64String(parts[3]);
+            byte[] actual = Rfc2898DeriveBytes.Pbkdf2(
+                Encoding.UTF8.GetBytes(password),
+                salt,
+                iterations,
+                HashAlgorithmName.SHA256,
+                expected.Length);
+            return CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+
+        return VerifyLegacySha256(password, storedHash);
+    }
+
+    public static string HashToken(string token)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    }
+
+    private static bool VerifyLegacySha256(string password, string storedHash)
     {
         string[] parts = storedHash.Split(':', 2);
         if (parts.Length != 2)
@@ -229,18 +301,13 @@ public static class PasswordHasher
         byte[] actual = SHA256.HashData(salt.Concat(Encoding.UTF8.GetBytes(password)).ToArray());
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
-
-    public static string HashToken(string token)
-    {
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-    }
 }
 
 public static class Ids
 {
     public static string New(string prefix)
     {
-        return $"{prefix}_{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}"[..Math.Min(prefix.Length + 1 + 14 + 1 + 12, prefix.Length + 28)];
+        return $"{prefix}_{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}";
     }
 
     public static string Secret()
