@@ -91,18 +91,32 @@ public static class McpEndpoint
 
         object result = name switch
         {
-            "list_projects" => await database.ReadAsync(db => db.Projects.Where(project => project.Enabled).ToList()),
+            "list_projects" => await database.ReadAsync(db => db.Projects
+                .Where(project => project.Enabled && IsProjectAllowed(client, project.Id))
+                .ToList()),
             "list_configs" => await database.ReadAsync(db => db.Configs
-                .Where(config => config.Enabled && (!arguments.TryGetPropertyValue("projectId", out JsonNode? projectId) || config.ProjectId == projectId?.GetValue<string>()))
+                .Where(config =>
+                    config.Enabled &&
+                    IsProjectAllowed(client, config.ProjectId) &&
+                    (!arguments.TryGetPropertyValue("projectId", out JsonNode? projectId) || config.ProjectId == projectId?.GetValue<string>()))
                 .ToList()),
             "start_ios_build" => await queue.EnqueueAsync(ParseStartBuild(arguments, client), user, BuildSources.Mcp, client),
             "get_build_status" => await database.ReadAsync<object>(db =>
             {
                 BuildJobRecord? job = db.Jobs.FirstOrDefault(job => job.Id == Required(arguments, "jobId"));
-                return job is null ? new { error = "job not found" } : job;
+                return job is null || !IsProjectAllowed(client, job.ProjectId)
+                    ? new { error = "job not found" }
+                    : job;
             }),
-            "tail_build_log" => await TailLogAsync(database, Required(arguments, "jobId"), arguments["lines"]?.GetValue<int>() ?? 200),
-            "list_build_artifacts" => await database.ReadAsync(db => db.Artifacts.Where(artifact => artifact.JobId == Required(arguments, "jobId")).ToList()),
+            "tail_build_log" => await TailLogAsync(database, client, Required(arguments, "jobId"), arguments["lines"]?.GetValue<int>() ?? 200),
+            "list_build_artifacts" => await database.ReadAsync(db =>
+            {
+                string jobId = Required(arguments, "jobId");
+                BuildJobRecord? job = db.Jobs.FirstOrDefault(job => job.Id == jobId);
+                return job is null || !IsProjectAllowed(client, job.ProjectId)
+                    ? new List<BuildArtifactRecord>()
+                    : db.Artifacts.Where(artifact => artifact.JobId == jobId).ToList();
+            }),
             _ => throw new InvalidOperationException($"未知 MCP 工具: {name}")
         };
 
@@ -125,10 +139,10 @@ public static class McpEndpoint
             arguments["notes"]?.GetValue<string>());
     }
 
-    private static async Task<string> TailLogAsync(JsonDatabase database, string jobId, int lines)
+    private static async Task<string> TailLogAsync(JsonDatabase database, McpClientRecord client, string jobId, int lines)
     {
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
-        if (job is null || !File.Exists(job.WorkerLogPath))
+        if (job is null || !IsProjectAllowed(client, job.ProjectId) || !File.Exists(job.WorkerLogPath))
         {
             return "";
         }
@@ -144,6 +158,12 @@ public static class McpEndpoint
         }
 
         return string.Join(Environment.NewLine, queue);
+    }
+
+    private static bool IsProjectAllowed(McpClientRecord client, string projectId)
+    {
+        return client.AllowedProjectIds.Count == 0 ||
+               client.AllowedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
     }
 
     private static JsonObject Tool(string name, string description)

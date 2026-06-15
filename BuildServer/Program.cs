@@ -2,6 +2,8 @@ using BuildServer;
 using BuildServer.Persistence;
 using BuildServer.Security;
 using BuildServer.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -18,6 +20,7 @@ BuildServerOptions options = BuildServerEnvironment.Load(builder.Configuration, 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<JsonDatabase>();
 builder.Services.AddSingleton<AuthService>();
+builder.Services.AddSingleton<LoginRateLimiter>();
 builder.Services.AddSingleton<BuildQueueService>();
 builder.Services.AddSingleton<ArtifactScanner>();
 builder.Services.AddSingleton<BuildWorkerService>();
@@ -31,6 +34,33 @@ AuthService auth = app.Services.GetRequiredService<AuthService>();
 await database.InitializeAsync();
 await auth.SeedDefaultsAsync();
 
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        Exception? exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        int statusCode = exception switch
+        {
+            UnauthorizedAccessException => StatusCodes.Status403Forbidden,
+            FileNotFoundException => StatusCodes.Status400BadRequest,
+            InvalidOperationException => StatusCodes.Status400BadRequest,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = statusCode == StatusCodes.Status500InternalServerError ? "服务器内部错误。" : exception?.Message
+        });
+    });
+});
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+});
+app.UseBuildServerSecurity();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

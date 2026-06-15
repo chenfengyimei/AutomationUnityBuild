@@ -54,7 +54,7 @@ public sealed class BuildConfigRecord
     public string Name { get; set; } = "";
     public string ConfigPath { get; set; } = "";
     public bool Enabled { get; set; } = true;
-    public bool AllowMcpBuild { get; set; } = true;
+    public bool AllowMcpBuild { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
@@ -178,7 +178,7 @@ public sealed record ProjectRequest(
     string ArtifactsRoot,
     string? Description);
 
-public sealed record BuildConfigRequest(string ProjectId, string Name, string ConfigPath, bool AllowMcpBuild = true);
+public sealed record BuildConfigRequest(string ProjectId, string Name, string ConfigPath, bool AllowMcpBuild = false);
 
 public sealed record StartBuildRequest(
     string ProjectId,

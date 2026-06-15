@@ -146,7 +146,7 @@ async function createConfig(event) {
     }),
   });
   $("configForm").reset();
-  $("configAllowMcp").checked = true;
+  $("configAllowMcp").checked = false;
   await refreshAll();
 }
 

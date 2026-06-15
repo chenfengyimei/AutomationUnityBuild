@@ -212,7 +212,20 @@ Mac 启动：
 http://127.0.0.1:5088
 ```
 
-默认账号是 `admin / admin123`。生产环境请设置 `BUILD_SERVER_ADMIN_PASSWORD` 和 `BUILD_SERVER_AGENT_TOKEN`，详细说明见 [docs/build-server.md](docs/build-server.md)。
+默认账号是 `admin`。如果没有设置 `BUILD_SERVER_ADMIN_PASSWORD`，首次启动会在数据目录生成 `initial-admin.txt`；如果没有设置 `BUILD_SERVER_AGENT_TOKEN`，会生成 `initial-agent-token.txt`。生产环境建议显式设置这两个环境变量，详细说明见 [docs/build-server.md](docs/build-server.md)。
+
+生产环境还建议同时设置这些安全边界：
+
+```bash
+export BUILD_SERVER_PUBLIC_BASE_URL="https://build.example.com"
+export BUILD_SERVER_ALLOWED_ORIGINS="https://build.example.com"
+export BUILD_SERVER_ALLOWED_WORKSPACE_ROOTS="/Users/build/UnityBuildWorkspace"
+export BUILD_SERVER_ALLOWED_ARTIFACTS_ROOTS="/Users/build/UnityBuildArtifacts"
+export BUILD_SERVER_ALLOWED_CONFIG_ROOTS="/Users/build/BuildServerData/configs"
+export BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS="github.com"
+```
+
+这些限制会让网页和 MCP 只能在允许目录内创建任务、读取配置和产物，并限制可登记的 Git 仓库 Host。
 
 ## 在 Windows/VS 发布给 Mac 用
 

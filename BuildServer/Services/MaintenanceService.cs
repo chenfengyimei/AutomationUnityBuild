@@ -41,7 +41,7 @@ public sealed class MaintenanceService(
 
             foreach (BuildJobRecord job in removable)
             {
-                DeleteJobFiles(job);
+                DeleteJobFiles(job, db);
                 db.Artifacts.RemoveAll(artifact => artifact.JobId == job.Id);
                 db.Jobs.Remove(job);
             }
@@ -66,21 +66,28 @@ public sealed class MaintenanceService(
             }
 
             long jobBytes = db.Artifacts.Where(artifact => artifact.JobId == job.Id).Sum(artifact => artifact.SizeBytes);
-            DeleteJobFiles(job);
+            DeleteJobFiles(job, db);
             db.Artifacts.RemoveAll(artifact => artifact.JobId == job.Id);
             db.Jobs.Remove(job);
             total -= jobBytes;
         }
     }
 
-    private void DeleteJobFiles(BuildJobRecord job)
+    private void DeleteJobFiles(BuildJobRecord job, BuildServerDatabase db)
     {
-        TryDelete(job.ArtifactRoot);
+        ProjectRecord? project = db.Projects.FirstOrDefault(project => project.Id == job.ProjectId);
+        List<string> allowedRoots = [options.DataRoot];
+        if (project is not null && !string.IsNullOrWhiteSpace(project.ArtifactsRoot))
+        {
+            allowedRoots.Add(BuildServerEnvironment.ExpandHome(project.ArtifactsRoot));
+        }
+
+        TryDelete(job.ArtifactRoot, allowedRoots);
         string? jobRoot = string.IsNullOrWhiteSpace(job.WorkerLogPath) ? null : Path.GetDirectoryName(job.WorkerLogPath);
-        TryDelete(jobRoot);
+        TryDelete(jobRoot, allowedRoots);
     }
 
-    private void TryDelete(string? path)
+    private void TryDelete(string? path, IReadOnlyList<string> allowedRoots)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -90,7 +97,7 @@ public sealed class MaintenanceService(
         try
         {
             string fullPath = Path.GetFullPath(path);
-            if (IsUnsafeDeleteTarget(fullPath))
+            if (IsUnsafeDeleteTarget(fullPath) || !allowedRoots.Any(root => IsSameOrChild(fullPath, root)))
             {
                 logger.LogWarning("拒绝清理危险路径: {Path}", fullPath);
                 return;
@@ -122,6 +129,20 @@ public sealed class MaintenanceService(
         string normalized = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return normalized.Length == 0 || normalized.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSameOrChild(string path, string root)
+    {
+        string normalizedPath = NormalizeDirectory(path);
+        string normalizedRoot = NormalizeDirectory(root);
+        return normalizedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
+               normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDirectory(string path)
+    {
+        string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
     }
 
     private static bool IsCompleted(string status)
