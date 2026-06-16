@@ -35,6 +35,13 @@ async function readErrorMessage(response) {
   }
 }
 
+async function fetchText(path) {
+  const response = await fetch(path, { credentials: "include" });
+  if (response.status === 401) throw new Error(await readErrorMessage(response) || "未登录或登录已过期");
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response.text();
+}
+
 function showError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
   if (message) alert(message);
@@ -48,6 +55,7 @@ async function init() {
     event.preventDefault();
     showError(event.reason);
   });
+
   try {
     state.user = await api("/api/me");
     showMain();
@@ -55,6 +63,7 @@ async function init() {
   } catch {
     showLogin();
   }
+
   setInterval(refreshJobsSoft, 3000);
 }
 
@@ -65,6 +74,14 @@ function bindEvents() {
   $("projectForm").addEventListener("submit", createProject);
   $("configForm").addEventListener("submit", createConfig);
   $("buildForm").addEventListener("submit", startBuild);
+  $("jobsList").addEventListener("click", handleJobsListClick);
+  $("jobModalClose").addEventListener("click", closeJobModal);
+  $("jobModal").addEventListener("click", (event) => {
+    if (event.target === $("jobModal")) closeJobModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
+  });
   $("configCreateFile").addEventListener("change", toggleConfigFileFields);
   $("configProject").addEventListener("change", fillConfigFileDefaults);
   $("configName").addEventListener("input", fillConfigFileDefaults);
@@ -93,6 +110,7 @@ async function login(event) {
 async function logout() {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;
+  closeJobModal();
   showLogin();
 }
 
@@ -134,7 +152,7 @@ async function refreshAll() {
   renderJobs();
   renderWorkers(workers);
   if (state.activeTab === "audit") await refreshAudit();
-  if (state.selectedJobId) await showJob(state.selectedJobId);
+  if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
 }
 
 async function refreshJobsSoft() {
@@ -142,7 +160,7 @@ async function refreshJobsSoft() {
   try {
     state.jobs = await api("/api/builds");
     renderJobs();
-    if (state.selectedJobId) await showJob(state.selectedJobId);
+    if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
   } catch {
     // 登录过期时下一次手动刷新会提示。
   }
@@ -312,11 +330,28 @@ async function startBuild(event) {
   });
   state.selectedJobId = job.id;
   await refreshAll();
+  await openJobModal(job.id);
 }
 
 async function cancelJob(jobId) {
   await api(`/api/builds/${jobId}/cancel`, { method: "POST" });
   await refreshAll();
+  if (state.selectedJobId === jobId && isJobModalOpen()) {
+    await refreshJobModal(jobId);
+  }
+}
+
+async function handleJobsListClick(event) {
+  const viewButton = event.target.closest("[data-view-job-id]");
+  if (viewButton) {
+    await openJobModal(viewButton.dataset.viewJobId);
+    return;
+  }
+
+  const cancelButton = event.target.closest("[data-cancel-job-id]");
+  if (cancelButton) {
+    await cancelJob(cancelButton.dataset.cancelJobId);
+  }
 }
 
 function renderProjects() {
@@ -327,13 +362,13 @@ function renderProjects() {
       <div class="muted">${escapeHtml(project.repositoryUrl)} [${escapeHtml(project.defaultBranch)}]</div>
       <div>Workspace: ${escapeHtml(project.workspaceRoot)}</div>
       <div>Artifacts: ${escapeHtml(project.artifactsRoot)}</div>
-      <div class="muted">配置：${configs.map((config) => escapeHtml(config.name)).join("，") || "暂无"}</div>
+      <div class="muted">配置: ${configs.map((config) => escapeHtml(config.name)).join(", ") || "暂无"}</div>
     </article>`;
   }).join("");
 }
 
 function renderConfigsSelects() {
-  const projectOptions = state.projects.map((project) => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join("");
+  const projectOptions = state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join("");
   $("buildProject").innerHTML = projectOptions;
   $("configProject").innerHTML = projectOptions;
   fillConfigFileDefaults();
@@ -343,7 +378,7 @@ function renderConfigsSelects() {
 function renderBuildConfigs() {
   const projectId = $("buildProject").value;
   const configs = state.configs.filter((config) => config.projectId === projectId);
-  $("buildConfig").innerHTML = configs.map((config) => `<option value="${config.id}">${escapeHtml(config.name)}</option>`).join("");
+  $("buildConfig").innerHTML = configs.map((config) => `<option value="${escapeHtml(config.id)}">${escapeHtml(config.name)}</option>`).join("");
 }
 
 function renderJobs() {
@@ -353,43 +388,74 @@ function renderJobs() {
     return `<article class="item">
       <header>
         <strong>${escapeHtml(project?.name || job.projectId)} / ${escapeHtml(config?.name || job.configId)}</strong>
-        <span class="status ${job.status}">${job.status}</span>
+        <span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
       </header>
-      <div class="muted">${new Date(job.createdAt).toLocaleString()} · ${escapeHtml(job.branch)} · build ${escapeHtml(job.buildNumber)} · ${job.source}</div>
-      <button class="secondary" onclick="showJob('${job.id}')">查看</button>
-      ${(job.status === "Queued" || job.status === "Running") ? `<button class="danger" onclick="cancelJob('${job.id}')">取消</button>` : ""}
+      <div class="muted">${new Date(job.createdAt).toLocaleString()} | ${escapeHtml(job.branch)} | build ${escapeHtml(job.buildNumber)} | ${escapeHtml(job.source)}</div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看</button>
+        ${(job.status === "Queued" || job.status === "Running") ? `<button class="danger" type="button" data-cancel-job-id="${escapeHtml(job.id)}">取消</button>` : ""}
+      </div>
     </article>`;
   }).join("");
 }
 
-async function showJob(jobId) {
+async function openJobModal(jobId) {
   state.selectedJobId = jobId;
+  $("jobModal").classList.remove("hidden");
+  $("jobModal").setAttribute("aria-hidden", "false");
+  $("jobModalTitle").textContent = "任务详情";
+  $("jobModalSubTitle").textContent = jobId;
+  $("jobModalDetail").innerHTML = `<div><strong>状态</strong><br>加载中...</div>`;
+  $("jobModalArtifacts").innerHTML = `<article class="item muted">正在加载产物...</article>`;
+  $("jobModalLog").textContent = "正在加载日志...";
+  await refreshJobModal(jobId);
+}
+
+function closeJobModal() {
+  $("jobModal").classList.add("hidden");
+  $("jobModal").setAttribute("aria-hidden", "true");
+  state.selectedJobId = null;
+}
+
+function isJobModalOpen() {
+  return !$("jobModal").classList.contains("hidden");
+}
+
+async function refreshJobModal(jobId) {
   const [job, log, artifacts] = await Promise.all([
     api(`/api/builds/${jobId}`),
-    fetch(`/api/builds/${jobId}/log?lines=500`, { credentials: "include" }).then((response) => response.text()),
+    fetchText(`/api/builds/${jobId}/log?full=true`),
     api(`/api/builds/${jobId}/artifacts`),
   ]);
-  $("jobDetail").innerHTML = [
+
+  $("jobModalTitle").textContent = "任务详情";
+  $("jobModalSubTitle").textContent = `${job.id} / ${new Date(job.createdAt).toLocaleString()}`;
+  $("jobModalDetail").innerHTML = [
     ["状态", job.status],
     ["分支", job.branch],
-    ["Build", job.buildNumber],
+    ["Build Number", job.buildNumber],
     ["Worker", job.workerId || "-"],
-    ["开始", job.startedAt ? new Date(job.startedAt).toLocaleString() : "-"],
-    ["结束", job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"],
+    ["开始时间", job.startedAt ? new Date(job.startedAt).toLocaleString() : "-"],
+    ["结束时间", job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"],
     ["dry-run", job.dryRun ? "是" : "否"],
-    ["错误", job.error || "-"],
-  ].map(([k, v]) => `<div><strong>${k}</strong><br>${escapeHtml(String(v))}</div>`).join("");
-  $("jobLog").textContent = log;
-  $("artifactsList").innerHTML = artifacts.map((artifact) => `<article class="item">
-    <strong>${escapeHtml(artifact.type)}</strong>
-    <div class="muted">${escapeHtml(artifact.path)}</div>
-    <a href="/api/artifacts/${artifact.id}/download" target="_blank">下载</a>
-  </article>`).join("");
+    ["错误信息", job.error || "-"],
+  ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
+
+  $("jobModalLog").textContent = log || "暂无日志";
+  $("jobModalArtifacts").innerHTML = artifacts.length
+    ? artifacts.map((artifact) => `<article class="item artifact-item">
+        <div>
+          <strong>${escapeHtml(artifact.type)}</strong>
+          <div class="muted">${escapeHtml(artifact.path)}</div>
+        </div>
+        <a class="download-link" href="/api/artifacts/${escapeHtml(artifact.id)}/download" target="_blank" rel="noopener">下载</a>
+      </article>`).join("")
+    : `<article class="item muted">暂无可下载产物</article>`;
 }
 
 function renderWorkers(workers) {
   $("workersList").innerHTML = workers.map((worker) => `<article class="item">
-    <header><strong>${escapeHtml(worker.name)}</strong><span class="status ${worker.status}">${worker.status}</span></header>
+    <header><strong>${escapeHtml(worker.name)}</strong><span class="status ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></header>
     <div>Host: ${escapeHtml(worker.hostName)}</div>
     <div>Current Job: ${escapeHtml(worker.currentJobId || "-")}</div>
     <div class="muted">Last Seen: ${new Date(worker.lastSeenAt).toLocaleString()}</div>
@@ -400,8 +466,8 @@ async function refreshAudit() {
   const audit = await api("/api/audit");
   $("auditList").innerHTML = audit.map((item) => `<article class="item">
     <strong>${escapeHtml(item.action)}</strong>
-    <div>${escapeHtml(item.userName)} · ${escapeHtml(item.targetType)}:${escapeHtml(item.targetId)}</div>
-    <div class="muted">${new Date(item.createdAt).toLocaleString()} · ${escapeHtml(item.details)}</div>
+    <div>${escapeHtml(item.userName)} | ${escapeHtml(item.targetType)}:${escapeHtml(item.targetId)}</div>
+    <div class="muted">${new Date(item.createdAt).toLocaleString()} | ${escapeHtml(item.details)}</div>
   </article>`).join("");
 }
 

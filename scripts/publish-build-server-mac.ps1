@@ -31,4 +31,17 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE"
 }
 
+dotnet publish (Join-Path $root "AutomationUnityBuildIOS.csproj") `
+    -c $Configuration `
+    -r $Runtime `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:PublishTrimmed=false `
+    -o $outputFullPath
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish AutomationUnityBuildIOS failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "BuildServer published to: $outputFullPath"
+Write-Host "AutomationUnityBuildIOS CLI was included in the same directory."

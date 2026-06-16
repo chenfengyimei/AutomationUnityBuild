@@ -284,14 +284,17 @@ public static class ApiRoutes
         return job is null ? Results.NotFound() : Results.Ok(job);
     }
 
-    private static async Task<IResult> GetJobLogAsync(string jobId, HttpContext context, AuthService auth, JsonDatabase database, int? lines)
+    private static async Task<IResult> GetJobLogAsync(string jobId, HttpContext context, AuthService auth, JsonDatabase database, int? lines, bool full = false)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
         if (!File.Exists(job.WorkerLogPath)) return Results.Ok("");
-        return Results.Text(Tail(job.WorkerLogPath, Math.Clamp(lines ?? 300, 20, 2000)), "text/plain; charset=utf-8");
+        string log = full
+            ? File.ReadAllText(job.WorkerLogPath)
+            : Tail(job.WorkerLogPath, Math.Clamp(lines ?? 300, 20, 2000));
+        return Results.Text(log, "text/plain; charset=utf-8");
     }
 
     private static async Task<IResult> CancelJobAsync(
