@@ -46,10 +46,10 @@ public static class BuildServerEnvironment
             options.WorkerName = Environment.MachineName;
         }
 
-        options.DataRoot = Path.GetFullPath(ExpandHome(options.DataRoot));
-        options.AutomationExecutablePath = ExpandOptionalPath(options.AutomationExecutablePath);
-        options.AutomationDllPath = ExpandOptionalPath(options.AutomationDllPath);
-        options.AutomationWorkingDirectory = ExpandOptionalPath(options.AutomationWorkingDirectory);
+        options.DataRoot = ResolvePath(options.DataRoot, environment.ContentRootPath);
+        options.AutomationExecutablePath = ExpandOptionalPath(options.AutomationExecutablePath, environment.ContentRootPath);
+        options.AutomationDllPath = ExpandOptionalPath(options.AutomationDllPath, environment.ContentRootPath);
+        options.AutomationWorkingDirectory = ExpandOptionalPath(options.AutomationWorkingDirectory, environment.ContentRootPath);
 
         if (options.AllowedWorkspaceRoots.Count == 0)
         {
@@ -67,9 +67,9 @@ public static class BuildServerEnvironment
             options.AllowedConfigRoots.Add(Path.Combine(environment.ContentRootPath, "configs"));
         }
 
-        options.AllowedWorkspaceRoots = NormalizeRootList(options.AllowedWorkspaceRoots);
-        options.AllowedArtifactsRoots = NormalizeRootList(options.AllowedArtifactsRoots);
-        options.AllowedConfigRoots = NormalizeRootList(options.AllowedConfigRoots);
+        options.AllowedWorkspaceRoots = NormalizeRootList(options.AllowedWorkspaceRoots, environment.ContentRootPath);
+        options.AllowedArtifactsRoots = NormalizeRootList(options.AllowedArtifactsRoots, environment.ContentRootPath);
+        options.AllowedConfigRoots = NormalizeRootList(options.AllowedConfigRoots, environment.ContentRootPath);
         options.AllowedRepositoryHosts = options.AllowedRepositoryHosts
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().ToLowerInvariant())
@@ -93,9 +93,9 @@ public static class BuildServerEnvironment
         return path;
     }
 
-    private static string ExpandOptionalPath(string path)
+    private static string ExpandOptionalPath(string path, string contentRootPath)
     {
-        return string.IsNullOrWhiteSpace(path) ? "" : Path.GetFullPath(ExpandHome(path));
+        return string.IsNullOrWhiteSpace(path) ? "" : ResolvePath(path, contentRootPath);
     }
 
     private static string Env(string name, string fallback)
@@ -116,12 +116,20 @@ public static class BuildServerEnvironment
         target.AddRange(value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
-    private static List<string> NormalizeRootList(IEnumerable<string> roots)
+    private static List<string> NormalizeRootList(IEnumerable<string> roots, string contentRootPath)
     {
         return roots
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => Path.GetFullPath(ExpandHome(value.Trim())))
+            .Select(value => ResolvePath(value.Trim(), contentRootPath))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string ResolvePath(string path, string contentRootPath)
+    {
+        string expanded = ExpandHome(path);
+        return Path.GetFullPath(Path.IsPathRooted(expanded)
+            ? expanded
+            : Path.Combine(contentRootPath, expanded));
     }
 }

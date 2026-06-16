@@ -62,12 +62,6 @@
             </section>
           </div>
 
-          <section class="panel">
-            <h3>任务详情</h3>
-            <div id="jobDetail" class="detail"></div>
-            <pre id="jobLog"></pre>
-            <div id="artifactsList" class="list"></div>
-          </section>
         </section>
 
         <section id="projectsTab" class="tab hidden">
@@ -147,6 +141,33 @@
       </section>
     </section>
   </main>
+
+  <section id="jobModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="jobModalTitle">
+      <header class="modal-header">
+        <div>
+          <h2 id="jobModalTitle">任务详情</h2>
+          <p id="jobModalSubTitle" class="muted"></p>
+        </div>
+        <button id="jobModalClose" class="secondary" type="button">关闭</button>
+      </header>
+
+      <div class="modal-body">
+        <section id="jobModalDetail" class="detail modal-detail"></section>
+
+        <section>
+          <h3>产物下载</h3>
+          <div id="jobModalArtifacts" class="list"></div>
+        </section>
+
+        <section>
+          <h3>完整日志</h3>
+          <pre id="jobModalLog"></pre>
+        </section>
+      </div>
+    </div>
+  </section>
+
   <script src="/app.js"></script>
 </body>
 </html>
