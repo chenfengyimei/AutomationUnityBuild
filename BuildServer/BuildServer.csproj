@@ -6,4 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Remove="buildserver-data\**" />
+    <None Remove="buildserver-data\**" />
+  </ItemGroup>
+
 </Project>
