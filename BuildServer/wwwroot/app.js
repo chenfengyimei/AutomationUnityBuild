@@ -4,6 +4,7 @@ const state = {
   configs: [],
   jobs: [],
   settings: null,
+  manualConfigPath: "",
   selectedJobId: null,
   activeTab: "builds",
 };
@@ -68,6 +69,11 @@ function bindEvents() {
   $("configProject").addEventListener("change", fillConfigFileDefaults);
   $("configName").addEventListener("input", fillConfigFileDefaults);
   $("configFileName").addEventListener("input", updateConfigPathPreview);
+  $("configPath").addEventListener("input", () => {
+    if (!$("configCreateFile").checked) {
+      state.manualConfigPath = $("configPath").value;
+    }
+  });
   document.querySelectorAll("aside button[data-tab]").forEach((button) => {
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
@@ -205,6 +211,7 @@ async function createConfig(event) {
     });
   }
   $("configForm").reset();
+  state.manualConfigPath = "";
   setConfigFileDefaults();
   toggleConfigFileFields();
   $("configAllowMcp").checked = false;
@@ -213,12 +220,18 @@ async function createConfig(event) {
 
 function toggleConfigFileFields() {
   const createFile = $("configCreateFile").checked;
+  if (createFile) {
+    state.manualConfigPath = $("configPath").value;
+  }
+
   $("configFileFields").classList.toggle("hidden", !createFile);
   $("configPath").disabled = createFile;
   $("configPath").required = !createFile;
   if (createFile) {
     fillConfigFileDefaults();
     updateConfigPathPreview();
+  } else {
+    $("configPath").value = state.manualConfigPath;
   }
 }
 
