@@ -180,6 +180,30 @@ public sealed record ProjectRequest(
 
 public sealed record BuildConfigRequest(string ProjectId, string Name, string ConfigPath, bool AllowMcpBuild = false);
 
+public sealed record BuildConfigFileRequest(
+    string ProjectId,
+    string Name,
+    string? FileName,
+    string? ProjectDirectoryName,
+    string? UnityProjectRelativePath,
+    string? UnityVersion,
+    string? UnityExecutablePath,
+    string? UnityBuildMethod,
+    string? ProductName,
+    string? BundleIdentifier,
+    string? BundleVersion,
+    bool SyncBundleVersionFromUnity = true,
+    string? BuildNumber = null,
+    bool AutoIncrementBuildNumber = true,
+    string? IosDeploymentTarget = "13.0",
+    string? TeamId = null,
+    string? SigningStyle = "automatic",
+    string? ExportMethod = "development",
+    bool AllowProvisioningUpdates = true,
+    bool CopyArchiveToOrganizer = true,
+    bool AllowMcpBuild = false,
+    bool OverwriteExisting = false);
+
 public sealed record StartBuildRequest(
     string ProjectId,
     string ConfigId,

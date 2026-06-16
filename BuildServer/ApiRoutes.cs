@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using BuildServer.Persistence;
 using BuildServer.Security;
 using BuildServer.Services;
@@ -19,6 +21,7 @@ public static class ApiRoutes
         app.MapPost("/api/projects", CreateProjectAsync);
         app.MapGet("/api/configs", ListConfigsAsync);
         app.MapPost("/api/configs", CreateConfigAsync);
+        app.MapPost("/api/config-files", CreateConfigFileAsync);
 
         app.MapPost("/api/builds", StartBuildAsync);
         app.MapGet("/api/builds", ListJobsAsync);
@@ -160,6 +163,72 @@ public static class ApiRoutes
             AuthService.AddAudit(db, user.Id, user.UserName, "config.create", "config", config.Id, $"创建配置 {config.Name}");
             return config;
         });
+
+            return Results.Ok(config);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
+    }
+
+    private static async Task<IResult> CreateConfigFileAsync(BuildConfigFileRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            BuildConfigRecord config = await database.UpdateAsync(db =>
+            {
+                ProjectRecord project = db.Projects.FirstOrDefault(project => project.Id == request.ProjectId && project.Enabled)
+                    ?? throw new InvalidOperationException("项目不存在或已禁用。");
+
+                string configName = Required(request.Name, "配置名称");
+                string configRoot = options.AllowedConfigRoots.FirstOrDefault()
+                    ?? throw new InvalidOperationException("服务端没有配置允许的配置文件目录。");
+                string fileName = SafeConfigFileName(request.FileName, configName);
+                string configPath = ValidatePathUnderAllowedRoots(Path.Combine(configRoot, fileName), options.AllowedConfigRoots, "配置文件路径");
+                if (File.Exists(configPath) && !request.OverwriteExisting)
+                {
+                    throw new InvalidOperationException($"配置文件已存在: {configPath}");
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+                File.WriteAllText(
+                    configPath,
+                    BuildConfigJson(project, request, configName).ToJsonString(new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    }) + Environment.NewLine);
+
+                BuildConfigRecord? existingConfig = db.Configs.FirstOrDefault(config =>
+                    config.ProjectId == project.Id &&
+                    string.Equals(config.ConfigPath, configPath, StringComparison.OrdinalIgnoreCase));
+                if (existingConfig is not null)
+                {
+                    existingConfig.Name = configName;
+                    existingConfig.AllowMcpBuild = request.AllowMcpBuild;
+                    existingConfig.Enabled = true;
+                    AuthService.AddAudit(db, user.Id, user.UserName, "config-file.update", "config", existingConfig.Id, $"更新配置文件 {configPath}");
+                    return existingConfig;
+                }
+
+                var config = new BuildConfigRecord
+                {
+                    Id = Ids.New("cfg"),
+                    ProjectId = project.Id,
+                    Name = configName,
+                    ConfigPath = configPath,
+                    AllowMcpBuild = request.AllowMcpBuild,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.Configs.Add(config);
+                AuthService.AddAudit(db, user.Id, user.UserName, "config-file.create", "config", config.Id, $"创建配置文件 {configPath}");
+                return config;
+            });
 
             return Results.Ok(config);
         }
@@ -325,7 +394,8 @@ public static class ApiRoutes
             options.WorkerName,
             options.PublicBaseUrl,
             options.RetentionDays,
-            options.MaxArtifactBytes
+            options.MaxArtifactBytes,
+            ConfigRoot = options.AllowedConfigRoots.FirstOrDefault() ?? ""
         });
     }
 
@@ -337,6 +407,147 @@ public static class ApiRoutes
     private static IResult ClientInputError(Exception ex)
     {
         return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName)
+    {
+        string projectDirectoryName = string.IsNullOrWhiteSpace(request.ProjectDirectoryName)
+            ? DeriveProjectDirectoryName(project)
+            : SafePathComponent(request.ProjectDirectoryName.Trim(), "仓库目录名");
+        string unityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath)
+            ? "."
+            : request.UnityProjectRelativePath.Trim();
+        string unityBuildMethod = string.IsNullOrWhiteSpace(request.UnityBuildMethod)
+            ? "BuildAutomation.IOSBuilder.Build"
+            : request.UnityBuildMethod.Trim();
+        string exportMethod = ChoiceOrDefault(request.ExportMethod, ["development", "ad-hoc", "app-store", "enterprise"], "development", "Export Method");
+        string signingStyle = ChoiceOrDefault(request.SigningStyle, ["automatic", "manual"], "automatic", "Signing Style");
+        string teamId = (request.TeamId ?? "").Trim();
+        string iosDeploymentTarget = (request.IosDeploymentTarget ?? "").Trim();
+        string bundleVersion = string.IsNullOrWhiteSpace(request.BundleVersion) ? "1.0.0" : request.BundleVersion.Trim();
+        string buildNumber = string.IsNullOrWhiteSpace(request.BuildNumber) ? "1" : request.BuildNumber.Trim();
+
+        if (!string.IsNullOrWhiteSpace(teamId) && (teamId.Length != 10 || !teamId.All(char.IsLetterOrDigit)))
+        {
+            throw new InvalidOperationException("Apple Team ID 必须是 10 位，例如 ABCDE12345，不能填公司名称。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(iosDeploymentTarget) && !Version.TryParse(iosDeploymentTarget, out _))
+        {
+            throw new InvalidOperationException("iOS Deployment Target 必须是版本号格式，例如 13.0。");
+        }
+
+        if (!request.SyncBundleVersionFromUnity && string.IsNullOrWhiteSpace(bundleVersion))
+        {
+            throw new InvalidOperationException("不同步 Unity 版本号时，必须填写 Bundle Version。");
+        }
+
+        return new JsonObject
+        {
+            ["configName"] = configName,
+            ["repositoryUrl"] = project.RepositoryUrl,
+            ["allowedRepositoryUrls"] = new JsonArray(project.RepositoryUrl),
+            ["branch"] = string.IsNullOrWhiteSpace(project.DefaultBranch) ? "main" : project.DefaultBranch,
+            ["workspaceRoot"] = project.WorkspaceRoot,
+            ["allowedWorkspaceRoots"] = new JsonArray(project.WorkspaceRoot),
+            ["projectDirectoryName"] = projectDirectoryName,
+            ["unityProjectRelativePath"] = unityProjectRelativePath,
+            ["unityVersion"] = (request.UnityVersion ?? "").Trim(),
+            ["unityExecutablePath"] = (request.UnityExecutablePath ?? "").Trim(),
+            ["unityBuildMethod"] = unityBuildMethod,
+            ["artifactsRoot"] = project.ArtifactsRoot,
+            ["allowedArtifactsRoots"] = new JsonArray(project.ArtifactsRoot),
+            ["xcodeOutputDirectory"] = "",
+            ["archivePath"] = "",
+            ["exportPath"] = "",
+            ["logsDirectory"] = "",
+            ["scheme"] = "Unity-iPhone",
+            ["configuration"] = "Release",
+            ["exportMethod"] = exportMethod,
+            ["teamId"] = teamId,
+            ["signingStyle"] = signingStyle,
+            ["exportOptionsPlistPath"] = "",
+            ["bundleIdentifier"] = (request.BundleIdentifier ?? "").Trim(),
+            ["productName"] = (request.ProductName ?? "").Trim(),
+            ["bundleVersion"] = bundleVersion,
+            ["syncBundleVersionFromUnity"] = request.SyncBundleVersionFromUnity,
+            ["buildNumber"] = buildNumber,
+            ["autoIncrementBuildNumber"] = request.AutoIncrementBuildNumber,
+            ["iosDeploymentTarget"] = iosDeploymentTarget,
+            ["allowProvisioningUpdates"] = request.AllowProvisioningUpdates,
+            ["resetRepository"] = false,
+            ["preserveUnityLibraryOnReset"] = true,
+            ["cleanXcodeOutputBeforeBuild"] = true,
+            ["useWorkspaceIfPresent"] = true,
+            ["generateExportOptionsPlist"] = true,
+            ["copyArchiveToOrganizer"] = request.CopyArchiveToOrganizer,
+            ["saveConfigSnapshot"] = true,
+            ["compileBitcode"] = null,
+            ["uploadSymbols"] = true,
+            ["xcodeBuildSettings"] = new JsonObject(),
+            ["environment"] = new JsonObject(),
+            ["provisioningProfiles"] = new JsonObject()
+        };
+    }
+
+    private static string SafeConfigFileName(string? requestedFileName, string configName)
+    {
+        string fileName = string.IsNullOrWhiteSpace(requestedFileName)
+            ? $"build-ios.{SafeFileNamePart(configName)}.json"
+            : requestedFileName.Trim();
+        fileName = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? fileName : $"{fileName}.json";
+
+        if (fileName != Path.GetFileName(fileName) ||
+            fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            fileName.Contains("..", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("配置文件名只能填写文件名，不能包含目录或特殊字符。");
+        }
+
+        return fileName;
+    }
+
+    private static string SafeFileNamePart(string value)
+    {
+        string safe = new(value.Trim().Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '-').ToArray());
+        safe = safe.Trim('-');
+        return string.IsNullOrWhiteSpace(safe) ? "config" : safe;
+    }
+
+    private static string SafePathComponent(string value, string field)
+    {
+        if (value != Path.GetFileName(value) ||
+            value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            value.Contains("..", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"{field} 只能填写单个文件夹名，不能包含路径。");
+        }
+
+        return value;
+    }
+
+    private static string DeriveProjectDirectoryName(ProjectRecord project)
+    {
+        string source = project.RepositoryUrl.TrimEnd('/');
+        int slashIndex = Math.Max(source.LastIndexOf('/'), source.LastIndexOf(':'));
+        string name = slashIndex >= 0 ? source[(slashIndex + 1)..] : project.Name;
+        if (name.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^4];
+        }
+
+        return SafePathComponent(string.IsNullOrWhiteSpace(name) ? project.Name : name, "仓库目录名");
+    }
+
+    private static string ChoiceOrDefault(string? value, IReadOnlyList<string> allowedValues, string defaultValue, string field)
+    {
+        string result = string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
+        if (!allowedValues.Contains(result, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"{field} 只能是: {string.Join(", ", allowedValues)}");
+        }
+
+        return result;
     }
 
     private static string Required(string? value, string field)

@@ -3,6 +3,7 @@ const state = {
   projects: [],
   configs: [],
   jobs: [],
+  settings: null,
   selectedJobId: null,
   activeTab: "builds",
 };
@@ -40,6 +41,8 @@ function showError(error) {
 
 async function init() {
   bindEvents();
+  setConfigFileDefaults();
+  toggleConfigFileFields();
   window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
     showError(event.reason);
@@ -61,6 +64,10 @@ function bindEvents() {
   $("projectForm").addEventListener("submit", createProject);
   $("configForm").addEventListener("submit", createConfig);
   $("buildForm").addEventListener("submit", startBuild);
+  $("configCreateFile").addEventListener("change", toggleConfigFileFields);
+  $("configProject").addEventListener("change", fillConfigFileDefaults);
+  $("configName").addEventListener("input", fillConfigFileDefaults);
+  $("configFileName").addEventListener("input", updateConfigPathPreview);
   document.querySelectorAll("aside button[data-tab]").forEach((button) => {
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
@@ -105,15 +112,17 @@ function setTab(tab) {
 }
 
 async function refreshAll() {
-  const [projects, configs, jobs, workers] = await Promise.all([
+  const [projects, configs, jobs, workers, settings] = await Promise.all([
     api("/api/projects"),
     api("/api/configs"),
     api("/api/builds"),
     api("/api/workers"),
+    api("/api/settings"),
   ]);
   state.projects = projects;
   state.configs = configs;
   state.jobs = jobs;
+  state.settings = settings;
   renderProjects();
   renderConfigsSelects();
   renderJobs();
@@ -157,18 +166,118 @@ async function createProject(event) {
 
 async function createConfig(event) {
   event.preventDefault();
-  await api("/api/configs", {
-    method: "POST",
-    body: JSON.stringify({
-      projectId: $("configProject").value,
-      name: $("configName").value,
-      configPath: $("configPath").value,
-      allowMcpBuild: $("configAllowMcp").checked,
-    }),
-  });
+  const createFile = $("configCreateFile").checked;
+  if (createFile) {
+    await api("/api/config-files", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: $("configProject").value,
+        name: $("configName").value,
+        fileName: $("configFileName").value || null,
+        projectDirectoryName: $("configProjectDirectoryName").value || null,
+        unityProjectRelativePath: $("configUnityRelativePath").value || ".",
+        unityVersion: $("configUnityVersion").value || null,
+        productName: $("configProductName").value || null,
+        bundleIdentifier: $("configBundleIdentifier").value || null,
+        teamId: $("configTeamId").value || null,
+        iosDeploymentTarget: $("configIosDeploymentTarget").value || null,
+        buildNumber: $("configBuildNumber").value || "1",
+        bundleVersion: $("configBundleVersion").value || "1.0.0",
+        exportMethod: $("configExportMethod").value,
+        signingStyle: $("configSigningStyle").value,
+        syncBundleVersionFromUnity: $("configSyncUnityVersion").checked,
+        autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
+        allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
+        copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
+        overwriteExisting: $("configOverwriteFile").checked,
+        allowMcpBuild: $("configAllowMcp").checked,
+      }),
+    });
+  } else {
+    await api("/api/configs", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: $("configProject").value,
+        name: $("configName").value,
+        configPath: $("configPath").value,
+        allowMcpBuild: $("configAllowMcp").checked,
+      }),
+    });
+  }
   $("configForm").reset();
+  setConfigFileDefaults();
+  toggleConfigFileFields();
   $("configAllowMcp").checked = false;
   await refreshAll();
+}
+
+function toggleConfigFileFields() {
+  const createFile = $("configCreateFile").checked;
+  $("configFileFields").classList.toggle("hidden", !createFile);
+  $("configPath").disabled = createFile;
+  $("configPath").required = !createFile;
+  if (createFile) {
+    fillConfigFileDefaults();
+    updateConfigPathPreview();
+  }
+}
+
+function fillConfigFileDefaults() {
+  const project = state.projects.find((item) => item.id === $("configProject").value);
+  const configName = $("configName").value.trim() || "release";
+  if (!$("configFileName").value.trim()) {
+    $("configFileName").value = `build-ios.${safeFilePart(configName)}.json`;
+  }
+
+  if (project && !$("configProjectDirectoryName").value.trim()) {
+    $("configProjectDirectoryName").value = deriveRepoFolderName(project.repositoryUrl) || safeFilePart(project.name);
+  }
+
+  if (project && !$("configProductName").value.trim()) {
+    $("configProductName").value = project.name;
+  }
+
+  updateConfigPathPreview();
+}
+
+function updateConfigPathPreview() {
+  if (!$("configCreateFile").checked) return;
+
+  const configName = $("configName").value.trim() || "release";
+  const rawFileName = $("configFileName").value.trim() || `build-ios.${safeFilePart(configName)}.json`;
+  const fileName = rawFileName.toLowerCase().endsWith(".json") ? rawFileName : `${rawFileName}.json`;
+  const root = state.settings?.configRoot || "服务端配置目录";
+  const normalizedRoot = root.replace(/[\\\/]$/, "");
+  const separator = normalizedRoot.includes("\\") ? "\\" : "/";
+  $("configPath").value = `${normalizedRoot}${separator}${fileName}`;
+}
+
+function setConfigFileDefaults() {
+  $("configUnityRelativePath").value = ".";
+  $("configIosDeploymentTarget").value = "13.0";
+  $("configBuildNumber").value = "1";
+  $("configBundleVersion").value = "1.0.0";
+  $("configExportMethod").value = "development";
+  $("configSigningStyle").value = "automatic";
+  $("configSyncUnityVersion").checked = true;
+  $("configAutoIncrementBuild").checked = true;
+  $("configAllowProvisioningUpdates").checked = true;
+  $("configCopyArchiveToOrganizer").checked = true;
+  $("configOverwriteFile").checked = false;
+}
+
+function deriveRepoFolderName(repositoryUrl) {
+  const cleaned = String(repositoryUrl || "").replace(/\/+$/, "");
+  const index = Math.max(cleaned.lastIndexOf("/"), cleaned.lastIndexOf(":"));
+  const name = index >= 0 ? cleaned.slice(index + 1) : cleaned;
+  return name.replace(/\.git$/i, "");
+}
+
+function safeFilePart(value) {
+  return String(value || "config")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "config";
 }
 
 async function startBuild(event) {
@@ -214,6 +323,7 @@ function renderConfigsSelects() {
   const projectOptions = state.projects.map((project) => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join("");
   $("buildProject").innerHTML = projectOptions;
   $("configProject").innerHTML = projectOptions;
+  fillConfigFileDefaults();
   renderBuildConfigs();
 }
 
