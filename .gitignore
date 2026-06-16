@@ -6,6 +6,7 @@
 bin/
 obj/
 artifacts/
+publish/
 
 ## Visual Studio 用户特定文件
 *.suo

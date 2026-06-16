@@ -6,11 +6,15 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 
-var builder = WebApplication.CreateBuilder(args);
+var contentRoot = ResolveContentRoot();
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = contentRoot,
+    WebRootPath = Path.Combine(contentRoot, "wwwroot")
+});
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.WebHost.UseContentRoot(AppContext.BaseDirectory);
-builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
 
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) &&
     string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
@@ -82,6 +86,40 @@ McpEndpoint.Map(app);
 
 app.Run();
 
+static string ResolveContentRoot()
+{
+    string baseDirectory = AppContext.BaseDirectory;
+    string currentDirectory = Directory.GetCurrentDirectory();
+
+    string[] directCandidates =
+    [
+        baseDirectory,
+        currentDirectory,
+        Path.Combine(currentDirectory, "BuildServer")
+    ];
+
+    foreach (string candidate in directCandidates)
+    {
+        if (IsBuildServerContentRoot(candidate))
+        {
+            return Path.GetFullPath(candidate);
+        }
+    }
+
+    DirectoryInfo? directory = new(baseDirectory);
+    while (directory is not null)
+    {
+        if (IsBuildServerContentRoot(directory.FullName))
+        {
+            return directory.FullName;
+        }
+
+        directory = directory.Parent;
+    }
+
+    return Path.GetFullPath(baseDirectory);
+}
+
 static string? ResolveWebRoot(string contentRootPath)
 {
     string[] candidates =
@@ -92,4 +130,11 @@ static string? ResolveWebRoot(string contentRootPath)
     ];
 
     return candidates.FirstOrDefault(path => File.Exists(Path.Combine(path, "index.html")));
+}
+
+static bool IsBuildServerContentRoot(string path)
+{
+    return File.Exists(Path.Combine(path, "appsettings.json")) &&
+           (File.Exists(Path.Combine(path, "wwwroot", "index.html")) ||
+            File.Exists(Path.Combine(path, "BuildServer.csproj")));
 }
