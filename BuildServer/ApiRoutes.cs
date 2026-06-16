@@ -42,14 +42,20 @@ public static class ApiRoutes
         string limiterKey = $"{context.Connection.RemoteIpAddress}|{request.UserName}";
         if (!limiter.IsAllowed(limiterKey))
         {
-            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+            return Results.Json(new
+            {
+                error = "登录失败次数过多，请稍后再试。"
+            }, statusCode: StatusCodes.Status429TooManyRequests);
         }
 
         UserRecord? user = await auth.ValidateLoginAsync(request.UserName, request.Password);
         if (user is null)
         {
             limiter.RecordFailure(limiterKey);
-            return Results.Unauthorized();
+            return Results.Json(new
+            {
+                error = "账号或密码错误。请确认账号是 admin，只复制 initial-admin.txt 里 admin password: 后面的密码，并且这个文件来自当前服务的数据目录。"
+            }, statusCode: StatusCodes.Status401Unauthorized);
         }
 
         limiter.RecordSuccess(limiterKey);
