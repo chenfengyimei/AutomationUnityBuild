@@ -89,6 +89,38 @@
               <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-ios.release.json"></label>
+              <label><input id="configCreateFile" type="checkbox"> 生成新的配置文件</label>
+              <div id="configFileFields" class="form-grid hidden">
+                <label>文件名<input id="configFileName" placeholder="build-ios.release.json"></label>
+                <label>仓库目录名<input id="configProjectDirectoryName" placeholder="留空自动从 Git 仓库推断"></label>
+                <label>Unity 工程相对路径<input id="configUnityRelativePath" value="."></label>
+                <label>Unity 版本<input id="configUnityVersion" placeholder="2022.3.62f2c1"></label>
+                <label>Product Name<input id="configProductName" placeholder="Your Game"></label>
+                <label>Bundle Identifier<input id="configBundleIdentifier" placeholder="com.company.game"></label>
+                <label>Apple Team ID<input id="configTeamId" placeholder="ABCDE12345"></label>
+                <label>iOS Deployment Target<input id="configIosDeploymentTarget" value="13.0"></label>
+                <label>Build Number<input id="configBuildNumber" value="1"></label>
+                <label>Bundle Version<input id="configBundleVersion" value="1.0.0"></label>
+                <label>Export Method
+                  <select id="configExportMethod">
+                    <option value="development">development</option>
+                    <option value="ad-hoc">ad-hoc</option>
+                    <option value="app-store">app-store</option>
+                    <option value="enterprise">enterprise</option>
+                  </select>
+                </label>
+                <label>Signing Style
+                  <select id="configSigningStyle">
+                    <option value="automatic">automatic</option>
+                    <option value="manual">manual</option>
+                  </select>
+                </label>
+                <label><input id="configSyncUnityVersion" type="checkbox" checked> 版本号同步 Unity 项目</label>
+                <label><input id="configAutoIncrementBuild" type="checkbox" checked> Build Number 自动 +1</label>
+                <label><input id="configAllowProvisioningUpdates" type="checkbox" checked> 允许 Xcode 自动处理签名</label>
+                <label><input id="configCopyArchiveToOrganizer" type="checkbox" checked> 复制 Archive 到 Organizer</label>
+                <label><input id="configOverwriteFile" type="checkbox"> 覆盖同名配置文件</label>
+              </div>
               <label><input id="configAllowMcp" type="checkbox"> 允许 MCP 使用</label>
               <button type="submit">保存配置</button>
             </form>

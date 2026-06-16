@@ -74,7 +74,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-serv
 首次进入后台后：
 
 1. 新增项目：填写项目名、Git 仓库、默认分支、允许分支、工作区、产物目录。
-2. 新增配置：选择项目，填写配置名和现有 `build-ios.xxx.json` 路径。
+2. 新增配置：可以填写现有 `build-ios.xxx.json` 路径，也可以勾选“生成新的配置文件”，在网页里填写 Unity 版本、Bundle ID、Team ID、导出方式等常用字段后由服务端自动生成 JSON 并登记。
 3. 发起打包：选择项目和配置，提交任务。
 
 BuildServer 会为每个任务生成独立配置快照，预留 Build Number，并调用 CLI：
