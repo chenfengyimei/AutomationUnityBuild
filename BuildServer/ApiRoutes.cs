@@ -87,7 +87,9 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
-        ProjectRecord project = await database.UpdateAsync(db =>
+        try
+        {
+            ProjectRecord project = await database.UpdateAsync(db =>
         {
             var project = new ProjectRecord
             {
@@ -106,7 +108,12 @@ public static class ApiRoutes
             return project;
         });
 
-        return Results.Ok(project);
+            return Results.Ok(project);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
     }
 
     private static async Task<IResult> ListConfigsAsync(HttpContext context, AuthService auth, JsonDatabase database, string? projectId)
@@ -125,7 +132,9 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
-        BuildConfigRecord config = await database.UpdateAsync(db =>
+        try
+        {
+            BuildConfigRecord config = await database.UpdateAsync(db =>
         {
             if (!db.Projects.Any(project => project.Id == request.ProjectId && project.Enabled))
             {
@@ -152,7 +161,12 @@ public static class ApiRoutes
             return config;
         });
 
-        return Results.Ok(config);
+            return Results.Ok(config);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
     }
 
     private static async Task<IResult> StartBuildAsync(
@@ -165,8 +179,15 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         if (!AuthService.CanBuild(user)) return Results.Forbid();
 
-        BuildJobRecord job = await queue.EnqueueAsync(request, user, BuildSources.Web);
-        return Results.Ok(job);
+        try
+        {
+            BuildJobRecord job = await queue.EnqueueAsync(request, user, BuildSources.Web);
+            return Results.Ok(job);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
     }
 
     private static async Task<IResult> ListJobsAsync(HttpContext context, AuthService auth, JsonDatabase database, string? projectId)
@@ -306,6 +327,16 @@ public static class ApiRoutes
             options.RetentionDays,
             options.MaxArtifactBytes
         });
+    }
+
+    private static bool IsClientInputError(Exception ex)
+    {
+        return ex is InvalidOperationException or FileNotFoundException or ArgumentException;
+    }
+
+    private static IResult ClientInputError(Exception ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
     }
 
     private static string Required(string? value, string field)

@@ -16,13 +16,34 @@ async function api(path, options = {}) {
     ...options,
   });
   if (response.status === 401) throw new Error("未登录或登录已过期");
-  if (!response.ok) throw new Error(await response.text() || response.statusText);
+  if (!response.ok) throw new Error(await readErrorMessage(response));
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
 
+async function readErrorMessage(response) {
+  const text = await response.text();
+  if (!text) return response.statusText || `HTTP ${response.status}`;
+
+  try {
+    const data = JSON.parse(text);
+    return data.error || data.message || text;
+  } catch {
+    return text;
+  }
+}
+
+function showError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (message) alert(message);
+}
+
 async function init() {
   bindEvents();
+  window.addEventListener("unhandledrejection", (event) => {
+    event.preventDefault();
+    showError(event.reason);
+  });
   try {
     state.user = await api("/api/me");
     showMain();
