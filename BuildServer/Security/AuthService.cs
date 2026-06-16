@@ -10,11 +10,13 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
 
     public async Task SeedDefaultsAsync()
     {
-        string adminPassword = Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD") ?? Ids.Secret();
+        string? configuredAdminPassword = Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD");
+        string adminPassword = configuredAdminPassword ?? Ids.Secret();
         string agentToken = Environment.GetEnvironmentVariable("BUILD_SERVER_AGENT_TOKEN") ?? Ids.Secret();
-        bool generatedAdminPassword = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BUILD_SERVER_ADMIN_PASSWORD"));
+        bool generatedAdminPassword = string.IsNullOrWhiteSpace(configuredAdminPassword);
         bool generatedAgentToken = string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BUILD_SERVER_AGENT_TOKEN"));
         bool adminCreated = false;
+        bool adminPasswordUpdated = false;
         bool agentCreated = false;
 
         await database.UpdateAsync(db =>
@@ -33,6 +35,12 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
                 admin.PasswordHash = PasswordHasher.Hash(adminPassword);
                 db.Users.Add(admin);
                 adminCreated = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(configuredAdminPassword) &&
+                     !PasswordHasher.Verify(adminPassword, admin.PasswordHash))
+            {
+                admin.PasswordHash = PasswordHasher.Hash(adminPassword);
+                adminPasswordUpdated = true;
             }
 
             UserRecord agentUser = db.Users.FirstOrDefault(user => user.Role == Roles.Agent) ?? new UserRecord
@@ -67,6 +75,10 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
             }
 
             AddAudit(db, admin.Id, admin.UserName, "seed-defaults", "system", "build-server", "初始化默认管理员、Agent 和本机配置。");
+            if (adminPasswordUpdated)
+            {
+                AddAudit(db, admin.Id, admin.UserName, "update-admin-password", "user", admin.Id, "通过 BUILD_SERVER_ADMIN_PASSWORD 更新管理员密码。");
+            }
         });
 
         WriteInitialSecretFile("initial-admin.txt", generatedAdminPassword && adminCreated, $"admin password: {adminPassword}");
@@ -75,12 +87,13 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
 
     public async Task<UserRecord?> ValidateLoginAsync(string userName, string password)
     {
+        string normalizedPassword = NormalizeInitialAdminPasswordInput(userName, password);
         return await database.ReadAsync(db =>
         {
             UserRecord? user = db.Users.FirstOrDefault(user =>
                 user.Enabled &&
                 string.Equals(user.UserName, userName, StringComparison.OrdinalIgnoreCase));
-            return user is not null && PasswordHasher.Verify(password, user.PasswordHash) ? user : null;
+            return user is not null && PasswordHasher.Verify(normalizedPassword, user.PasswordHash) ? user : null;
         });
     }
 
@@ -229,6 +242,28 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
             File.WriteAllText(path, content + Environment.NewLine);
             TryRestrictSecretFile(path);
         }
+    }
+
+    private static string NormalizeInitialAdminPasswordInput(string userName, string password)
+    {
+        if (!string.Equals(userName?.Trim(), "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return password;
+        }
+
+        const string adminPasswordPrefix = "admin password:";
+        if (password.TrimStart().StartsWith(adminPasswordPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return password.TrimStart()[adminPasswordPrefix.Length..].Trim();
+        }
+
+        const string passwordPrefix = "password:";
+        if (password.TrimStart().StartsWith(passwordPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return password.TrimStart()[passwordPrefix.Length..].Trim();
+        }
+
+        return password;
     }
 
     private static void TryRestrictSecretFile(string path)

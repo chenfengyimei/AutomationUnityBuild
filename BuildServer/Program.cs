@@ -40,6 +40,8 @@ JsonDatabase database = app.Services.GetRequiredService<JsonDatabase>();
 AuthService auth = app.Services.GetRequiredService<AuthService>();
 await database.InitializeAsync();
 await auth.SeedDefaultsAsync();
+app.Logger.LogInformation("BuildServer data root: {DataRoot}", options.DataRoot);
+app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
 
 app.UseExceptionHandler(errorApp =>
 {

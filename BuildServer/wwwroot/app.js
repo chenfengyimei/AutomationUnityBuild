@@ -17,7 +17,7 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
-  if (response.status === 401) throw new Error("未登录或登录已过期");
+  if (response.status === 401) throw new Error(await readErrorMessage(response) || "未登录或登录已过期");
   if (!response.ok) throw new Error(await readErrorMessage(response));
   const text = await response.text();
   return text ? JSON.parse(text) : null;
