@@ -4,10 +4,13 @@ using BuildServer.Security;
 using BuildServer.Services;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
+builder.WebHost.UseContentRoot(AppContext.BaseDirectory);
+builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
 
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) &&
     string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
@@ -61,10 +64,32 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
 });
 app.UseBuildServerSecurity();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+
+string? webRoot = ResolveWebRoot(app.Environment.ContentRootPath);
+if (webRoot is not null)
+{
+    var webFileProvider = new PhysicalFileProvider(webRoot);
+    app.MapGet("/", () => Results.File(Path.Combine(webRoot, "index.html"), "text/html; charset=utf-8"));
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = webFileProvider });
+}
+else
+{
+    app.MapGet("/", () => Results.Problem("找不到 wwwroot/index.html。请确认发布目录里包含 wwwroot 文件夹，并从完整发布目录启动 BuildServer。"));
+}
 
 ApiRoutes.Map(app);
 McpEndpoint.Map(app);
 
 app.Run();
+
+static string? ResolveWebRoot(string contentRootPath)
+{
+    string[] candidates =
+    [
+        Path.Combine(contentRootPath, "wwwroot"),
+        Path.Combine(AppContext.BaseDirectory, "wwwroot"),
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")
+    ];
+
+    return candidates.FirstOrDefault(path => File.Exists(Path.Combine(path, "index.html")));
+}
