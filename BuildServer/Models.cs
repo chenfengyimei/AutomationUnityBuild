@@ -42,6 +42,7 @@ public sealed class ProjectRecord
     public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
     public string ArtifactsRoot { get; set; } = "~/UnityBuildArtifacts";
     public int NextBuildNumber { get; set; } = 1;
+    public string DefaultBuildPlatform { get; set; } = BuildPlatforms.Ios;
     public string Description { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
@@ -52,6 +53,7 @@ public sealed class BuildConfigRecord
     public string Id { get; set; } = "";
     public string ProjectId { get; set; } = "";
     public string Name { get; set; } = "";
+    public string BuildPlatform { get; set; } = BuildPlatforms.Ios;
     public string ConfigPath { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public bool AllowMcpBuild { get; set; }
@@ -66,6 +68,7 @@ public sealed class BuildJobRecord
     public string RequestedByUserId { get; set; } = "";
     public string Source { get; set; } = BuildSources.Web;
     public string Status { get; set; } = BuildStatuses.Queued;
+    public string BuildPlatform { get; set; } = BuildPlatforms.Ios;
     public string Branch { get; set; } = "";
     public string BuildNumber { get; set; } = "";
     public bool DryRun { get; set; }
@@ -176,13 +179,15 @@ public sealed record ProjectRequest(
     string[]? AllowedBranches,
     string WorkspaceRoot,
     string ArtifactsRoot,
+    string? DefaultBuildPlatform,
     string? Description);
 
-public sealed record BuildConfigRequest(string ProjectId, string Name, string ConfigPath, bool AllowMcpBuild = false);
+public sealed record BuildConfigRequest(string ProjectId, string Name, string ConfigPath, string? BuildPlatform = null, bool AllowMcpBuild = false);
 
 public sealed record BuildConfigFileRequest(
     string ProjectId,
     string Name,
+    string? BuildPlatform,
     string? FileName,
     string? ProjectDirectoryName,
     string? UnityProjectRelativePath,
@@ -201,6 +206,25 @@ public sealed record BuildConfigFileRequest(
     string? ExportMethod = "development",
     bool AllowProvisioningUpdates = true,
     bool CopyArchiveToOrganizer = true,
+    string? AndroidBuildFormat = "aab",
+    string? AndroidOutputDirectory = null,
+    string? ApkOutputPath = null,
+    string? AabOutputPath = null,
+    string? AndroidMinSdkVersion = null,
+    string? AndroidTargetSdkVersion = null,
+    string? AndroidKeystoreName = null,
+    string? AndroidKeystorePass = null,
+    string? AndroidKeyaliasName = null,
+    string? AndroidKeyaliasPass = null,
+    bool GooglePlayUploadEnabled = false,
+    string? GooglePlayPackageName = null,
+    string? GooglePlayServiceAccountJsonPath = null,
+    string? GooglePlayTrack = "internal",
+    string? GooglePlayReleaseStatus = "draft",
+    string? GooglePlayReleaseName = null,
+    string? GooglePlayUploadArtifact = "aab",
+    bool GooglePlayChangesNotSentForReview = false,
+    double? GooglePlayUserFraction = null,
     bool AllowMcpBuild = false,
     bool OverwriteExisting = false);
 
@@ -215,3 +239,40 @@ public sealed record StartBuildRequest(
     bool SkipXcode = false,
     bool AllowNonMac = false,
     string? Notes = null);
+
+public static class BuildPlatforms
+{
+    public const string Ios = "ios";
+    public const string Android = "android";
+
+    public static bool IsKnown(string value)
+    {
+        return string.Equals(value, Ios, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, Android, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? Ios : value.Trim().ToLowerInvariant();
+    }
+}
+
+public static class AndroidBuildFormats
+{
+    public const string Apk = "apk";
+    public const string Aab = "aab";
+    public const string Both = "both";
+
+    public static bool IsKnown(string value)
+    {
+        return string.Equals(value, Apk, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, Aab, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, Both, StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+public static class DefaultUnityBuildMethods
+{
+    public const string Ios = "BuildAutomation.IOSBuilder.Build";
+    public const string Android = "BuildAutomation.AndroidBuilder.Build";
+}

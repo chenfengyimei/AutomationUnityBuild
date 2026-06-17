@@ -109,6 +109,7 @@ public static class ApiRoutes
                 AllowedBranches = request.AllowedBranches?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? ["main"],
                 WorkspaceRoot = ValidatePathUnderAllowedRoots(Required(request.WorkspaceRoot, "工作区目录"), options.AllowedWorkspaceRoots, "工作区目录"),
                 ArtifactsRoot = ValidatePathUnderAllowedRoots(Required(request.ArtifactsRoot, "产物目录"), options.AllowedArtifactsRoots, "产物目录"),
+                DefaultBuildPlatform = NormalizeBuildPlatform(request.DefaultBuildPlatform),
                 Description = request.Description ?? "",
                 CreatedAt = DateTimeOffset.Now
             };
@@ -156,11 +157,16 @@ public static class ApiRoutes
                 throw new FileNotFoundException($"配置文件不存在: {configPath}");
             }
 
+            string buildPlatform = string.IsNullOrWhiteSpace(request.BuildPlatform)
+                ? DetectBuildPlatformFromConfig(configPath)
+                : NormalizeBuildPlatform(request.BuildPlatform);
+
             var config = new BuildConfigRecord
             {
                 Id = Ids.New("cfg"),
                 ProjectId = request.ProjectId,
                 Name = Required(request.Name, "配置名称"),
+                BuildPlatform = buildPlatform,
                 ConfigPath = configPath,
                 AllowMcpBuild = request.AllowMcpBuild,
                 CreatedAt = DateTimeOffset.Now
@@ -192,9 +198,10 @@ public static class ApiRoutes
                     ?? throw new InvalidOperationException("项目不存在或已禁用。");
 
                 string configName = Required(request.Name, "配置名称");
+                string buildPlatform = NormalizeBuildPlatform(request.BuildPlatform ?? project.DefaultBuildPlatform);
                 string configRoot = options.AllowedConfigRoots.FirstOrDefault()
                     ?? throw new InvalidOperationException("服务端没有配置允许的配置文件目录。");
-                string fileName = SafeConfigFileName(request.FileName, configName);
+                string fileName = SafeConfigFileName(request.FileName, configName, buildPlatform);
                 string configPath = ValidatePathUnderAllowedRoots(Path.Combine(configRoot, fileName), options.AllowedConfigRoots, "配置文件路径");
                 if (File.Exists(configPath) && !request.OverwriteExisting)
                 {
@@ -204,7 +211,7 @@ public static class ApiRoutes
                 Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
                 File.WriteAllText(
                     configPath,
-                    BuildConfigJson(project, request, configName).ToJsonString(new JsonSerializerOptions
+                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(new JsonSerializerOptions
                     {
                         WriteIndented = true,
                         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -216,6 +223,7 @@ public static class ApiRoutes
                 if (existingConfig is not null)
                 {
                     existingConfig.Name = configName;
+                    existingConfig.BuildPlatform = buildPlatform;
                     existingConfig.AllowMcpBuild = request.AllowMcpBuild;
                     existingConfig.Enabled = true;
                     AuthService.AddAudit(db, user.Id, user.UserName, "config-file.update", "config", existingConfig.Id, $"更新配置文件 {configPath}");
@@ -227,6 +235,7 @@ public static class ApiRoutes
                     Id = Ids.New("cfg"),
                     ProjectId = project.Id,
                     Name = configName,
+                    BuildPlatform = buildPlatform,
                     ConfigPath = configPath,
                     AllowMcpBuild = request.AllowMcpBuild,
                     CreatedAt = DateTimeOffset.Now
@@ -418,7 +427,7 @@ public static class ApiRoutes
         return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
     }
 
-    private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName)
+    private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName, string buildPlatform)
     {
         string projectDirectoryName = string.IsNullOrWhiteSpace(request.ProjectDirectoryName)
             ? DeriveProjectDirectoryName(project)
@@ -427,33 +436,20 @@ public static class ApiRoutes
             ? "."
             : request.UnityProjectRelativePath.Trim();
         string unityBuildMethod = string.IsNullOrWhiteSpace(request.UnityBuildMethod)
-            ? "BuildAutomation.IOSBuilder.Build"
+            ? DefaultUnityBuildMethod(buildPlatform)
             : request.UnityBuildMethod.Trim();
-        string exportMethod = ChoiceOrDefault(request.ExportMethod, ["development", "ad-hoc", "app-store", "enterprise"], "development", "Export Method");
-        string signingStyle = ChoiceOrDefault(request.SigningStyle, ["automatic", "manual"], "automatic", "Signing Style");
-        string teamId = (request.TeamId ?? "").Trim();
-        string iosDeploymentTarget = (request.IosDeploymentTarget ?? "").Trim();
         string bundleVersion = string.IsNullOrWhiteSpace(request.BundleVersion) ? "1.0.0" : request.BundleVersion.Trim();
         string buildNumber = string.IsNullOrWhiteSpace(request.BuildNumber) ? "1" : request.BuildNumber.Trim();
-
-        if (!string.IsNullOrWhiteSpace(teamId) && (teamId.Length != 10 || !teamId.All(char.IsLetterOrDigit)))
-        {
-            throw new InvalidOperationException("Apple Team ID 必须是 10 位，例如 ABCDE12345，不能填公司名称。");
-        }
-
-        if (!string.IsNullOrWhiteSpace(iosDeploymentTarget) && !Version.TryParse(iosDeploymentTarget, out _))
-        {
-            throw new InvalidOperationException("iOS Deployment Target 必须是版本号格式，例如 13.0。");
-        }
 
         if (!request.SyncBundleVersionFromUnity && string.IsNullOrWhiteSpace(bundleVersion))
         {
             throw new InvalidOperationException("不同步 Unity 版本号时，必须填写 Bundle Version。");
         }
 
-        return new JsonObject
+        JsonObject json = new()
         {
             ["configName"] = configName,
+            ["buildPlatform"] = buildPlatform,
             ["repositoryUrl"] = project.RepositoryUrl,
             ["allowedRepositoryUrls"] = new JsonArray(project.RepositoryUrl),
             ["branch"] = string.IsNullOrWhiteSpace(project.DefaultBranch) ? "main" : project.DefaultBranch,
@@ -466,43 +462,140 @@ public static class ApiRoutes
             ["unityBuildMethod"] = unityBuildMethod,
             ["artifactsRoot"] = project.ArtifactsRoot,
             ["allowedArtifactsRoots"] = new JsonArray(project.ArtifactsRoot),
-            ["xcodeOutputDirectory"] = "",
-            ["archivePath"] = "",
-            ["exportPath"] = "",
             ["logsDirectory"] = "",
-            ["scheme"] = "Unity-iPhone",
-            ["configuration"] = "Release",
-            ["exportMethod"] = exportMethod,
-            ["teamId"] = teamId,
-            ["signingStyle"] = signingStyle,
-            ["exportOptionsPlistPath"] = "",
             ["bundleIdentifier"] = (request.BundleIdentifier ?? "").Trim(),
             ["productName"] = (request.ProductName ?? "").Trim(),
             ["bundleVersion"] = bundleVersion,
             ["syncBundleVersionFromUnity"] = request.SyncBundleVersionFromUnity,
             ["buildNumber"] = buildNumber,
             ["autoIncrementBuildNumber"] = request.AutoIncrementBuildNumber,
-            ["iosDeploymentTarget"] = iosDeploymentTarget,
-            ["allowProvisioningUpdates"] = request.AllowProvisioningUpdates,
             ["resetRepository"] = false,
             ["preserveUnityLibraryOnReset"] = true,
-            ["cleanXcodeOutputBeforeBuild"] = true,
-            ["useWorkspaceIfPresent"] = true,
-            ["generateExportOptionsPlist"] = true,
-            ["copyArchiveToOrganizer"] = request.CopyArchiveToOrganizer,
             ["saveConfigSnapshot"] = true,
-            ["compileBitcode"] = null,
-            ["uploadSymbols"] = true,
-            ["xcodeBuildSettings"] = new JsonObject(),
-            ["environment"] = new JsonObject(),
-            ["provisioningProfiles"] = new JsonObject()
+            ["environment"] = new JsonObject()
         };
+
+        if (buildPlatform == BuildPlatforms.Android)
+        {
+            AddAndroidConfig(json, request);
+        }
+        else
+        {
+            AddIosConfig(json, request);
+        }
+
+        return json;
     }
 
-    private static string SafeConfigFileName(string? requestedFileName, string configName)
+    private static void AddIosConfig(JsonObject json, BuildConfigFileRequest request)
+    {
+        string exportMethod = ChoiceOrDefault(request.ExportMethod, ["development", "ad-hoc", "app-store", "enterprise"], "development", "Export Method");
+        string signingStyle = ChoiceOrDefault(request.SigningStyle, ["automatic", "manual"], "automatic", "Signing Style");
+        string teamId = (request.TeamId ?? "").Trim();
+        string iosDeploymentTarget = (request.IosDeploymentTarget ?? "").Trim();
+
+        if (!string.IsNullOrWhiteSpace(teamId) && (teamId.Length != 10 || !teamId.All(char.IsLetterOrDigit)))
+        {
+            throw new InvalidOperationException("Apple Team ID 必须是 10 位，例如 ABCDE12345，不能填公司名称。");
+        }
+
+        if (!string.IsNullOrWhiteSpace(iosDeploymentTarget) && !Version.TryParse(iosDeploymentTarget, out _))
+        {
+            throw new InvalidOperationException("iOS Deployment Target 必须是版本号格式，例如 13.0。");
+        }
+
+        json["xcodeOutputDirectory"] = "";
+        json["archivePath"] = "";
+        json["exportPath"] = "";
+        json["scheme"] = "Unity-iPhone";
+        json["configuration"] = "Release";
+        json["exportMethod"] = exportMethod;
+        json["teamId"] = teamId;
+        json["signingStyle"] = signingStyle;
+        json["exportOptionsPlistPath"] = "";
+        json["iosDeploymentTarget"] = iosDeploymentTarget;
+        json["allowProvisioningUpdates"] = request.AllowProvisioningUpdates;
+        json["cleanXcodeOutputBeforeBuild"] = true;
+        json["useWorkspaceIfPresent"] = true;
+        json["generateExportOptionsPlist"] = true;
+        json["copyArchiveToOrganizer"] = request.CopyArchiveToOrganizer;
+        json["compileBitcode"] = null;
+        json["uploadSymbols"] = true;
+        json["xcodeBuildSettings"] = new JsonObject();
+        json["provisioningProfiles"] = new JsonObject();
+    }
+
+    private static void AddAndroidConfig(JsonObject json, BuildConfigFileRequest request)
+    {
+        string androidBuildFormat = ChoiceOrDefault(request.AndroidBuildFormat, [AndroidBuildFormats.Apk, AndroidBuildFormats.Aab, AndroidBuildFormats.Both], AndroidBuildFormats.Aab, "Android Build Format");
+        string googlePlayUploadArtifact = ChoiceOrDefault(request.GooglePlayUploadArtifact, [AndroidBuildFormats.Apk, AndroidBuildFormats.Aab, AndroidBuildFormats.Both], AndroidBuildFormats.Aab, "Google Play Upload Artifact");
+        string googlePlayTrack = ChoiceOrDefault(request.GooglePlayTrack, ["internal", "alpha", "beta", "production"], "internal", "Google Play Track");
+        string googlePlayReleaseStatus = ChoiceOrDefault(request.GooglePlayReleaseStatus, ["draft", "inProgress", "halted", "completed"], "draft", "Google Play Release Status");
+        string androidMinSdkVersion = (request.AndroidMinSdkVersion ?? "").Trim();
+        string androidTargetSdkVersion = (request.AndroidTargetSdkVersion ?? "").Trim();
+        string googlePlayPackageName = (request.GooglePlayPackageName ?? request.BundleIdentifier ?? "").Trim();
+        string googlePlayServiceAccountJsonPath = (request.GooglePlayServiceAccountJsonPath ?? "").Trim();
+
+        ValidateOptionalInteger(androidMinSdkVersion, "Android Min SDK Version");
+        ValidateOptionalInteger(androidTargetSdkVersion, "Android Target SDK Version");
+        if (request.GooglePlayUserFraction is <= 0 or > 1)
+        {
+            throw new InvalidOperationException("Google Play User Fraction 必须大于 0 且小于等于 1。");
+        }
+
+        if (request.GooglePlayUploadEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(googlePlayPackageName))
+            {
+                throw new InvalidOperationException("启用 Google Play 上传时，必须填写 Google Play Package 或 Bundle Identifier。");
+            }
+
+            if (string.IsNullOrWhiteSpace(googlePlayServiceAccountJsonPath))
+            {
+                throw new InvalidOperationException("启用 Google Play 上传时，必须填写 Service Account JSON 路径。");
+            }
+
+            if (googlePlayUploadArtifact == AndroidBuildFormats.Apk && androidBuildFormat == AndroidBuildFormats.Aab)
+            {
+                throw new InvalidOperationException("上传 APK 时，Android Build Format 不能只选择 aab。");
+            }
+
+            if (googlePlayUploadArtifact == AndroidBuildFormats.Aab && androidBuildFormat == AndroidBuildFormats.Apk)
+            {
+                throw new InvalidOperationException("上传 AAB 时，Android Build Format 不能只选择 apk。");
+            }
+
+            if (googlePlayUploadArtifact == AndroidBuildFormats.Both && androidBuildFormat != AndroidBuildFormats.Both)
+            {
+                throw new InvalidOperationException("上传 APK + AAB 时，Android Build Format 必须选择 both。");
+            }
+        }
+
+        json["androidBuildFormat"] = androidBuildFormat;
+        json["androidOutputDirectory"] = (request.AndroidOutputDirectory ?? "").Trim();
+        json["apkOutputPath"] = (request.ApkOutputPath ?? "").Trim();
+        json["aabOutputPath"] = (request.AabOutputPath ?? "").Trim();
+        json["androidMinSdkVersion"] = androidMinSdkVersion;
+        json["androidTargetSdkVersion"] = androidTargetSdkVersion;
+        json["androidKeystoreName"] = (request.AndroidKeystoreName ?? "").Trim();
+        json["androidKeystorePass"] = request.AndroidKeystorePass ?? "";
+        json["androidKeyaliasName"] = (request.AndroidKeyaliasName ?? "").Trim();
+        json["androidKeyaliasPass"] = request.AndroidKeyaliasPass ?? "";
+        json["googlePlayUploadEnabled"] = request.GooglePlayUploadEnabled;
+        json["googlePlayPackageName"] = googlePlayPackageName;
+        json["googlePlayServiceAccountJsonPath"] = googlePlayServiceAccountJsonPath;
+        json["googlePlayTrack"] = googlePlayTrack;
+        json["googlePlayReleaseStatus"] = googlePlayReleaseStatus;
+        json["googlePlayReleaseName"] = (request.GooglePlayReleaseName ?? "").Trim();
+        json["googlePlayUploadArtifact"] = googlePlayUploadArtifact;
+        json["googlePlayChangesNotSentForReview"] = request.GooglePlayChangesNotSentForReview;
+        json["googlePlayUserFraction"] = request.GooglePlayUserFraction;
+    }
+
+    private static string SafeConfigFileName(string? requestedFileName, string configName, string buildPlatform)
     {
         string fileName = string.IsNullOrWhiteSpace(requestedFileName)
-            ? $"build-ios.{SafeFileNamePart(configName)}.json"
+            ? $"build-{buildPlatform}.{SafeFileNamePart(configName)}.json"
             : requestedFileName.Trim();
         fileName = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? fileName : $"{fileName}.json";
 
@@ -557,6 +650,45 @@ public static class ApiRoutes
         }
 
         return result;
+    }
+
+    private static string NormalizeBuildPlatform(string? value)
+    {
+        string buildPlatform = BuildPlatforms.Normalize(value);
+        if (!BuildPlatforms.IsKnown(buildPlatform))
+        {
+            throw new InvalidOperationException("Build Platform 只能是 ios 或 android。");
+        }
+
+        return buildPlatform;
+    }
+
+    private static string DetectBuildPlatformFromConfig(string configPath)
+    {
+        try
+        {
+            JsonObject json = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject() ?? [];
+            return NormalizeBuildPlatform(json["buildPlatform"]?.GetValue<string>());
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"配置文件不是有效 JSON: {configPath}。{ex.Message}");
+        }
+    }
+
+    private static string DefaultUnityBuildMethod(string buildPlatform)
+    {
+        return buildPlatform == BuildPlatforms.Android
+            ? DefaultUnityBuildMethods.Android
+            : DefaultUnityBuildMethods.Ios;
+    }
+
+    private static void ValidateOptionalInteger(string value, string field)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && !int.TryParse(value, out _))
+        {
+            throw new InvalidOperationException($"{field} 必须是整数。");
+        }
     }
 
     private static string Required(string? value, string field)

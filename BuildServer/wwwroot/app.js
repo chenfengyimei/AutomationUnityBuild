@@ -51,6 +51,7 @@ async function init() {
   bindEvents();
   setConfigFileDefaults();
   toggleConfigFileFields();
+  togglePlatformFields();
   window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
     showError(event.reason);
@@ -83,7 +84,17 @@ function bindEvents() {
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
   });
   $("configCreateFile").addEventListener("change", toggleConfigFileFields);
-  $("configProject").addEventListener("change", fillConfigFileDefaults);
+  $("configBuildPlatform").addEventListener("change", () => {
+    fillConfigFileDefaults({ forceFileName: true });
+    togglePlatformFields();
+  });
+  $("configProject").addEventListener("change", () => {
+    const project = state.projects.find((item) => item.id === $("configProject").value);
+    if (project?.defaultBuildPlatform) {
+      $("configBuildPlatform").value = project.defaultBuildPlatform;
+    }
+    fillConfigFileDefaults({ forceFileName: true });
+  });
   $("configName").addEventListener("input", fillConfigFileDefaults);
   $("configFileName").addEventListener("input", updateConfigPathPreview);
   $("configPath").addEventListener("input", () => {
@@ -177,6 +188,7 @@ async function createProject(event) {
       allowedBranches: $("projectAllowedBranches").value.split(",").map((item) => item.trim()).filter(Boolean),
       workspaceRoot: $("projectWorkspace").value,
       artifactsRoot: $("projectArtifacts").value,
+      defaultBuildPlatform: $("projectDefaultPlatform").value,
       description: $("projectDescription").value,
     }),
   });
@@ -185,6 +197,7 @@ async function createProject(event) {
   $("projectAllowedBranches").value = "main";
   $("projectWorkspace").value = "~/UnityBuildWorkspace";
   $("projectArtifacts").value = "~/UnityBuildArtifacts";
+  $("projectDefaultPlatform").value = "ios";
   await refreshAll();
 }
 
@@ -197,10 +210,12 @@ async function createConfig(event) {
       body: JSON.stringify({
         projectId: $("configProject").value,
         name: $("configName").value,
+        buildPlatform: $("configBuildPlatform").value,
         fileName: $("configFileName").value || null,
         projectDirectoryName: $("configProjectDirectoryName").value || null,
         unityProjectRelativePath: $("configUnityRelativePath").value || ".",
         unityVersion: $("configUnityVersion").value || null,
+        unityExecutablePath: $("configUnityExecutablePath").value || null,
         productName: $("configProductName").value || null,
         bundleIdentifier: $("configBundleIdentifier").value || null,
         teamId: $("configTeamId").value || null,
@@ -213,6 +228,25 @@ async function createConfig(event) {
         autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
         allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
         copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
+        androidBuildFormat: $("configAndroidBuildFormat").value,
+        androidOutputDirectory: $("configAndroidOutputDirectory").value || null,
+        apkOutputPath: $("configApkOutputPath").value || null,
+        aabOutputPath: $("configAabOutputPath").value || null,
+        androidMinSdkVersion: $("configAndroidMinSdkVersion").value || null,
+        androidTargetSdkVersion: $("configAndroidTargetSdkVersion").value || null,
+        androidKeystoreName: $("configAndroidKeystoreName").value || null,
+        androidKeystorePass: $("configAndroidKeystorePass").value || null,
+        androidKeyaliasName: $("configAndroidKeyaliasName").value || null,
+        androidKeyaliasPass: $("configAndroidKeyaliasPass").value || null,
+        googlePlayUploadEnabled: $("configGooglePlayUploadEnabled").checked,
+        googlePlayPackageName: $("configGooglePlayPackageName").value || null,
+        googlePlayServiceAccountJsonPath: $("configGooglePlayServiceAccountJsonPath").value || null,
+        googlePlayTrack: $("configGooglePlayTrack").value,
+        googlePlayReleaseStatus: $("configGooglePlayReleaseStatus").value,
+        googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
+        googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
+        googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
+        googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
         overwriteExisting: $("configOverwriteFile").checked,
         allowMcpBuild: $("configAllowMcp").checked,
       }),
@@ -223,6 +257,7 @@ async function createConfig(event) {
       body: JSON.stringify({
         projectId: $("configProject").value,
         name: $("configName").value,
+        buildPlatform: $("configBuildPlatform").value,
         configPath: $("configPath").value,
         allowMcpBuild: $("configAllowMcp").checked,
       }),
@@ -232,6 +267,7 @@ async function createConfig(event) {
   state.manualConfigPath = "";
   setConfigFileDefaults();
   toggleConfigFileFields();
+  togglePlatformFields();
   $("configAllowMcp").checked = false;
   await refreshAll();
 }
@@ -253,11 +289,16 @@ function toggleConfigFileFields() {
   }
 }
 
-function fillConfigFileDefaults() {
+function fillConfigFileDefaults(options = {}) {
   const project = state.projects.find((item) => item.id === $("configProject").value);
   const configName = $("configName").value.trim() || "release";
-  if (!$("configFileName").value.trim()) {
-    $("configFileName").value = `build-ios.${safeFilePart(configName)}.json`;
+  const platform = $("configBuildPlatform").value || project?.defaultBuildPlatform || "ios";
+  if (!$("configBuildPlatform").value && project?.defaultBuildPlatform) {
+    $("configBuildPlatform").value = project.defaultBuildPlatform;
+  }
+
+  if (options.forceFileName || !$("configFileName").value.trim()) {
+    $("configFileName").value = `build-${platform}.${safeFilePart(configName)}.json`;
   }
 
   if (project && !$("configProjectDirectoryName").value.trim()) {
@@ -268,6 +309,7 @@ function fillConfigFileDefaults() {
     $("configProductName").value = project.name;
   }
 
+  togglePlatformFields();
   updateConfigPathPreview();
 }
 
@@ -275,7 +317,8 @@ function updateConfigPathPreview() {
   if (!$("configCreateFile").checked) return;
 
   const configName = $("configName").value.trim() || "release";
-  const rawFileName = $("configFileName").value.trim() || `build-ios.${safeFilePart(configName)}.json`;
+  const platform = $("configBuildPlatform").value || "ios";
+  const rawFileName = $("configFileName").value.trim() || `build-${platform}.${safeFilePart(configName)}.json`;
   const fileName = rawFileName.toLowerCase().endsWith(".json") ? rawFileName : `${rawFileName}.json`;
   const root = state.settings?.configRoot || "服务端配置目录";
   const normalizedRoot = root.replace(/[\\\/]$/, "");
@@ -285,6 +328,7 @@ function updateConfigPathPreview() {
 
 function setConfigFileDefaults() {
   $("configUnityRelativePath").value = ".";
+  $("configBuildPlatform").value = "ios";
   $("configIosDeploymentTarget").value = "13.0";
   $("configBuildNumber").value = "1";
   $("configBundleVersion").value = "1.0.0";
@@ -294,7 +338,19 @@ function setConfigFileDefaults() {
   $("configAutoIncrementBuild").checked = true;
   $("configAllowProvisioningUpdates").checked = true;
   $("configCopyArchiveToOrganizer").checked = true;
+  $("configAndroidBuildFormat").value = "aab";
+  $("configGooglePlayTrack").value = "internal";
+  $("configGooglePlayReleaseStatus").value = "draft";
+  $("configGooglePlayUploadArtifact").value = "aab";
+  $("configGooglePlayUploadEnabled").checked = false;
+  $("configGooglePlayChangesNotSentForReview").checked = false;
   $("configOverwriteFile").checked = false;
+}
+
+function togglePlatformFields() {
+  const platform = $("configBuildPlatform").value || "ios";
+  $("iosConfigFields").classList.toggle("hidden", platform !== "ios");
+  $("androidConfigFields").classList.toggle("hidden", platform !== "android");
 }
 
 function deriveRepoFolderName(repositoryUrl) {
@@ -309,6 +365,16 @@ function safeFilePart(value) {
     .trim()
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "config";
+}
+
+function parseOptionalNumber(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const number = Number(text);
+  if (!Number.isFinite(number)) {
+    throw new Error("User Fraction 必须是数字，例如 0.1 或 1。");
+  }
+  return number;
 }
 
 async function startBuild(event) {
@@ -359,7 +425,7 @@ function renderProjects() {
     const configs = state.configs.filter((config) => config.projectId === project.id);
     return `<article class="item">
       <header><strong>${escapeHtml(project.name)}</strong><span class="status">${project.enabled ? "Enabled" : "Disabled"}</span></header>
-      <div class="muted">${escapeHtml(project.repositoryUrl)} [${escapeHtml(project.defaultBranch)}]</div>
+      <div class="muted">${escapeHtml(project.repositoryUrl)} [${escapeHtml(project.defaultBranch)}] / ${platformBadge(project.defaultBuildPlatform || "ios")}</div>
       <div>Workspace: ${escapeHtml(project.workspaceRoot)}</div>
       <div>Artifacts: ${escapeHtml(project.artifactsRoot)}</div>
       <div class="muted">配置: ${configs.map((config) => escapeHtml(config.name)).join(", ") || "暂无"}</div>
@@ -371,6 +437,10 @@ function renderConfigsSelects() {
   const projectOptions = state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join("");
   $("buildProject").innerHTML = projectOptions;
   $("configProject").innerHTML = projectOptions;
+  const project = state.projects.find((item) => item.id === $("configProject").value);
+  if (project?.defaultBuildPlatform) {
+    $("configBuildPlatform").value = project.defaultBuildPlatform;
+  }
   fillConfigFileDefaults();
   renderBuildConfigs();
 }
@@ -378,7 +448,7 @@ function renderConfigsSelects() {
 function renderBuildConfigs() {
   const projectId = $("buildProject").value;
   const configs = state.configs.filter((config) => config.projectId === projectId);
-  $("buildConfig").innerHTML = configs.map((config) => `<option value="${escapeHtml(config.id)}">${escapeHtml(config.name)}</option>`).join("");
+  $("buildConfig").innerHTML = configs.map((config) => `<option value="${escapeHtml(config.id)}">${escapeHtml(config.name)} / ${escapeHtml(config.buildPlatform || "ios")}</option>`).join("");
 }
 
 function renderJobs() {
@@ -387,7 +457,7 @@ function renderJobs() {
     const config = state.configs.find((item) => item.id === job.configId);
     return `<article class="item">
       <header>
-        <strong>${escapeHtml(project?.name || job.projectId)} / ${escapeHtml(config?.name || job.configId)}</strong>
+        <strong>${escapeHtml(project?.name || job.projectId)} / ${escapeHtml(config?.name || job.configId)} / ${platformBadge(job.buildPlatform || config?.buildPlatform || "ios")}</strong>
         <span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
       </header>
       <div class="muted">${new Date(job.createdAt).toLocaleString()} | ${escapeHtml(job.branch)} | build ${escapeHtml(job.buildNumber)} | ${escapeHtml(job.source)}</div>
@@ -432,6 +502,7 @@ async function refreshJobModal(jobId) {
   $("jobModalSubTitle").textContent = `${job.id} / ${new Date(job.createdAt).toLocaleString()}`;
   $("jobModalDetail").innerHTML = [
     ["状态", job.status],
+    ["平台", job.buildPlatform || "ios"],
     ["分支", job.branch],
     ["Build Number", job.buildNumber],
     ["Worker", job.workerId || "-"],
@@ -451,6 +522,11 @@ async function refreshJobModal(jobId) {
         <a class="download-link" href="/api/artifacts/${escapeHtml(artifact.id)}/download" target="_blank" rel="noopener">下载</a>
       </article>`).join("")
     : `<article class="item muted">暂无可下载产物</article>`;
+}
+
+function platformBadge(platform) {
+  const value = String(platform || "ios");
+  return `<span class="platform ${escapeHtml(value)}">${escapeHtml(value)}</span>`;
 }
 
 function renderWorkers(workers) {

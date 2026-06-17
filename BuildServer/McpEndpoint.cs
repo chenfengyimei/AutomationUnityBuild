@@ -70,7 +70,8 @@ public static class McpEndpoint
             {
                 Tool("list_projects", "列出可用项目。"),
                 Tool("list_configs", "列出项目下的打包配置。"),
-                Tool("start_ios_build", "提交 Unity iOS 打包任务，默认建议 dryRun=true。"),
+                Tool("start_build", "提交 Unity iOS 或 Android 打包任务，默认建议 dryRun=true。"),
+                Tool("start_ios_build", "兼容旧名称：提交 Unity iOS 打包任务，默认建议 dryRun=true。"),
                 Tool("get_build_status", "查询打包任务状态。"),
                 Tool("tail_build_log", "读取打包任务最近日志。"),
                 Tool("list_build_artifacts", "列出打包任务产物。")
@@ -100,7 +101,7 @@ public static class McpEndpoint
                     IsProjectAllowed(client, config.ProjectId) &&
                     (!arguments.TryGetPropertyValue("projectId", out JsonNode? projectId) || config.ProjectId == projectId?.GetValue<string>()))
                 .ToList()),
-            "start_ios_build" => await queue.EnqueueAsync(ParseStartBuild(arguments, client), user, BuildSources.Mcp, client),
+            "start_build" or "start_ios_build" => await queue.EnqueueAsync(ParseStartBuild(arguments, client), user, BuildSources.Mcp, client),
             "get_build_status" => await database.ReadAsync<object>(db =>
             {
                 BuildJobRecord? job = db.Jobs.FirstOrDefault(job => job.Id == Required(arguments, "jobId"));

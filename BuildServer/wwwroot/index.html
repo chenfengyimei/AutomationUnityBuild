@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Unity iOS 打包平台</title>
+  <title>Unity 自动化打包平台</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main id="app">
     <section id="loginView" class="login">
       <form id="loginForm" class="panel">
-        <h1>Unity iOS 打包平台</h1>
+        <h1>Unity 自动化打包平台</h1>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="查看数据目录 initial-admin.txt"></label>
         <button type="submit">登录</button>
@@ -49,7 +49,7 @@
                 <label><input id="dryRun" type="checkbox"> dry-run</label>
                 <label><input id="skipGit" type="checkbox"> 跳过 Git</label>
                 <label><input id="skipUnity" type="checkbox"> 跳过 Unity</label>
-                <label><input id="skipXcode" type="checkbox"> 跳过 Xcode</label>
+                <label><input id="skipXcode" type="checkbox"> 跳过 Xcode（iOS）</label>
                 <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
               </div>
               <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
@@ -74,6 +74,12 @@
               <label>允许分支<input id="projectAllowedBranches" value="main" placeholder="main,release/*"></label>
               <label>Workspace Root<input id="projectWorkspace" value="~/UnityBuildWorkspace"></label>
               <label>Artifacts Root<input id="projectArtifacts" value="~/UnityBuildArtifacts"></label>
+              <label>默认平台
+                <select id="projectDefaultPlatform">
+                  <option value="ios">iOS</option>
+                  <option value="android">Android</option>
+                </select>
+              </label>
               <label>说明<textarea id="projectDescription" rows="3"></textarea></label>
               <button type="submit">保存项目</button>
             </form>
@@ -82,37 +88,93 @@
               <h3>新增配置</h3>
               <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
-              <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-ios.release.json"></label>
+              <label>打包平台
+                <select id="configBuildPlatform">
+                  <option value="ios">iOS</option>
+                  <option value="android">Android APK/AAB</option>
+                </select>
+              </label>
+              <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
               <label><input id="configCreateFile" type="checkbox"> 生成新的配置文件</label>
               <div id="configFileFields" class="form-grid hidden">
-                <label>文件名<input id="configFileName" placeholder="build-ios.release.json"></label>
+                <label>文件名<input id="configFileName" placeholder="build-ios.release.json 或 build-android.release.json"></label>
                 <label>仓库目录名<input id="configProjectDirectoryName" placeholder="留空自动从 Git 仓库推断"></label>
                 <label>Unity 工程相对路径<input id="configUnityRelativePath" value="."></label>
                 <label>Unity 版本<input id="configUnityVersion" placeholder="2022.3.62f2c1"></label>
+                <label>Unity 完整路径<input id="configUnityExecutablePath" placeholder="留空使用 Unity 版本推导"></label>
                 <label>Product Name<input id="configProductName" placeholder="Your Game"></label>
                 <label>Bundle Identifier<input id="configBundleIdentifier" placeholder="com.company.game"></label>
-                <label>Apple Team ID<input id="configTeamId" placeholder="ABCDE12345"></label>
-                <label>iOS Deployment Target<input id="configIosDeploymentTarget" value="13.0"></label>
                 <label>Build Number<input id="configBuildNumber" value="1"></label>
                 <label>Bundle Version<input id="configBundleVersion" value="1.0.0"></label>
-                <label>Export Method
-                  <select id="configExportMethod">
-                    <option value="development">development</option>
-                    <option value="ad-hoc">ad-hoc</option>
-                    <option value="app-store">app-store</option>
-                    <option value="enterprise">enterprise</option>
-                  </select>
-                </label>
-                <label>Signing Style
-                  <select id="configSigningStyle">
-                    <option value="automatic">automatic</option>
-                    <option value="manual">manual</option>
-                  </select>
-                </label>
                 <label><input id="configSyncUnityVersion" type="checkbox" checked> 版本号同步 Unity 项目</label>
                 <label><input id="configAutoIncrementBuild" type="checkbox" checked> Build Number 自动 +1</label>
-                <label><input id="configAllowProvisioningUpdates" type="checkbox" checked> 允许 Xcode 自动处理签名</label>
-                <label><input id="configCopyArchiveToOrganizer" type="checkbox" checked> 复制 Archive 到 Organizer</label>
+                <div id="iosConfigFields" class="form-grid nested-section">
+                  <label>Apple Team ID<input id="configTeamId" placeholder="ABCDE12345"></label>
+                  <label>iOS Deployment Target<input id="configIosDeploymentTarget" value="13.0"></label>
+                  <label>Export Method
+                    <select id="configExportMethod">
+                      <option value="development">development</option>
+                      <option value="ad-hoc">ad-hoc</option>
+                      <option value="app-store">app-store</option>
+                      <option value="enterprise">enterprise</option>
+                    </select>
+                  </label>
+                  <label>Signing Style
+                    <select id="configSigningStyle">
+                      <option value="automatic">automatic</option>
+                      <option value="manual">manual</option>
+                    </select>
+                  </label>
+                  <label><input id="configAllowProvisioningUpdates" type="checkbox" checked> 允许 Xcode 自动处理签名</label>
+                  <label><input id="configCopyArchiveToOrganizer" type="checkbox" checked> 复制 Archive 到 Organizer</label>
+                </div>
+                <div id="androidConfigFields" class="form-grid nested-section hidden">
+                  <label>Android Build Format
+                    <select id="configAndroidBuildFormat">
+                      <option value="aab">aab</option>
+                      <option value="apk">apk</option>
+                      <option value="both">both</option>
+                    </select>
+                  </label>
+                  <label>Android 输出目录<input id="configAndroidOutputDirectory" placeholder="留空使用默认 Android 目录"></label>
+                  <label>APK 输出路径<input id="configApkOutputPath" placeholder="留空自动生成"></label>
+                  <label>AAB 输出路径<input id="configAabOutputPath" placeholder="留空自动生成"></label>
+                  <label>Min SDK<input id="configAndroidMinSdkVersion" placeholder="例如 23"></label>
+                  <label>Target SDK<input id="configAndroidTargetSdkVersion" placeholder="例如 35"></label>
+                  <label>Keystore 路径<input id="configAndroidKeystoreName" placeholder="/Users/buildbot/keys/game.keystore"></label>
+                  <label>Keystore 密码<input id="configAndroidKeystorePass" type="password"></label>
+                  <label>Key Alias<input id="configAndroidKeyaliasName"></label>
+                  <label>Key Alias 密码<input id="configAndroidKeyaliasPass" type="password"></label>
+                  <label><input id="configGooglePlayUploadEnabled" type="checkbox"> 上传 Google Play</label>
+                  <label>Google Play Package<input id="configGooglePlayPackageName" placeholder="默认使用 Bundle Identifier"></label>
+                  <label>Service Account JSON<input id="configGooglePlayServiceAccountJsonPath" placeholder="/Users/buildbot/secrets/google-play.json"></label>
+                  <label>Track
+                    <select id="configGooglePlayTrack">
+                      <option value="internal">internal</option>
+                      <option value="alpha">alpha</option>
+                      <option value="beta">beta</option>
+                      <option value="production">production</option>
+                    </select>
+                  </label>
+                  <label>Release Status
+                    <select id="configGooglePlayReleaseStatus">
+                      <option value="draft">draft</option>
+                      <option value="inProgress">inProgress</option>
+                      <option value="halted">halted</option>
+                      <option value="completed">completed</option>
+                    </select>
+                  </label>
+                  <label>Release Name<input id="configGooglePlayReleaseName"></label>
+                  <label>上传产物
+                    <select id="configGooglePlayUploadArtifact">
+                      <option value="aab">aab</option>
+                      <option value="apk">apk</option>
+                      <option value="both">both</option>
+                    </select>
+                  </label>
+                  <label><input id="configGooglePlayChangesNotSentForReview" type="checkbox"> changesNotSentForReview</label>
+                  <label>User Fraction<input id="configGooglePlayUserFraction" placeholder="0.1 到 1，留空"></label>
+                </div>
                 <label><input id="configOverwriteFile" type="checkbox"> 覆盖同名配置文件</label>
               </div>
               <label><input id="configAllowMcp" type="checkbox"> 允许 MCP 使用</label>

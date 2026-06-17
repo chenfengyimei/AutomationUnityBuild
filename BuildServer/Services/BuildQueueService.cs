@@ -41,6 +41,9 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
             string buildNumber = string.IsNullOrWhiteSpace(request.BuildNumber)
                 ? project.NextBuildNumber.ToString()
                 : request.BuildNumber.Trim();
+            string buildPlatform = string.IsNullOrWhiteSpace(config.BuildPlatform)
+                ? BuildPlatforms.Ios
+                : config.BuildPlatform;
 
             if (string.IsNullOrWhiteSpace(request.BuildNumber) && !request.DryRun)
             {
@@ -61,6 +64,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 RequestedByUserId = user.Id,
                 Source = source,
                 Status = BuildStatuses.Queued,
+                BuildPlatform = buildPlatform,
                 Branch = branch,
                 BuildNumber = buildNumber,
                 DryRun = request.DryRun,
@@ -75,7 +79,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
             };
 
             db.Jobs.Add(job);
-            AuthService.AddAudit(db, user.Id, user.UserName, "build.enqueue", "job", job.Id, $"创建打包任务 {project.Name}/{config.Name} branch={branch} build={buildNumber} source={source}");
+            AuthService.AddAudit(db, user.Id, user.UserName, "build.enqueue", "job", job.Id, $"创建打包任务 {project.Name}/{config.Name} platform={buildPlatform} branch={branch} build={buildNumber} source={source}");
             return job;
         });
     }
@@ -165,6 +169,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
             ?? throw new InvalidOperationException($"配置文件不是有效 JSON: {config.ConfigPath}");
 
         json["configName"] = config.Name;
+        json["buildPlatform"] = string.IsNullOrWhiteSpace(config.BuildPlatform) ? BuildPlatforms.Ios : config.BuildPlatform;
         json["repositoryUrl"] = project.RepositoryUrl;
         json["allowedRepositoryUrls"] = new JsonArray(project.RepositoryUrl);
         json["branch"] = branch;
