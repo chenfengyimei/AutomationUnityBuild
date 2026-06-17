@@ -215,6 +215,28 @@ input:disabled {
   background: #e8edf7;
 }
 
+.platform {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #17324d;
+  background: #d9ecff;
+}
+
+.platform.android {
+  color: #12351f;
+  background: #d9f6df;
+}
+
+.nested-section {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  background: #f7f9fd;
+}
+
 .status.Succeeded {
   background: #d7f8df;
 }

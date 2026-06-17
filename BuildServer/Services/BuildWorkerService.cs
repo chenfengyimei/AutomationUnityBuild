@@ -275,6 +275,7 @@ public sealed class BuildWorkerService(
             RequestedByUserId = job.RequestedByUserId,
             Source = job.Source,
             Status = job.Status,
+            BuildPlatform = job.BuildPlatform,
             Branch = job.Branch,
             BuildNumber = job.BuildNumber,
             DryRun = job.DryRun,

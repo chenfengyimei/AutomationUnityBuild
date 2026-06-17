@@ -1,6 +1,6 @@
 # BuildServer 打包平台
 
-BuildServer 是当前自动化打包工具的 Web/Agent 化入口，第一版采用单 Mac、单 Worker、串行队列，避免 Unity/Xcode 并发导致缓存和签名状态混乱。
+BuildServer 是当前自动化打包工具的 Web/Agent 化入口，支持 iOS、Android APK/AAB，以及 Android AAB/APK 上传 Google Play。第一版采用单 Mac、单 Worker、串行队列，避免 Unity、Xcode、Gradle、签名环境并发导致缓存和证书状态混乱。
 
 ## 模块
 
@@ -74,7 +74,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-serv
 首次进入后台后：
 
 1. 新增项目：填写项目名、Git 仓库、默认分支、允许分支、工作区、产物目录。
-2. 新增配置：可以填写现有 `build-ios.xxx.json` 路径，也可以勾选“生成新的配置文件”，在网页里填写 Unity 版本、Bundle ID、Team ID、导出方式等常用字段后由服务端自动生成 JSON 并登记。
+2. 新增配置：选择 iOS 或 Android。可以填写现有配置 JSON 路径，也可以勾选“生成新的配置文件”，在网页里填写 Unity 版本、Bundle ID、平台专属字段后由服务端自动生成 JSON 并登记。
+   - iOS 字段包括 Team ID、Deployment Target、Export Method、Signing Style、是否复制 archive 到 Organizer。
+   - Android 字段包括 APK/AAB/both、SDK 版本、keystore、Google Play Service Account、track、release status、上传产物。
 3. 发起打包：选择项目和配置，提交任务。
 
 BuildServer 会为每个任务生成独立配置快照，预留 Build Number，并调用 CLI：
@@ -96,12 +98,13 @@ Header: X-Agent-Token: <BUILD_SERVER_AGENT_TOKEN>
 
 - `list_projects`
 - `list_configs`
-- `start_ios_build`
+- `start_build`
+- `start_ios_build`（兼容旧名称，建议新接入使用 `start_build`）
 - `get_build_status`
 - `tail_build_log`
 - `list_build_artifacts`
 
-默认 Agent 只允许 `dryRun=true`。要允许正式打包，需要在数据中把对应 `McpClientRecord.allowFullBuild` 改为 `true`，并建议只给特定项目授权。
+默认 Agent 只允许 `dryRun=true`。要允许正式打包，需要在数据中把对应 `McpClientRecord.allowFullBuild` 改为 `true`，并建议只给特定项目授权。MCP 只按项目和配置 ID 发起任务，不允许传任意 Git 仓库或任意路径。
 
 新建配置默认不允许 MCP 使用，需要在网页里显式勾选“允许 MCP 使用”。
 

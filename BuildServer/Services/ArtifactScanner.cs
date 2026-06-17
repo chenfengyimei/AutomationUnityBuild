@@ -83,6 +83,8 @@ public sealed class ArtifactScanner(JsonDatabase database)
         return Path.GetExtension(path).ToLowerInvariant() switch
         {
             ".ipa" => "ipa",
+            ".apk" => "apk",
+            ".aab" => "aab",
             ".log" => "log",
             ".json" => "json",
             ".plist" => "plist",
