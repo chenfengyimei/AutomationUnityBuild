@@ -6,12 +6,14 @@ public sealed class BuildServerOptions
     public string AutomationExecutablePath { get; set; } = "";
     public string AutomationDllPath { get; set; } = "";
     public string AutomationWorkingDirectory { get; set; } = "";
+    public string GatewayToken { get; set; } = "";
     public string PublicBaseUrl { get; set; } = "";
     public List<string> AllowedOrigins { get; set; } = [];
     public List<string> AllowedWorkspaceRoots { get; set; } = [];
     public List<string> AllowedArtifactsRoots { get; set; } = [];
     public List<string> AllowedConfigRoots { get; set; } = [];
     public List<string> AllowedRepositoryHosts { get; set; } = [];
+    public List<string> NodePlatforms { get; set; } = [];
     public string WorkerName { get; set; } = "";
     public int RetentionDays { get; set; } = 30;
     public long MaxArtifactBytes { get; set; } = 200L * 1024 * 1024 * 1024;
@@ -28,12 +30,14 @@ public static class BuildServerEnvironment
         options.AutomationExecutablePath = Env("BUILD_SERVER_AUTOMATION_EXE", options.AutomationExecutablePath);
         options.AutomationDllPath = Env("BUILD_SERVER_AUTOMATION_DLL", options.AutomationDllPath);
         options.AutomationWorkingDirectory = Env("BUILD_SERVER_AUTOMATION_CWD", options.AutomationWorkingDirectory);
+        options.GatewayToken = Env("BUILD_SERVER_GATEWAY_TOKEN", options.GatewayToken);
         options.PublicBaseUrl = Env("BUILD_SERVER_PUBLIC_BASE_URL", options.PublicBaseUrl);
         OverrideListFromEnv(options.AllowedOrigins, "BUILD_SERVER_ALLOWED_ORIGINS");
         OverrideListFromEnv(options.AllowedWorkspaceRoots, "BUILD_SERVER_ALLOWED_WORKSPACE_ROOTS");
         OverrideListFromEnv(options.AllowedArtifactsRoots, "BUILD_SERVER_ALLOWED_ARTIFACTS_ROOTS");
         OverrideListFromEnv(options.AllowedConfigRoots, "BUILD_SERVER_ALLOWED_CONFIG_ROOTS");
         OverrideListFromEnv(options.AllowedRepositoryHosts, "BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS");
+        OverrideListFromEnv(options.NodePlatforms, "BUILD_SERVER_NODE_PLATFORMS");
         options.WorkerName = Env("BUILD_SERVER_WORKER_NAME", options.WorkerName);
 
         if (string.IsNullOrWhiteSpace(options.DataRoot))
@@ -75,6 +79,7 @@ public static class BuildServerEnvironment
             .Select(value => value.Trim().ToLowerInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        options.NodePlatforms = NormalizeNodePlatforms(options.NodePlatforms);
         return options;
     }
 
@@ -123,6 +128,33 @@ public static class BuildServerEnvironment
             .Select(value => ResolvePath(value.Trim(), contentRootPath))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static List<string> NormalizeNodePlatforms(IEnumerable<string> platforms)
+    {
+        List<string> result = platforms
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => BuildPlatforms.Normalize(value))
+            .Where(BuildPlatforms.IsKnown)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (result.Count > 0)
+        {
+            return result;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return [BuildPlatforms.Ios, BuildPlatforms.Android];
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return [BuildPlatforms.Android];
+        }
+
+        return [];
     }
 
     private static string ResolvePath(string path, string contentRootPath)

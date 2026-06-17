@@ -1,9 +1,8 @@
-using BuildServer;
-using BuildServer.Persistence;
-using BuildServer.Security;
-using BuildServer.Services;
+using LinuxGateway;
+using LinuxGateway.Persistence;
+using LinuxGateway.Security;
+using LinuxGateway.Services;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 
 var contentRoot = ResolveContentRoot();
@@ -13,34 +12,32 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = contentRoot,
     WebRootPath = Path.Combine(contentRoot, "wwwroot")
 });
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) &&
     string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
-    builder.WebHost.UseUrls("http://127.0.0.1:5088");
+    builder.WebHost.UseUrls("http://127.0.0.1:5090");
 }
 
-BuildServerOptions options = BuildServerEnvironment.Load(builder.Configuration, builder.Environment);
-
+LinuxGatewayOptions options = LinuxGatewayOptions.Load(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton(options);
-builder.Services.AddSingleton<JsonDatabase>();
-builder.Services.AddSingleton<AuthService>();
-builder.Services.AddSingleton<LoginRateLimiter>();
-builder.Services.AddSingleton<BuildQueueService>();
-builder.Services.AddSingleton<ArtifactScanner>();
-builder.Services.AddSingleton<BuildWorkerService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<BuildWorkerService>());
-builder.Services.AddHostedService<MaintenanceService>();
+builder.Services.AddSingleton<JsonGatewayDatabase>();
+builder.Services.AddSingleton<GatewayAuthService>();
+builder.Services.AddHttpClient<NodeGatewayClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
 
 var app = builder.Build();
 
-JsonDatabase database = app.Services.GetRequiredService<JsonDatabase>();
-AuthService auth = app.Services.GetRequiredService<AuthService>();
+JsonGatewayDatabase database = app.Services.GetRequiredService<JsonGatewayDatabase>();
+GatewayAuthService auth = app.Services.GetRequiredService<GatewayAuthService>();
 await database.InitializeAsync();
-await auth.SeedDefaultsAsync();
-app.Logger.LogInformation("BuildServer data root: {DataRoot}", options.DataRoot);
+await auth.SeedAsync();
+app.Logger.LogInformation("LinuxGateway data root: {DataRoot}", options.DataRoot);
 app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
 
 app.UseExceptionHandler(errorApp =>
@@ -51,7 +48,6 @@ app.UseExceptionHandler(errorApp =>
         int statusCode = exception switch
         {
             UnauthorizedAccessException => StatusCodes.Status403Forbidden,
-            FileNotFoundException => StatusCodes.Status400BadRequest,
             InvalidOperationException => StatusCodes.Status400BadRequest,
             ArgumentException => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
@@ -65,11 +61,17 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+app.Use(async (context, next) =>
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+    if (IsUnsafeMethod(context.Request.Method) && !IsAllowedOrigin(context, options))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = "请求来源不允许。" });
+        return;
+    }
+
+    await next();
 });
-app.UseBuildServerSecurity();
 
 string? webRoot = ResolveWebRoot(app.Environment.ContentRootPath);
 if (webRoot is not null)
@@ -80,14 +82,39 @@ if (webRoot is not null)
 }
 else
 {
-    app.MapGet("/", () => Results.Problem("找不到 wwwroot/index.html。请确认发布目录里包含 wwwroot 文件夹，并从完整发布目录启动 BuildServer。"));
+    app.MapGet("/", () => Results.Problem("找不到 wwwroot/index.html。请确认发布目录里包含 wwwroot 文件夹。"));
 }
 
 ApiRoutes.Map(app);
-McpEndpoint.Map(app);
-GatewayEndpoint.Map(app);
-
 app.Run();
+
+static bool IsUnsafeMethod(string method)
+{
+    return method is "POST" or "PUT" or "PATCH" or "DELETE";
+}
+
+static bool IsAllowedOrigin(HttpContext context, LinuxGatewayOptions options)
+{
+    string origin = context.Request.Headers.Origin.ToString().TrimEnd('/');
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return true;
+    }
+
+    string currentOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
+    if (string.Equals(origin, currentOrigin, StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (!string.IsNullOrWhiteSpace(options.PublicBaseUrl) &&
+        string.Equals(origin, options.PublicBaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return options.AllowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+}
 
 static string ResolveContentRoot()
 {
@@ -98,12 +125,12 @@ static string ResolveContentRoot()
     [
         baseDirectory,
         currentDirectory,
-        Path.Combine(currentDirectory, "BuildServer")
+        Path.Combine(currentDirectory, "LinuxGateway")
     ];
 
     foreach (string candidate in directCandidates)
     {
-        if (IsBuildServerContentRoot(candidate))
+        if (IsLinuxGatewayContentRoot(candidate))
         {
             return Path.GetFullPath(candidate);
         }
@@ -112,7 +139,7 @@ static string ResolveContentRoot()
     DirectoryInfo? directory = new(baseDirectory);
     while (directory is not null)
     {
-        if (IsBuildServerContentRoot(directory.FullName))
+        if (IsLinuxGatewayContentRoot(directory.FullName))
         {
             return directory.FullName;
         }
@@ -135,9 +162,9 @@ static string? ResolveWebRoot(string contentRootPath)
     return candidates.FirstOrDefault(path => File.Exists(Path.Combine(path, "index.html")));
 }
 
-static bool IsBuildServerContentRoot(string path)
+static bool IsLinuxGatewayContentRoot(string path)
 {
     return File.Exists(Path.Combine(path, "appsettings.json")) &&
            (File.Exists(Path.Combine(path, "wwwroot", "index.html")) ||
-            File.Exists(Path.Combine(path, "BuildServer.csproj")));
+            File.Exists(Path.Combine(path, "LinuxGateway.csproj")));
 }

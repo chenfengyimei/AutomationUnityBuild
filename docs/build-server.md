@@ -108,6 +108,24 @@ Header: X-Agent-Token: <BUILD_SERVER_AGENT_TOKEN>
 
 新建配置默认不允许 MCP 使用，需要在网页里显式勾选“允许 MCP 使用”。
 
+## LinuxGateway 节点接口
+
+如果要把这台 Mac/Windows BuildServer 接入 LinuxGateway，在启动前设置：
+
+```bash
+export BUILD_SERVER_GATEWAY_TOKEN="强随机 token"
+export BUILD_SERVER_NODE_PLATFORMS="ios,android"
+```
+
+Windows Android 节点可以使用：
+
+```powershell
+$env:BUILD_SERVER_GATEWAY_TOKEN="强随机 token"
+$env:BUILD_SERVER_NODE_PLATFORMS="android"
+```
+
+设置后会启用 `/api/gateway/*`，LinuxGateway 用 `X-Gateway-Token` 调用它来读取节点、提交任务、拉日志和产物。这个接口是可选的；不设置 token 时，本机网页和 MCP 仍然照常使用。
+
 ## 安全边界
 
 - Web/MCP 都只创建任务，不直接执行任意 shell。

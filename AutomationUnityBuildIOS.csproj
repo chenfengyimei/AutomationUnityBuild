@@ -9,8 +9,11 @@
 
   <ItemGroup>
     <Compile Remove="BuildServer\**\*.cs" />
+    <Compile Remove="LinuxGateway\**\*.cs" />
     <Content Remove="BuildServer\**\*" />
+    <Content Remove="LinuxGateway\**\*" />
     <None Remove="BuildServer\**\*" />
+    <None Remove="LinuxGateway\**\*" />
   </ItemGroup>
 
 </Project>
