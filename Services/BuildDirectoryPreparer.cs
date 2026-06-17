@@ -12,6 +12,22 @@ internal sealed class BuildDirectoryPreparer(BuildRunContext context)
         EnsureDirectoryExists(_paths.WorkspaceRoot, "工作区目录");
         EnsureDirectoryExists(_paths.ArtifactsRunRoot, "本次产物目录");
         EnsureDirectoryExists(_paths.LogsDirectory, "日志目录");
+        if (_config.IsAndroid)
+        {
+            EnsureDirectoryExists(_paths.AndroidOutputDirectory, "Android 输出目录");
+            if (_config.ShouldBuildApk)
+            {
+                EnsureParentDirectoryExists(_paths.ApkOutputPath, "APK 输出父目录");
+            }
+
+            if (_config.ShouldBuildAab)
+            {
+                EnsureParentDirectoryExists(_paths.AabOutputPath, "AAB 输出父目录");
+            }
+
+            return;
+        }
+
         EnsureParentDirectoryExists(_paths.ArchivePath, "Xcode archive 父目录");
         EnsureParentDirectoryExists(_paths.ExportOptionsPlistPath, "ExportOptions.plist 父目录");
 

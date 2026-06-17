@@ -103,14 +103,18 @@ internal static class Cli
 
     private static int InitTemplateConfig(CliOptions options)
     {
-        string path = Path.GetFullPath(string.IsNullOrWhiteSpace(options.ConfigPath) ? "build-ios.json" : options.ConfigPath);
+        string defaultFileName = options.TemplatePlatform == BuildPlatforms.Android ? "build-android.json" : "build-ios.json";
+        string template = options.TemplatePlatform == BuildPlatforms.Android
+            ? SampleFiles.BuildAndroidConfigJson
+            : SampleFiles.BuildIosConfigJson;
+        string path = Path.GetFullPath(options.ConfigWasSpecified ? options.ConfigPath : defaultFileName);
         if (File.Exists(path) && !options.Force)
         {
             throw new InvalidOperationException($"{path} 已存在。需要覆盖时加 --force。");
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, SampleFiles.BuildIosConfigJson, TextEncodings.Utf8Bom);
+        File.WriteAllText(path, template, TextEncodings.Utf8Bom);
         Console.WriteLine($"已生成配置模板: {path}");
         return 0;
     }

@@ -16,6 +16,8 @@ internal sealed class AutomationWorkflow : IDisposable
     private readonly XcodeProjectLocator _xcodeProjectLocator;
     private readonly UnityBuildService _unityBuildService;
     private readonly XcodeBuildService _xcodeBuildService;
+    private readonly AndroidBuildService _androidBuildService;
+    private readonly GooglePlayPublisher _googlePlayPublisher;
     private readonly RuntimeConfigUpdater _runtimeConfigUpdater;
     private readonly BuildConfigSnapshotWriter _configSnapshotWriter;
     private BuildConfig _config => _context.Config;
@@ -35,6 +37,8 @@ internal sealed class AutomationWorkflow : IDisposable
         _xcodeProjectLocator = new XcodeProjectLocator(_context);
         _unityBuildService = new UnityBuildService(_context, _xcodeProjectLocator);
         _xcodeBuildService = new XcodeBuildService(_context, _xcodeProjectLocator);
+        _androidBuildService = new AndroidBuildService(_context);
+        _googlePlayPublisher = new GooglePlayPublisher(_context);
         _runtimeConfigUpdater = new RuntimeConfigUpdater(_context);
         _configSnapshotWriter = new BuildConfigSnapshotWriter(_context);
     }
@@ -69,27 +73,13 @@ internal sealed class AutomationWorkflow : IDisposable
                 _logger.Warn("跳过 Git 同步。");
             }
 
-            if (!_options.SkipUnity)
+            if (_config.IsAndroid)
             {
-                if (!_options.DryRun)
-                {
-                    RunStep("校验 Unity 工程目录", _unityProjectValidator.Validate);
-                }
-
-                await RunStepAsync("Unity 导出 iOS Xcode 工程", _unityBuildService.ExportIosAsync);
+                await RunAndroidBuildAsync();
             }
             else
             {
-                _logger.Warn("跳过 Unity 导出。");
-            }
-
-            if (!_options.SkipXcode)
-            {
-                await RunStepAsync("Xcode archive/export", _xcodeBuildService.ArchiveAndExportAsync);
-            }
-            else
-            {
-                _logger.Warn("跳过 Xcode 编译导出。");
+                await RunIosBuildAsync();
             }
 
             _runtimeConfigUpdater.SaveChangesIfNeeded();
@@ -98,7 +88,7 @@ internal sealed class AutomationWorkflow : IDisposable
             _logger.Info("自动化打包流程完成。");
             Console.ResetColor();
             _logger.Info($"产物目录: {_paths.ArtifactsRunRoot}");
-            _logger.Info($"导出目录: {_paths.ExportPath}");
+            _logger.Info(_config.IsAndroid ? $"Android 输出目录: {_paths.AndroidOutputDirectory}" : $"导出目录: {_paths.ExportPath}");
             _logger.Info($"总日志: {_paths.AutomationLogPath}");
         }
         catch (Exception ex)
@@ -119,6 +109,7 @@ internal sealed class AutomationWorkflow : IDisposable
     private void PrintSummary()
     {
         _logger.Info($"RunId: {_paths.RunId}");
+        _logger.Info($"平台: {_config.BuildPlatform}");
         _logger.Info($"仓库: {_config.RepositoryUrl} [{_config.Branch}]");
         _logger.Info($"工作区: {_paths.WorkspaceRoot}");
         _logger.Info($"Git 仓库目录: {_paths.RepositoryRoot}");
@@ -127,11 +118,81 @@ internal sealed class AutomationWorkflow : IDisposable
             ? $"Bundle Version: 同步 Unity 项目设置（配置记录值: {BuildDisplay.BundleVersion(_config.BundleVersion)}）"
             : $"Bundle Version: 使用配置固定值 {_config.BundleVersion}");
         _logger.Info($"Build Number: {BuildDisplay.BuildNumber(_config.BuildNumber)}，自动+1: {(_config.AutoIncrementBuildNumber ? "启用" : "关闭")}");
-        _logger.Info($"Xcode 输出: {_paths.XcodeOutputDirectory}");
-        _logger.Info($"归档: {_paths.ArchivePath}");
-        _logger.Info($"导出目录: {_paths.ExportPath}");
+        if (_config.IsAndroid)
+        {
+            _logger.Info($"Android Build Format: {_config.AndroidBuildFormat}");
+            _logger.Info($"Android 输出目录: {_paths.AndroidOutputDirectory}");
+            if (_config.ShouldBuildApk)
+            {
+                _logger.Info($"APK: {_paths.ApkOutputPath}");
+            }
+
+            if (_config.ShouldBuildAab)
+            {
+                _logger.Info($"AAB: {_paths.AabOutputPath}");
+            }
+
+            _logger.Info($"Google Play 上传: {(_config.GooglePlayUploadEnabled ? $"启用 track={_config.GooglePlayTrack}, artifact={_config.GooglePlayUploadArtifact}" : "关闭")}");
+        }
+        else
+        {
+            _logger.Info($"Xcode 输出: {_paths.XcodeOutputDirectory}");
+            _logger.Info($"归档: {_paths.ArchivePath}");
+            _logger.Info($"导出目录: {_paths.ExportPath}");
+            _logger.Info($"复制 archive 到 Organizer: {(_config.CopyArchiveToOrganizer ? "启用" : "关闭")}");
+        }
+
         _logger.Info($"日志目录: {_paths.LogsDirectory}");
-        _logger.Info($"复制 archive 到 Organizer: {(_config.CopyArchiveToOrganizer ? "启用" : "关闭")}");
+    }
+
+    private async Task RunIosBuildAsync()
+    {
+        if (!_options.SkipUnity)
+        {
+            if (!_options.DryRun)
+            {
+                RunStep("校验 Unity 工程目录", _unityProjectValidator.Validate);
+            }
+
+            await RunStepAsync("Unity 导出 iOS Xcode 工程", _unityBuildService.ExportIosAsync);
+        }
+        else
+        {
+            _logger.Warn("跳过 Unity 导出。");
+        }
+
+        if (!_options.SkipXcode)
+        {
+            await RunStepAsync("Xcode archive/export", _xcodeBuildService.ArchiveAndExportAsync);
+        }
+        else
+        {
+            _logger.Warn("跳过 Xcode 编译导出。");
+        }
+    }
+
+    private async Task RunAndroidBuildAsync()
+    {
+        if (_options.SkipXcode)
+        {
+            _logger.Info("Android 打包不需要 Xcode，已忽略 --skip-xcode。");
+        }
+
+        if (!_options.SkipUnity)
+        {
+            if (!_options.DryRun)
+            {
+                RunStep("校验 Unity 工程目录", _unityProjectValidator.Validate);
+            }
+
+            await RunStepAsync("Unity 构建 Android APK/AAB", _androidBuildService.BuildAsync);
+        }
+        else
+        {
+            _logger.Warn("跳过 Unity Android 构建。");
+        }
+
+        await RunStepAsync("Google Play 上传", _googlePlayPublisher.PublishAsync);
     }
 
     private StepTimer StartStep(string name)

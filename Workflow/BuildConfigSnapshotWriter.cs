@@ -58,7 +58,10 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
             _paths.ConfigSnapshotPath,
             _paths.XcodeArchiveLogPath,
             _paths.XcodeExportLogPath,
-            _paths.ExportOptionsPlistPath
+            _paths.ExportOptionsPlistPath,
+            _paths.AndroidOutputDirectory,
+            _paths.ApkOutputPath,
+            _paths.AabOutputPath
         }, JsonOptions.IndentedCamelCase);
         RedactNode(pathsNode);
 
@@ -91,6 +94,12 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
                 foreach (string key in jsonObject.Select(pair => pair.Key).ToArray())
                 {
                     JsonNode? child = jsonObject[key];
+                    if (IsSensitiveKey(key))
+                    {
+                        jsonObject[key] = "***";
+                        continue;
+                    }
+
                     if (child is JsonValue value &&
                         value.TryGetValue(out string? stringValue) &&
                         stringValue is not null)
@@ -119,5 +128,17 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
                 }
                 break;
         }
+    }
+
+    private static bool IsSensitiveKey(string key)
+    {
+        string normalized = key.Replace("_", "", StringComparison.Ordinal).Replace("-", "", StringComparison.Ordinal);
+        return normalized.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("passwd", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("privatekey", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("keystorepass", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("keyaliaspass", StringComparison.OrdinalIgnoreCase);
     }
 }

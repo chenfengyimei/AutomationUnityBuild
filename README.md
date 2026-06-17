@@ -1,4 +1,4 @@
-# Unity iOS 自动化打包工作流
+# Unity iOS / Android 自动化打包工作流
 
 这个控制台项目用于在 Mac 上一键完成：
 
@@ -50,6 +50,43 @@ Assets/Editor/BuildIOS.cs
 ```
 
 这个脚本提供 `BuildAutomation.IOSBuilder.Build` 静态方法，控制台工具会通过 Unity 的 `-executeMethod` 调用它。脚本还会在导出成功后写出 `unity-build-metadata.json`，用于把 Unity 项目里的实际版本号同步回配置文件；更新本工具后，也要同步更新 Unity 仓库里的这个脚本。
+
+## Android APK/AAB 打包和 Google Play 上传
+
+如果要打 Android APK/AAB，把本项目里的 `UnityBuildScripts/BuildAndroid.cs` 复制到 Unity 游戏仓库：
+
+```text
+Assets/Editor/BuildAndroid.cs
+```
+
+这个脚本提供 `BuildAutomation.AndroidBuilder.Build`，支持 `androidBuildFormat` 为 `apk`、`aab`、`both`。Android 配置模板可以这样生成：
+
+```bash
+./AutomationUnityBuildIOS init-config --template --platform android
+# 或快捷指令
+./AutomationUnityBuildIOS 11
+```
+
+Android 配置使用 `buildPlatform: "android"`。常用字段：
+
+```json
+{
+  "buildPlatform": "android",
+  "unityBuildMethod": "BuildAutomation.AndroidBuilder.Build",
+  "androidBuildFormat": "both",
+  "googlePlayUploadEnabled": false,
+  "googlePlayTrack": "internal",
+  "googlePlayUploadArtifact": "aab"
+}
+```
+
+开启 Google Play 上传时，需要在 Google Play Console 配好 Service Account 权限，并在配置里填写 `googlePlayServiceAccountJsonPath`。工具会按 `edits.insert -> bundles/apks.upload -> tracks.update -> edits.commit` 的流程上传；建议先用：
+
+```bash
+./AutomationUnityBuildIOS run --config configs/build-android.release.json --dry-run --verbose
+```
+
+确认流程和路径无误后再正式执行。
 
 ## 初始化配置
 

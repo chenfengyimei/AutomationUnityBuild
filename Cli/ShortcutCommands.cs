@@ -15,7 +15,8 @@ internal static class ShortcutCommands
         new("07", "选择配置打包，但跳过 Git 同步", ["run", "--skip-git"]),
         new("08", "选择配置打包，但跳过 Unity 导出", ["run", "--skip-unity"]),
         new("09", "选择配置打包，但跳过 Xcode 编译导出", ["run", "--skip-xcode"]),
-        new("10", "选择配置并修改配置内容", ["edit-config"])
+        new("10", "选择配置并修改配置内容", ["edit-config"]),
+        new("11", "生成 Android APK/AAB 配置模板 build-android.json", ["init-config", "--config", "build-android.json", "--template", "--platform", "android"])
     ];
 
     public static bool IsShortcut(string? value)
@@ -62,6 +63,7 @@ internal static class ShortcutCommands
         Console.WriteLine("  05 --config configs/build-ios.dev.json");
         Console.WriteLine("  06 --config configs/build-ios.release.json");
         Console.WriteLine("  10 --config configs/build-ios.release.json");
+        Console.WriteLine("  11 --force");
     }
 
     private static bool TryNormalize(string? value, out string code)
