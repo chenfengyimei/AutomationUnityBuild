@@ -43,7 +43,7 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 
 ## Unity 工程需要加的脚本
 
-把本项目里的 `UnityBuildScripts/BuildIOS.cs` 复制到你的 Unity 游戏仓库：
+把本项目里的 `UnityBuildScripts/Ios/BuildIOS.cs` 复制到你的 Unity 游戏仓库：
 
 ```text
 Assets/Editor/BuildIOS.cs
@@ -53,7 +53,7 @@ Assets/Editor/BuildIOS.cs
 
 ## Android APK/AAB 打包和 Google Play 上传
 
-如果要打 Android APK/AAB，把本项目里的 `UnityBuildScripts/BuildAndroid.cs` 复制到 Unity 游戏仓库：
+如果要打 Android APK/AAB，把本项目里的 `UnityBuildScripts/Android/BuildAndroid.cs` 复制到 Unity 游戏仓库：
 
 ```text
 Assets/Editor/BuildAndroid.cs

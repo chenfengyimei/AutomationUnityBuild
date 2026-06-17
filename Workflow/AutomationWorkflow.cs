@@ -14,7 +14,7 @@ internal sealed class AutomationWorkflow : IDisposable
     private readonly GitRepositoryService _gitRepository;
     private readonly UnityProjectValidator _unityProjectValidator;
     private readonly XcodeProjectLocator _xcodeProjectLocator;
-    private readonly UnityBuildService _unityBuildService;
+    private readonly IosUnityBuildService _iosUnityBuildService;
     private readonly XcodeBuildService _xcodeBuildService;
     private readonly AndroidBuildService _androidBuildService;
     private readonly GooglePlayPublisher _googlePlayPublisher;
@@ -35,7 +35,7 @@ internal sealed class AutomationWorkflow : IDisposable
         _gitRepository = new GitRepositoryService(_context);
         _unityProjectValidator = new UnityProjectValidator(_context);
         _xcodeProjectLocator = new XcodeProjectLocator(_context);
-        _unityBuildService = new UnityBuildService(_context, _xcodeProjectLocator);
+        _iosUnityBuildService = new IosUnityBuildService(_context, _xcodeProjectLocator);
         _xcodeBuildService = new XcodeBuildService(_context, _xcodeProjectLocator);
         _androidBuildService = new AndroidBuildService(_context);
         _googlePlayPublisher = new GooglePlayPublisher(_context);
@@ -154,7 +154,7 @@ internal sealed class AutomationWorkflow : IDisposable
                 RunStep("校验 Unity 工程目录", _unityProjectValidator.Validate);
             }
 
-            await RunStepAsync("Unity 导出 iOS Xcode 工程", _unityBuildService.ExportIosAsync);
+            await RunStepAsync("Unity 导出 iOS Xcode 工程", _iosUnityBuildService.ExportIosAsync);
         }
         else
         {

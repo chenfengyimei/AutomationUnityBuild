@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace AutomationUnityBuildIOS;
 
-internal sealed class UnityBuildService(BuildRunContext context, XcodeProjectLocator xcodeProjectLocator)
+internal sealed class IosUnityBuildService(BuildRunContext context, XcodeProjectLocator xcodeProjectLocator)
 {
     private readonly BuildRunContext _context = context;
     private BuildConfig _config => _context.Config;
