@@ -7,8 +7,9 @@
 - `Configuration/`：配置模型、配置文件读写、配置文件选择、路径解析、示例配置。
 - `Workflow/`：自动化打包主流程编排、运行上下文、运行时配置更新、配置快照。
 - `Services/`：跨平台共享业务能力，包括 Git 同步、环境检查、目录准备、Unity 工程校验、路径安全校验。
+- `Modules/Common/`：平台模块共享能力，包括平台 Pipeline 接口、Unity 命令参数构建、Unity 日志诊断、Unity metadata 读取。
 - `Modules/Ios/`：iOS 专属打包能力，包括 Unity 导出 Xcode 工程、Xcode project/workspace 定位、`xcodebuild archive/export`。
-- `Modules/Android/`：Android 专属打包能力，包括 Unity 构建 APK/AAB、Google Play Publishing API 上传。
+- `Modules/Android/`：Android 专属打包能力，包括 Unity 构建 APK/AAB、Google Play Publishing API 上传；`GooglePlay/` 子目录承载 HTTP API、OAuth、Service Account 等细节。
 - `Infrastructure/`：通用基础设施，包括日志、进程执行、路径工具、路径安全边界、敏感信息脱敏。
 - `UnityBuildScripts/Ios/`：需要复制到 Unity 项目 `Assets/Editor` 的 iOS Unity Editor 构建脚本。
 - `UnityBuildScripts/Android/`：需要复制到 Unity 项目 `Assets/Editor` 的 Android Unity Editor 构建脚本。

@@ -59,32 +59,32 @@ internal static class ConfigEditor
         {
             config.IosDeploymentTarget = AskVersion("iOS Deployment Target", config.IosDeploymentTarget, allowEmpty: true);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(8, "签名和导出", "Apple Team ID", config => Display(config.TeamId), config =>
         {
             config.TeamId = AskAppleTeamId(config.TeamId);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(9, "签名和导出", "Signing Style", config => Display(config.SigningStyle), config =>
         {
             config.SigningStyle = ConsolePrompts.AskChoice("Signing Style", ["automatic", "manual"], Default(config.SigningStyle, "automatic"));
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(10, "签名和导出", "Export Method", config => Display(config.ExportMethod), config =>
         {
             config.ExportMethod = ConsolePrompts.AskChoice("Export Method", ["development", "ad-hoc", "app-store", "enterprise"], Default(config.ExportMethod, "development"));
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(11, "签名和导出", "Allow Provisioning Updates", config => BoolText(config.AllowProvisioningUpdates), config =>
         {
             config.AllowProvisioningUpdates = ConsolePrompts.AskBool("Allow Provisioning Updates", config.AllowProvisioningUpdates);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(12, "签名和导出", "Copy Archive To Organizer", config => BoolText(config.CopyArchiveToOrganizer), config =>
         {
             config.CopyArchiveToOrganizer = ConsolePrompts.AskBool("Copy Archive To Organizer", config.CopyArchiveToOrganizer);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(13, "Git 和 Unity", "Repository Url", config => Display(config.RepositoryUrl), config =>
         {
             config.RepositoryUrl = AskRepositoryUrl(config.RepositoryUrl);
@@ -149,22 +149,126 @@ internal static class ConfigEditor
         {
             config.CleanXcodeOutputBeforeBuild = ConsolePrompts.AskBool("Clean Xcode Output Before Build", config.CleanXcodeOutputBeforeBuild);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(25, "Xcode 高级项", "Scheme", config => Display(config.Scheme), config =>
         {
             config.Scheme = AskRequiredWithDefault("Scheme", config.Scheme);
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(26, "Xcode 高级项", "Configuration", config => Display(config.Configuration), config =>
         {
             config.Configuration = ConsolePrompts.AskChoice("Configuration", ["Release", "Debug"], Default(config.Configuration, "Release"));
             return true;
-        }),
+        }) { IsVisible = config => config.IsIos },
         new(27, "配置文件信息", "Config Name", config => Display(config.ConfigName), config =>
         {
             config.ConfigName = AskString("Config Name", config.ConfigName);
             return true;
-        })
+        }),
+        new(28, "配置文件信息", "Build Platform", config => Display(config.BuildPlatform), config =>
+        {
+            string platform = ConsolePrompts.AskChoice("Build Platform", [BuildPlatforms.Ios, BuildPlatforms.Android], Default(config.BuildPlatform, BuildPlatforms.Ios));
+            config.BuildPlatform = platform;
+            config.UnityBuildMethod = platform == BuildPlatforms.Android
+                ? DefaultUnityBuildMethods.Android
+                : DefaultUnityBuildMethods.Ios;
+            return true;
+        }),
+        new(29, "Android 构建", "Android Build Format", config => Display(config.AndroidBuildFormat), config =>
+        {
+            config.AndroidBuildFormat = ConsolePrompts.AskChoice("Android Build Format", [AndroidBuildFormats.Apk, AndroidBuildFormats.Aab, AndroidBuildFormats.Both], Default(config.AndroidBuildFormat, AndroidBuildFormats.Aab));
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(30, "Android 构建", "Android Output Directory", config => Display(config.AndroidOutputDirectory), config =>
+        {
+            config.AndroidOutputDirectory = AskString("Android Output Directory", config.AndroidOutputDirectory);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(31, "Android 构建", "APK Output Path", config => Display(config.ApkOutputPath), config =>
+        {
+            config.ApkOutputPath = AskString("APK Output Path", config.ApkOutputPath);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(32, "Android 构建", "AAB Output Path", config => Display(config.AabOutputPath), config =>
+        {
+            config.AabOutputPath = AskString("AAB Output Path", config.AabOutputPath);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(33, "Android 构建", "Android Min SDK Version", config => Display(config.AndroidMinSdkVersion), config =>
+        {
+            config.AndroidMinSdkVersion = AskOptionalInteger("Android Min SDK Version", config.AndroidMinSdkVersion);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(34, "Android 构建", "Android Target SDK Version", config => Display(config.AndroidTargetSdkVersion), config =>
+        {
+            config.AndroidTargetSdkVersion = AskOptionalInteger("Android Target SDK Version", config.AndroidTargetSdkVersion);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(35, "Android 签名", "Keystore Path", config => Display(config.AndroidKeystoreName), config =>
+        {
+            config.AndroidKeystoreName = AskString("Keystore Path", config.AndroidKeystoreName);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(36, "Android 签名", "Keystore Password", config => SecretDisplay(config.AndroidKeystorePass), config =>
+        {
+            config.AndroidKeystorePass = AskString("Keystore Password", config.AndroidKeystorePass);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(37, "Android 签名", "Key Alias Name", config => Display(config.AndroidKeyaliasName), config =>
+        {
+            config.AndroidKeyaliasName = AskString("Key Alias Name", config.AndroidKeyaliasName);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(38, "Android 签名", "Key Alias Password", config => SecretDisplay(config.AndroidKeyaliasPass), config =>
+        {
+            config.AndroidKeyaliasPass = AskString("Key Alias Password", config.AndroidKeyaliasPass);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(39, "Google Play", "Upload Enabled", config => BoolText(config.GooglePlayUploadEnabled), config =>
+        {
+            config.GooglePlayUploadEnabled = ConsolePrompts.AskBool("Google Play Upload Enabled", config.GooglePlayUploadEnabled);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(40, "Google Play", "Package Name", config => Display(config.GooglePlayPackageName), config =>
+        {
+            config.GooglePlayPackageName = AskString("Google Play Package Name", config.GooglePlayPackageName);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(41, "Google Play", "Service Account JSON Path", config => Display(config.GooglePlayServiceAccountJsonPath), config =>
+        {
+            config.GooglePlayServiceAccountJsonPath = AskString("Service Account JSON Path", config.GooglePlayServiceAccountJsonPath);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(42, "Google Play", "Track", config => Display(config.GooglePlayTrack), config =>
+        {
+            config.GooglePlayTrack = ConsolePrompts.AskChoice("Google Play Track", ["internal", "alpha", "beta", "production"], Default(config.GooglePlayTrack, "internal"));
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(43, "Google Play", "Release Status", config => Display(config.GooglePlayReleaseStatus), config =>
+        {
+            config.GooglePlayReleaseStatus = ConsolePrompts.AskChoice("Google Play Release Status", ["draft", "inProgress", "halted", "completed"], Default(config.GooglePlayReleaseStatus, "draft"));
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(44, "Google Play", "Release Name", config => Display(config.GooglePlayReleaseName), config =>
+        {
+            config.GooglePlayReleaseName = AskString("Google Play Release Name", config.GooglePlayReleaseName);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(45, "Google Play", "Upload Artifact", config => Display(config.GooglePlayUploadArtifact), config =>
+        {
+            config.GooglePlayUploadArtifact = ConsolePrompts.AskChoice("Google Play Upload Artifact", [AndroidBuildFormats.Apk, AndroidBuildFormats.Aab, AndroidBuildFormats.Both], Default(config.GooglePlayUploadArtifact, AndroidBuildFormats.Aab));
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(46, "Google Play", "Changes Not Sent For Review", config => BoolText(config.GooglePlayChangesNotSentForReview), config =>
+        {
+            config.GooglePlayChangesNotSentForReview = ConsolePrompts.AskBool("Changes Not Sent For Review", config.GooglePlayChangesNotSentForReview);
+            return true;
+        }) { IsVisible = config => config.IsAndroid },
+        new(47, "Google Play", "User Fraction", config => config.GooglePlayUserFraction?.ToString("0.###") ?? "(空)", config =>
+        {
+            config.GooglePlayUserFraction = AskOptionalFraction("Google Play User Fraction", config.GooglePlayUserFraction);
+            return true;
+        }) { IsVisible = config => config.IsAndroid }
     ];
 
     public static void Run(string configPath)
@@ -212,11 +316,11 @@ internal static class ConfigEditor
     private static void PrintMenu(BuildConfig config, string fullPath)
     {
         Console.WriteLine();
-        Console.WriteLine("===== 修改 Unity iOS 打包配置 =====");
+        Console.WriteLine($"===== 修改 Unity {PlatformDisplayName(config)} 打包配置 =====");
         Console.WriteLine($"配置文件: {fullPath}");
         Console.WriteLine("输入编号修改对应内容；直接回车或输入 0 退出；输入 s 查看当前摘要。");
         string? currentGroup = null;
-        foreach (ConfigField field in Fields)
+        foreach (ConfigField field in VisibleFields(config))
         {
             if (!string.Equals(currentGroup, field.Group, StringComparison.Ordinal))
             {
@@ -231,7 +335,7 @@ internal static class ConfigEditor
 
     private static bool EditField(BuildConfig config, int number)
     {
-        ConfigField? field = Fields.FirstOrDefault(field => field.Number == number);
+        ConfigField? field = VisibleFields(config).FirstOrDefault(field => field.Number == number);
         if (field is null)
         {
             Console.WriteLine("没有这个编号。");
@@ -251,8 +355,16 @@ internal static class ConfigEditor
         Console.WriteLine($"Unity 工程: {config.ProjectDirectoryName}/{config.UnityProjectRelativePath}");
         Console.WriteLine($"Unity: {(string.IsNullOrWhiteSpace(config.UnityExecutablePath) ? config.UnityVersion : config.UnityExecutablePath)}");
         Console.WriteLine($"App: {config.ProductName}, {config.BundleIdentifier}, version={Display(config.BundleVersion)}, syncUnityVersion={config.SyncBundleVersionFromUnity}, build={config.BuildNumber}, autoIncrementBuild={config.AutoIncrementBuildNumber}");
-        Console.WriteLine($"iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
-        Console.WriteLine($"签名: team={config.TeamId}, style={config.SigningStyle}, export={config.ExportMethod}");
+        if (config.IsIos)
+        {
+            Console.WriteLine($"iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
+            Console.WriteLine($"签名: team={config.TeamId}, style={config.SigningStyle}, export={config.ExportMethod}");
+        }
+        else
+        {
+            Console.WriteLine($"Android: format={config.AndroidBuildFormat}, minSdk={Display(config.AndroidMinSdkVersion)}, targetSdk={Display(config.AndroidTargetSdkVersion)}");
+            Console.WriteLine($"Google Play: upload={config.GooglePlayUploadEnabled}, track={config.GooglePlayTrack}, artifact={config.GooglePlayUploadArtifact}");
+        }
         Console.WriteLine($"工作区: {config.WorkspaceRoot}");
         Console.WriteLine($"产物: {config.ArtifactsRoot}");
         Console.WriteLine($"resetRepository={config.ResetRepository}, preserveLibrary={config.PreserveUnityLibraryOnReset}");
@@ -261,6 +373,11 @@ internal static class ConfigEditor
     private static void Save(BuildConfig config, string fullPath)
     {
         ConfigFileWriter.Save(fullPath, config);
+    }
+
+    private static IEnumerable<ConfigField> VisibleFields(BuildConfig config)
+    {
+        return Fields.Where(field => field.IsVisible(config));
     }
 
     private static string AskString(string label, string currentValue)
@@ -392,6 +509,16 @@ internal static class ConfigEditor
         return string.IsNullOrWhiteSpace(value) ? "(空)" : value;
     }
 
+    private static string PlatformDisplayName(BuildConfig config)
+    {
+        return config.IsAndroid ? "Android" : "iOS";
+    }
+
+    private static string SecretDisplay(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "(空)" : "******";
+    }
+
     private static string BoolText(bool value)
     {
         return value ? "true" : "false";
@@ -408,11 +535,56 @@ internal static class ConfigEditor
         return string.IsNullOrWhiteSpace(value) || value.All(char.IsDigit);
     }
 
+    private static string AskOptionalInteger(string label, string currentValue)
+    {
+        while (true)
+        {
+            string value = AskString(label, currentValue);
+            if (string.IsNullOrWhiteSpace(value) || int.TryParse(value, out _))
+            {
+                return value;
+            }
+
+            Console.WriteLine($"{label} 必须是整数，例如 23、30、35。");
+        }
+    }
+
+    private static double? AskOptionalFraction(string label, double? currentValue)
+    {
+        while (true)
+        {
+            string currentText = currentValue?.ToString("0.###") ?? "";
+            Console.Write(string.IsNullOrWhiteSpace(currentText)
+                ? $"{label}，直接回车保持空，输入 0.1-1: "
+                : $"{label} [{currentText}]，直接回车保持不变，输入 CLEAR 清空: ");
+            string value = Console.ReadLine()?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return currentValue;
+            }
+
+            if (value.Equals("CLEAR", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (double.TryParse(value, out double fraction) && fraction > 0 && fraction <= 1)
+            {
+                return fraction;
+            }
+
+            Console.WriteLine($"{label} 必须大于 0 且小于等于 1，例如 0.1 或 1。");
+        }
+    }
+
     private sealed record ConfigField(
         int Number,
         string Group,
         string Label,
         Func<BuildConfig, string> Read,
-        Func<BuildConfig, bool> Edit);
+        Func<BuildConfig, bool> Edit)
+    {
+        public Func<BuildConfig, bool> IsVisible { get; init; } = _ => true;
+    }
 }
 
