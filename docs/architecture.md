@@ -6,13 +6,16 @@
 - `ConsoleUi/`：控制台交互界面，包括初始化向导、配置编辑器、输入提示。
 - `Configuration/`：配置模型、配置文件读写、配置文件选择、路径解析、示例配置。
 - `Workflow/`：自动化打包主流程编排、运行上下文、运行时配置更新、配置快照。
-- `Services/`：具体业务能力，包括 Git 同步、环境检查、目录准备、Unity 导出、Xcode archive/export。
+- `Services/`：跨平台共享业务能力，包括 Git 同步、环境检查、目录准备、Unity 工程校验、路径安全校验。
+- `Modules/Ios/`：iOS 专属打包能力，包括 Unity 导出 Xcode 工程、Xcode project/workspace 定位、`xcodebuild archive/export`。
+- `Modules/Android/`：Android 专属打包能力，包括 Unity 构建 APK/AAB、Google Play Publishing API 上传。
 - `Infrastructure/`：通用基础设施，包括日志、进程执行、路径工具、路径安全边界、敏感信息脱敏。
-- `UnityBuildScripts/`：需要复制到 Unity 项目 `Assets/Editor` 的 Unity Editor 构建脚本。
+- `UnityBuildScripts/Ios/`：需要复制到 Unity 项目 `Assets/Editor` 的 iOS Unity Editor 构建脚本。
+- `UnityBuildScripts/Android/`：需要复制到 Unity 项目 `Assets/Editor` 的 Android Unity Editor 构建脚本。
 - `BuildServer/`：Web 打包平台，包含 API、内置前端、后台 Worker、MCP/Agent 入口和 JSON 持久化。
 - `deploy/`：生产部署模板，例如 macOS `launchd` plist。
 
-`AutomationWorkflow` 只负责串联步骤，不直接处理 Git、Unity、Xcode 的细节。新增功能时优先放到对应服务中，再由 workflow 调用。
+`AutomationWorkflow` 只负责串联步骤，不直接处理 Git、Unity、Xcode 或 Google Play 的细节。新增平台能力时优先放到对应 `Modules/<Platform>/` 中，再由 workflow 调用；跨平台能力才放到 `Services/`。
 
 配置编辑器使用字段描述列表驱动菜单和修改逻辑。新增配置项时，优先在 `ConfigEditor` 的字段列表里补一项，避免菜单显示和 switch 修改逻辑分散在多个地方。
 
