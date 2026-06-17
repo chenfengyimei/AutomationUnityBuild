@@ -233,7 +233,10 @@ internal static class SensitiveText
         @"(?<prefix>\bBearer\s+)[A-Za-z0-9._\-+/=]{12,}",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex KeyValueSecretRegex = new(
-        @"(?<key>\b(password|passwd|pwd|token|secret|api[-_]?key|access[-_]?key)\b\s*[:=]\s*)(?<value>[^\s,;]+)",
+        @"(?<key>\b(password|passwd|pwd|token|secret|api[-_]?key|access[-_]?key|private[-_]?key|keystore[-_]?pass|keyalias[-_]?pass|androidkeystorepass|androidkeyaliaspass)\b\s*[:=]\s*)(?<value>[^\s,;]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex UnitySecretArgRegex = new(
+        @"(?<key>-(customAndroidKeystorePass|customAndroidKeyaliasPass)\s+)(?<value>(""[^""]*"")|[^\s]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static string Redact(string value)
@@ -248,6 +251,7 @@ internal static class SensitiveText
         redacted = GitLabTokenRegex.Replace(redacted, "***");
         redacted = BearerTokenRegex.Replace(redacted, "${prefix}***");
         redacted = KeyValueSecretRegex.Replace(redacted, "${key}***");
+        redacted = UnitySecretArgRegex.Replace(redacted, "${key}***");
         return redacted;
     }
 }

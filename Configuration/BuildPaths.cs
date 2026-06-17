@@ -19,7 +19,10 @@ internal sealed record BuildPaths(
     string ConfigSnapshotPath,
     string XcodeArchiveLogPath,
     string XcodeExportLogPath,
-    string ExportOptionsPlistPath)
+    string ExportOptionsPlistPath,
+    string AndroidOutputDirectory,
+    string ApkOutputPath,
+    string AabOutputPath)
 {
     public static BuildPaths Create(BuildConfig config)
     {
@@ -35,6 +38,13 @@ internal sealed record BuildPaths(
         string exportPath = ResolvePath(config.ExportPath, artifactsRunRoot, "Export");
         string logsDirectory = ResolvePath(config.LogsDirectory, artifactsRunRoot, "Logs");
         string exportOptionsPlistPath = ResolvePath(config.ExportOptionsPlistPath, artifactsRunRoot, "ExportOptions.plist");
+        string androidOutputDirectory = ResolvePath(config.AndroidOutputDirectory, artifactsRunRoot, "Android");
+        string productFileName = SafeFileName(
+            !string.IsNullOrWhiteSpace(config.ProductName)
+                ? config.ProductName
+                : ProjectDirectoryName(config));
+        string apkOutputPath = ResolvePath(config.ApkOutputPath, androidOutputDirectory, $"{productFileName}.apk");
+        string aabOutputPath = ResolvePath(config.AabOutputPath, androidOutputDirectory, $"{productFileName}.aab");
 
         return new BuildPaths(
             runId,
@@ -55,7 +65,10 @@ internal sealed record BuildPaths(
             Path.Combine(logsDirectory, "build-config-snapshot.json"),
             Path.Combine(logsDirectory, "xcode-archive.log"),
             Path.Combine(logsDirectory, "xcode-export.log"),
-            exportOptionsPlistPath);
+            exportOptionsPlistPath,
+            androidOutputDirectory,
+            apkOutputPath,
+            aabOutputPath);
     }
 
     private static string ProjectDirectoryName(BuildConfig config)
@@ -79,6 +92,12 @@ internal sealed record BuildPaths(
             : PathTools.ExpandHome(configuredPath);
 
         return Path.GetFullPath(path);
+    }
+
+    private static string SafeFileName(string value)
+    {
+        string sanitized = string.Join("_", value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "UnityGame" : sanitized;
     }
 
     private static string ResolveUnityExecutable(BuildConfig config)

@@ -1,5 +1,6 @@
 {
   "configName": "dev",
+  "buildPlatform": "ios",
   "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
   "allowedRepositoryUrls": [
     "git@github.com:your-org/your-unity-game.git"

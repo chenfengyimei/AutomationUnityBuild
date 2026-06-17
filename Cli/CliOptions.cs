@@ -10,7 +10,8 @@ internal sealed record CliOptions(
     bool SkipXcode,
     bool AllowNonMac,
     bool Verbose,
-    bool Template)
+    bool Template,
+    string TemplatePlatform)
 {
     public static CliOptions Parse(IEnumerable<string> args)
     {
@@ -24,6 +25,7 @@ internal sealed record CliOptions(
         bool allowNonMac = false;
         bool verbose = false;
         bool template = false;
+        string templatePlatform = BuildPlatforms.Ios;
 
         using IEnumerator<string> enumerator = args.GetEnumerator();
         while (enumerator.MoveNext())
@@ -60,6 +62,13 @@ internal sealed record CliOptions(
                 case "--template":
                     template = true;
                     break;
+                case "--platform":
+                    templatePlatform = NextValue(enumerator, arg).Trim().ToLowerInvariant();
+                    if (!BuildPlatforms.IsKnown(templatePlatform))
+                    {
+                        throw new ArgumentException("--platform 必须是 ios 或 android。");
+                    }
+                    break;
                 default:
                     throw new ArgumentException($"无法识别参数: {arg}");
             }
@@ -75,7 +84,8 @@ internal sealed record CliOptions(
             skipXcode,
             allowNonMac,
             verbose,
-            template);
+            template,
+            templatePlatform);
     }
 
     private static string NextValue(IEnumerator<string> enumerator, string optionName)

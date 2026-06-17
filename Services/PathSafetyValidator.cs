@@ -22,12 +22,29 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
 
         RequireUnderAnyRoot(_paths.ArtifactsRoot, allowedArtifactsRoots, "artifactsRoot");
         RequireStrictChild(_paths.ArtifactsRunRoot, [_paths.ArtifactsRoot], "本次产物目录");
-        RequireUnderAnyRoot(_paths.XcodeOutputDirectory, [_paths.ArtifactsRunRoot], "Xcode 输出目录");
-        RequireUnderAnyRoot(_paths.ArchivePath, [_paths.ArtifactsRunRoot], "Xcode archive 路径");
-        RequireUnderAnyRoot(_paths.ExportPath, [_paths.ArtifactsRunRoot], "导出目录");
+        if (_config.IsAndroid)
+        {
+            RequireUnderAnyRoot(_paths.AndroidOutputDirectory, [_paths.ArtifactsRunRoot], "Android 输出目录");
+            if (_config.ShouldBuildApk)
+            {
+                RequireParentUnderAnyRoot(_paths.ApkOutputPath, [_paths.ArtifactsRunRoot], "APK 输出路径");
+            }
+
+            if (_config.ShouldBuildAab)
+            {
+                RequireParentUnderAnyRoot(_paths.AabOutputPath, [_paths.ArtifactsRunRoot], "AAB 输出路径");
+            }
+        }
+        else
+        {
+            RequireUnderAnyRoot(_paths.XcodeOutputDirectory, [_paths.ArtifactsRunRoot], "Xcode 输出目录");
+            RequireUnderAnyRoot(_paths.ArchivePath, [_paths.ArtifactsRunRoot], "Xcode archive 路径");
+            RequireUnderAnyRoot(_paths.ExportPath, [_paths.ArtifactsRunRoot], "导出目录");
+            RequireParentUnderAnyRoot(_paths.ExportOptionsPlistPath, [_paths.ArtifactsRunRoot], "ExportOptions.plist");
+        }
+
         RequireUnderAnyRoot(_paths.LogsDirectory, [_paths.ArtifactsRunRoot], "日志目录");
         RequireParentUnderAnyRoot(_paths.ConfigSnapshotPath, [_paths.ArtifactsRunRoot], "配置快照");
-        RequireParentUnderAnyRoot(_paths.ExportOptionsPlistPath, [_paths.ArtifactsRunRoot], "ExportOptions.plist");
 
         _logger.Info("路径安全边界校验通过。");
     }
