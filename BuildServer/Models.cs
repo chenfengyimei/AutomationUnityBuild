@@ -159,6 +159,7 @@ public static class BuildSources
 {
     public const string Web = "Web";
     public const string Mcp = "MCP";
+    public const string Gateway = "Gateway";
 }
 
 public static class WorkerStatuses

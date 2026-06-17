@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutomationUnityBuildIOS", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildServer", "BuildServer\BuildServer.csproj", "{04FECCB5-3F4F-463F-8FC0-1244F449B19C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LinuxGateway", "LinuxGateway\LinuxGateway.csproj", "{1851F9B8-8690-430B-9287-EDA4ECA5D27A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{04FECCB5-3F4F-463F-8FC0-1244F449B19C}.Release|x64.Build.0 = Release|Any CPU
 		{04FECCB5-3F4F-463F-8FC0-1244F449B19C}.Release|x86.ActiveCfg = Release|Any CPU
 		{04FECCB5-3F4F-463F-8FC0-1244F449B19C}.Release|x86.Build.0 = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|x64.Build.0 = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Debug|x86.Build.0 = Debug|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|x64.ActiveCfg = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|x64.Build.0 = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|x86.ActiveCfg = Release|Any CPU
+		{1851F9B8-8690-430B-9287-EDA4ECA5D27A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
