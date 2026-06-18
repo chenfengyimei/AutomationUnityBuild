@@ -11,9 +11,10 @@
     <section id="loginView" class="login">
       <form id="loginForm" class="panel">
         <h1>Unity Build Gateway</h1>
+        <p class="muted">统一调度 Mac / Windows 打包机，项目配置仍在各节点的 BuildServer 里维护。</p>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="查看 linuxgateway-data/initial-admin.txt"></label>
-        <button type="submit">登录</button>
+        <button id="loginBtn" type="submit">登录</button>
         <p id="loginError" class="error"></p>
       </form>
     </section>
@@ -24,36 +25,64 @@
           <h1>Unity Build Gateway</h1>
           <p>统一入口只负责调度，真正打包仍在 Mac / Windows 节点执行。</p>
         </div>
+        <div id="topStatus" class="top-status">就绪</div>
         <button id="logoutBtn" type="button">退出</button>
       </header>
 
       <div id="globalError" class="error banner hidden"></div>
+      <div id="globalNotice" class="notice banner hidden"></div>
 
       <section class="layout">
         <aside class="panel sidebar">
-          <h2>设备</h2>
+          <div class="section-head compact">
+            <h2>设备</h2>
+            <span id="nodeCountBadge" class="badge">0</span>
+          </div>
+          <p class="hint">刷新设备会逐台请求 Mac/Windows 节点。网络不通时会等待超时，不是页面卡死。</p>
           <div id="nodesList" class="list"></div>
           <button id="refreshBtn" type="button">刷新设备</button>
+          <div class="side-tip">
+            <strong>常见地址填写</strong>
+            <p>LinuxGateway 和 frps 在同一台服务器时，节点地址优先填 <code>http://127.0.0.1:8090</code>，不要填服务器公网 IP 回连自己。</p>
+          </div>
         </aside>
 
         <section class="content">
+          <section class="summary-grid">
+            <article class="summary-card">
+              <span>在线设备</span>
+              <strong id="onlineNodeCount">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>可用配置</span>
+              <strong id="remoteConfigCount">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>最近任务</span>
+              <strong id="jobCount">0</strong>
+            </article>
+          </section>
+
           <div class="grid">
             <form id="nodeForm" class="panel">
               <h2>新增 / 更新设备</h2>
               <label>设备 ID<input id="nodeId" placeholder="新增时留空；更新时填写已有 ID"></label>
               <label>设备名称<input id="nodeName" placeholder="Mac Build / Windows Android"></label>
               <label>BuildServer 地址<input id="nodeBaseUrl" placeholder="https://mac-build.example.com"></label>
+              <p class="field-help">填 LinuxGateway 能访问到的节点地址。若节点是同一台 Linux 上的 frps 端口，通常填 <code>http://127.0.0.1:8090</code>。</p>
               <label>Gateway Token<input id="nodeToken" type="password" placeholder="Mac/Windows 的 BUILD_SERVER_GATEWAY_TOKEN"></label>
+              <p class="field-help">填节点 BuildServer 控制台打印的 Gateway Token。Token 错通常返回 401；连接超时通常是地址或网络问题。</p>
               <div class="checks">
                 <label><input id="nodeIos" type="checkbox"> iOS</label>
                 <label><input id="nodeAndroid" type="checkbox"> Android</label>
                 <label><input id="nodeEnabled" type="checkbox" checked> 启用</label>
               </div>
-              <button type="submit">保存设备</button>
+              <button id="nodeSaveBtn" type="submit">保存设备</button>
             </form>
 
             <form id="buildForm" class="panel">
               <h2>发起打包</h2>
+              <p class="hint">提交任务后会转发到选中节点执行。节点拉 Git、Unity 导出和 Xcode/Android 构建都可能需要几分钟。</p>
               <label>目标设备<select id="buildNode"></select></label>
               <label>项目<select id="buildProject"></select></label>
               <label>配置<select id="buildConfig"></select></label>
@@ -67,12 +96,16 @@
                 <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
               </div>
               <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
-              <button type="submit">提交到选中设备</button>
+              <button id="buildSubmitBtn" type="submit">提交到选中设备</button>
+              <p id="buildSubmitHint" class="field-help hidden">正在提交到节点，请等待返回任务号。</p>
             </form>
           </div>
 
           <section class="panel">
-            <h2>任务</h2>
+            <div class="section-head compact">
+              <h2>任务</h2>
+              <span class="hint">查看任务会实时拉取远程节点状态、日志和产物。</span>
+            </div>
             <div id="jobsList" class="list"></div>
           </section>
 
@@ -81,6 +114,7 @@
               <h2 id="jobTitle">任务详情</h2>
               <button id="refreshJobBtn" type="button">刷新任务</button>
             </header>
+            <p id="jobLoadingHint" class="notice inline hidden">正在从远程节点读取任务状态、日志和产物，请稍等。</p>
             <div id="jobMeta" class="meta"></div>
             <h3>产物</h3>
             <div id="artifactsList" class="list"></div>

@@ -9,35 +9,62 @@
 <body>
   <main id="app">
     <section id="loginView" class="login">
-      <form id="loginForm" class="panel">
+      <form id="loginForm" class="panel login-panel">
+        <p class="eyebrow">BuildServer Console</p>
         <h1>Unity 自动化打包平台</h1>
+        <p class="login-copy">集中管理本机项目配置、打包任务、Worker 状态和审计记录。</p>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="查看数据目录 initial-admin.txt"></label>
-        <button type="submit">登录</button>
+        <button id="loginBtn" type="submit">登录</button>
+        <p id="loginError" class="form-error hidden"></p>
         <p class="hint">首次启动默认账号 admin；生产环境请设置 BUILD_SERVER_ADMIN_PASSWORD，未设置时会生成随机密码。</p>
       </form>
     </section>
 
     <section id="mainView" class="shell hidden">
-      <aside>
-        <h2>BuildServer</h2>
+      <aside class="sidebar">
+        <div class="side-brand">
+          <p class="eyebrow">Unity Automation</p>
+          <h2>BuildServer</h2>
+        </div>
         <button data-tab="builds" class="active">打包任务</button>
         <button data-tab="projects">项目配置</button>
         <button data-tab="workers">Worker</button>
         <button data-tab="audit">审计日志</button>
+        <button data-tab="help">填写说明</button>
         <button id="logoutBtn">退出</button>
       </aside>
 
       <section class="content">
-        <header>
+        <header class="page-header">
           <div>
             <h1 id="pageTitle">打包任务</h1>
             <p id="userInfo"></p>
           </div>
           <button id="refreshBtn">刷新</button>
         </header>
+        <div id="globalMessage" class="toast hidden"></div>
 
         <section id="buildsTab" class="tab">
+          <section class="metrics">
+            <article>
+              <span>项目</span>
+              <strong id="metricProjects">0</strong>
+            </article>
+            <article>
+              <span>配置</span>
+              <strong id="metricConfigs">0</strong>
+            </article>
+            <article>
+              <span>运行中</span>
+              <strong id="metricRunning">0</strong>
+            </article>
+            <article>
+              <span>最近任务</span>
+              <strong id="metricJobs">0</strong>
+            </article>
+          </section>
+
           <div class="grid two">
             <form id="buildForm" class="panel">
               <h3>发起打包</h3>
@@ -53,7 +80,7 @@
                 <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
               </div>
               <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
-              <button type="submit">提交任务</button>
+              <button id="buildSubmitBtn" type="submit">提交任务</button>
             </form>
 
             <section class="panel">
@@ -81,7 +108,7 @@
                 </select>
               </label>
               <label>说明<textarea id="projectDescription" rows="3"></textarea></label>
-              <button type="submit">保存项目</button>
+              <button id="projectSaveBtn" type="submit">保存项目</button>
             </form>
 
             <form id="configForm" class="panel">
@@ -178,7 +205,7 @@
                 <label><input id="configOverwriteFile" type="checkbox"> 覆盖同名配置文件</label>
               </div>
               <label><input id="configAllowMcp" type="checkbox"> 允许 MCP 使用</label>
-              <button type="submit">保存配置</button>
+              <button id="configSaveBtn" type="submit">保存配置</button>
             </form>
           </div>
           <section class="panel">
@@ -198,6 +225,120 @@
           <section class="panel">
             <h3>审计日志</h3>
             <div id="auditList" class="list"></div>
+          </section>
+        </section>
+
+        <section id="helpTab" class="tab hidden">
+          <section class="panel help-page">
+            <h3>系统怎么用</h3>
+            <div class="help-grid">
+              <article>
+                <h4>推荐流程</h4>
+                <ol>
+                  <li>在 Mac 或 Windows 的本地 BuildServer 里维护项目和配置。</li>
+                  <li>新增项目时填写 Git 仓库、工作区、产物目录和默认平台。</li>
+                  <li>新增配置时选择 iOS 或 Android，勾选“生成新的配置文件”。</li>
+                  <li>配置保存后，到“打包任务”选择项目和配置，先 dry-run，再正式打包。</li>
+                  <li>如果使用 LinuxGateway，它只负责选择设备和发任务，具体配置仍在本机 BuildServer 维护。</li>
+                </ol>
+              </article>
+
+              <article>
+                <h4>项目字段</h4>
+                <dl>
+                  <dt>Git 仓库</dt>
+                  <dd>填写可 clone 的地址，例如 <code>git@github.com:org/game.git</code> 或 <code>https://github.com/org/game.git</code>。</dd>
+                  <dt>允许分支</dt>
+                  <dd>限制可打包分支，例如 <code>main</code>、<code>release/*</code>。多个用逗号隔开。</dd>
+                  <dt>Workspace Root</dt>
+                  <dd>打包机本地拉代码目录，例如 Mac 的 <code>~/UnityBuildWorkspace</code>。</dd>
+                  <dt>Artifacts Root</dt>
+                  <dd>打包产物和日志输出根目录，例如 <code>~/UnityBuildArtifacts</code>。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>Unity 和通用版本</h4>
+                <dl>
+                  <dt>Unity 工程相对路径</dt>
+                  <dd>仓库根目录就是 Unity 工程时填 <code>.</code>；必须能看到 <code>Assets</code> 和 <code>ProjectSettings</code>。</dd>
+                  <dt>Unity 版本 / 完整路径</dt>
+                  <dd>Hub 默认安装可填版本号；特殊安装位置再填完整 Unity 可执行文件路径。</dd>
+                  <dt>Bundle Identifier</dt>
+                  <dd>应用包名，例如 <code>com.company.game</code>。iOS 和 Android 都会用到。</dd>
+                  <dt>Build Number 自动 +1</dt>
+                  <dd>建议开启。正式打包会自动递增构建号，dry-run 不递增。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>iOS 字段</h4>
+                <dl>
+                  <dt>Apple Team ID</dt>
+                  <dd>10 位 Apple Developer Team ID，不是公司名。</dd>
+                  <dt>Deployment Target</dt>
+                  <dd>最低 iOS 版本，例如 <code>13.0</code>。</dd>
+                  <dt>Export Method</dt>
+                  <dd><code>development</code> 开发测试，<code>ad-hoc</code> 测试分发，<code>app-store</code> 提交 App Store。</dd>
+                  <dt>允许 Xcode 自动处理签名</dt>
+                  <dd>使用自动签名时建议开启；证书和描述文件必须在 Mac 当前用户的 Keychain / Xcode 里配置好。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>Android 字段</h4>
+                <dl>
+                  <dt>Android Build Format</dt>
+                  <dd><code>apk</code> 只出 APK，<code>aab</code> 只出 AAB，<code>both</code> 两个都出。Google Play 通常用 AAB。</dd>
+                  <dt>Android 输出目录 / APK / AAB 路径</dt>
+                  <dd>不特殊指定时留空，工具会自动放到本次产物目录。</dd>
+                  <dt>Min SDK / Target SDK</dt>
+                  <dd>不确定可留空，使用 Unity 项目设置；强制指定时填整数，例如 <code>23</code>、<code>35</code>。</dd>
+                  <dt>Keystore</dt>
+                  <dd>正式 Android 包需要签名文件路径、Keystore 密码、Key Alias 和 Alias 密码；路径是打包机本地路径。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>Google Play 上传</h4>
+                <dl>
+                  <dt>上传 Google Play</dt>
+                  <dd>只有要自动上传到 Google Play Console 时才勾选。</dd>
+                  <dt>Google Play Package</dt>
+                  <dd>一般等于 Bundle Identifier，例如 <code>com.company.game</code>。</dd>
+                  <dt>Service Account JSON</dt>
+                  <dd>Google Play 服务账号 JSON 文件路径，必须是打包机本地路径。</dd>
+                  <dt>Track / Release Status</dt>
+                  <dd>建议先用 <code>internal</code> + <code>draft</code>，确认流程无误后再改正式发布策略。</dd>
+                  <dt>User Fraction</dt>
+                  <dd>灰度比例，填 <code>0.1</code> 到 <code>1</code>；内部测试或草稿通常留空。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>LinuxGateway 设备填写</h4>
+                <dl>
+                  <dt>BuildServer 地址</dt>
+                  <dd>填 Mac/Windows 本地 BuildServer 的外部可访问地址，例如 <code>http://54.165.178.190:8090</code>。</dd>
+                  <dt>Gateway Token</dt>
+                  <dd>填该设备启动 BuildServer 时控制台打印的 Gateway Token。未手动设置 <code>BUILD_SERVER_GATEWAY_TOKEN</code> 时，服务会自动生成并保存到 <code>initial-gateway-token.txt</code>。</dd>
+                  <dt>平台勾选</dt>
+                  <dd>Mac 通常勾 iOS 和 Android；Windows 通常只勾 Android。</dd>
+                </dl>
+              </article>
+
+              <article>
+                <h4>常见排查</h4>
+                <dl>
+                  <dt>先用 dry-run</dt>
+                  <dd>新增项目或配置后，先 dry-run 看路径、Git、Unity 和 Xcode/Android 参数是否正确。</dd>
+                  <dt>看日志</dt>
+                  <dd>失败时优先看任务详情里的完整日志，再看本次产物目录下的 Unity、Xcode 或 Android 日志。</dd>
+                  <dt>路径归属</dt>
+                  <dd>配置里的路径属于实际执行打包的 Mac/Windows，不属于 LinuxGateway。</dd>
+                </dl>
+              </article>
+            </div>
           </section>
         </section>
       </section>
