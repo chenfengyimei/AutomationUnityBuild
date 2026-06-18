@@ -112,7 +112,7 @@
             </form>
 
             <form id="configForm" class="panel">
-              <h3>新增配置</h3>
+              <h3 id="configFormTitle">新增配置</h3>
               <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>打包平台
@@ -209,7 +209,11 @@
                 <label><input id="configOverwriteFile" type="checkbox"> 覆盖同名配置文件</label>
               </div>
               <label><input id="configAllowMcp" type="checkbox"> 允许 MCP 使用</label>
-              <button id="configSaveBtn" type="submit">保存配置</button>
+              <div class="form-actions">
+                <button id="configSaveBtn" type="submit">保存配置</button>
+                <button id="configCancelEditBtn" class="secondary hidden" type="button">取消编辑</button>
+                <button id="configDeleteBtn" class="danger hidden" type="button">删除配置</button>
+              </div>
             </form>
           </div>
           <section class="panel">

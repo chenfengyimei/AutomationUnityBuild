@@ -6,6 +6,8 @@ const state = {
   settings: null,
   manualConfigPath: "",
   selectedJobId: null,
+  editingConfigId: null,
+  editingConfigPath: "",
   activeTab: "builds",
 };
 
@@ -401,7 +403,12 @@ function bindEvents() {
   $("projectForm").addEventListener("submit", createProject);
   $("configForm").addEventListener("submit", createConfig);
   $("buildForm").addEventListener("submit", startBuild);
+  $("projectsList").addEventListener("click", handleProjectsListClick);
   $("jobsList").addEventListener("click", handleJobsListClick);
+  $("configCancelEditBtn").addEventListener("click", resetConfigForm);
+  $("configDeleteBtn").addEventListener("click", () => {
+    if (state.editingConfigId) deleteConfig(state.editingConfigId);
+  });
   $("jobModalClose").addEventListener("click", closeJobModal);
   $("jobModal").addEventListener("click", (event) => {
     if (event.target === $("jobModal")) closeJobModal();
@@ -634,80 +641,34 @@ async function createProject(event) {
 async function createConfig(event) {
   event.preventDefault();
   clearMessage();
-  setButtonBusy("configSaveBtn", true, "保存中...");
+  setButtonBusy("configSaveBtn", true, state.editingConfigId ? "更新中..." : "保存中...");
   try {
     const createFile = $("configCreateFile").checked;
-    if (createFile) {
+    if (state.editingConfigId && createFile) {
+      await api(`/api/config-files/${encodeURIComponent(state.editingConfigId)}`, {
+        method: "PUT",
+        body: JSON.stringify(collectConfigFilePayload()),
+      });
+    } else if (state.editingConfigId) {
+      await api(`/api/configs/${encodeURIComponent(state.editingConfigId)}`, {
+        method: "PUT",
+        body: JSON.stringify(collectConfigRecordPayload()),
+      });
+    } else if (createFile) {
       await api("/api/config-files", {
         method: "POST",
-        body: JSON.stringify({
-          projectId: $("configProject").value,
-          name: $("configName").value,
-          buildPlatform: $("configBuildPlatform").value,
-          fileName: $("configFileName").value || null,
-          projectDirectoryName: $("configProjectDirectoryName").value || null,
-          unityProjectRelativePath: $("configUnityRelativePath").value || ".",
-          unityVersion: $("configUnityVersion").value || null,
-          unityExecutablePath: $("configUnityExecutablePath").value || null,
-          productName: $("configProductName").value || null,
-          bundleIdentifier: $("configBundleIdentifier").value || null,
-          teamId: $("configTeamId").value || null,
-          iosDeploymentTarget: $("configIosDeploymentTarget").value || null,
-          buildNumber: $("configBuildNumber").value || "1",
-          bundleVersion: $("configBundleVersion").value || "1.0.0",
-          exportMethod: $("configExportMethod").value,
-          signingStyle: $("configSigningStyle").value,
-          syncBundleVersionFromUnity: $("configSyncUnityVersion").checked,
-          autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
-          allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
-          copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
-          appStoreConnectUploadEnabled: $("configAppStoreConnectUploadEnabled").checked,
-          appStoreConnectApiKeyPath: $("configAppStoreConnectApiKeyPath").value || null,
-          appStoreConnectApiKeyId: $("configAppStoreConnectApiKeyId").value || null,
-          appStoreConnectApiIssuerId: $("configAppStoreConnectApiIssuerId").value || null,
-          androidBuildFormat: $("configAndroidBuildFormat").value,
-          androidOutputDirectory: $("configAndroidOutputDirectory").value || null,
-          apkOutputPath: $("configApkOutputPath").value || null,
-          aabOutputPath: $("configAabOutputPath").value || null,
-          androidMinSdkVersion: $("configAndroidMinSdkVersion").value || null,
-          androidTargetSdkVersion: $("configAndroidTargetSdkVersion").value || null,
-          androidKeystoreName: $("configAndroidKeystoreName").value || null,
-          androidKeystorePass: $("configAndroidKeystorePass").value || null,
-          androidKeyaliasName: $("configAndroidKeyaliasName").value || null,
-          androidKeyaliasPass: $("configAndroidKeyaliasPass").value || null,
-          googlePlayUploadEnabled: $("configGooglePlayUploadEnabled").checked,
-          googlePlayPackageName: $("configGooglePlayPackageName").value || null,
-          googlePlayServiceAccountJsonPath: $("configGooglePlayServiceAccountJsonPath").value || null,
-          googlePlayTrack: $("configGooglePlayTrack").value,
-          googlePlayReleaseStatus: $("configGooglePlayReleaseStatus").value,
-          googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
-          googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
-          googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
-          googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
-          overwriteExisting: $("configOverwriteFile").checked,
-          allowMcpBuild: $("configAllowMcp").checked,
-        }),
+        body: JSON.stringify(collectConfigFilePayload()),
       });
     } else {
       await api("/api/configs", {
         method: "POST",
-        body: JSON.stringify({
-          projectId: $("configProject").value,
-          name: $("configName").value,
-          buildPlatform: $("configBuildPlatform").value,
-          configPath: $("configPath").value,
-          allowMcpBuild: $("configAllowMcp").checked,
-        }),
+        body: JSON.stringify(collectConfigRecordPayload()),
       });
     }
-    $("configForm").reset();
-    state.manualConfigPath = "";
-    setConfigFileDefaults();
-    toggleConfigFileFields();
-    togglePlatformFields();
-    $("configAllowMcp").checked = false;
+    const wasEditing = Boolean(state.editingConfigId);
+    resetConfigForm();
     await refreshAll({ showSuccess: false, throwOnError: true });
-    showMessage("配置已保存。");
+    showMessage(wasEditing ? "配置已更新。" : "配置已保存。");
   } catch (error) {
     showError(error);
   } finally {
@@ -715,9 +676,66 @@ async function createConfig(event) {
   }
 }
 
+function collectConfigRecordPayload() {
+  return {
+    projectId: $("configProject").value,
+    name: $("configName").value,
+    buildPlatform: $("configBuildPlatform").value,
+    configPath: $("configPath").value,
+    allowMcpBuild: $("configAllowMcp").checked,
+  };
+}
+
+function collectConfigFilePayload() {
+  return {
+    ...collectConfigRecordPayload(),
+    fileName: $("configFileName").value || null,
+    projectDirectoryName: $("configProjectDirectoryName").value || null,
+    unityProjectRelativePath: $("configUnityRelativePath").value || ".",
+    unityVersion: $("configUnityVersion").value || null,
+    unityExecutablePath: $("configUnityExecutablePath").value || null,
+    productName: $("configProductName").value || null,
+    bundleIdentifier: $("configBundleIdentifier").value || null,
+    teamId: $("configTeamId").value || null,
+    iosDeploymentTarget: $("configIosDeploymentTarget").value || null,
+    buildNumber: $("configBuildNumber").value || "1",
+    bundleVersion: $("configBundleVersion").value || "1.0.0",
+    exportMethod: $("configExportMethod").value,
+    signingStyle: $("configSigningStyle").value,
+    syncBundleVersionFromUnity: $("configSyncUnityVersion").checked,
+    autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
+    allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
+    copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
+    appStoreConnectUploadEnabled: $("configAppStoreConnectUploadEnabled").checked,
+    appStoreConnectApiKeyPath: $("configAppStoreConnectApiKeyPath").value || null,
+    appStoreConnectApiKeyId: $("configAppStoreConnectApiKeyId").value || null,
+    appStoreConnectApiIssuerId: $("configAppStoreConnectApiIssuerId").value || null,
+    androidBuildFormat: $("configAndroidBuildFormat").value,
+    androidOutputDirectory: $("configAndroidOutputDirectory").value || null,
+    apkOutputPath: $("configApkOutputPath").value || null,
+    aabOutputPath: $("configAabOutputPath").value || null,
+    androidMinSdkVersion: $("configAndroidMinSdkVersion").value || null,
+    androidTargetSdkVersion: $("configAndroidTargetSdkVersion").value || null,
+    androidKeystoreName: $("configAndroidKeystoreName").value || null,
+    androidKeystorePass: $("configAndroidKeystorePass").value || null,
+    androidKeyaliasName: $("configAndroidKeyaliasName").value || null,
+    androidKeyaliasPass: $("configAndroidKeyaliasPass").value || null,
+    googlePlayUploadEnabled: $("configGooglePlayUploadEnabled").checked,
+    googlePlayPackageName: $("configGooglePlayPackageName").value || null,
+    googlePlayServiceAccountJsonPath: $("configGooglePlayServiceAccountJsonPath").value || null,
+    googlePlayTrack: $("configGooglePlayTrack").value,
+    googlePlayReleaseStatus: $("configGooglePlayReleaseStatus").value,
+    googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
+    googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
+    googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
+    googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
+    overwriteExisting: $("configOverwriteFile").checked,
+  };
+}
+
 function toggleConfigFileFields() {
   const createFile = $("configCreateFile").checked;
-  if (createFile) {
+  if (createFile && !state.editingConfigId) {
     state.manualConfigPath = $("configPath").value;
   }
 
@@ -725,10 +743,14 @@ function toggleConfigFileFields() {
   $("configPath").disabled = createFile;
   $("configPath").required = !createFile;
   if (createFile) {
-    fillConfigFileDefaults();
+    if (state.editingConfigId) {
+      $("configPath").value = state.editingConfigPath;
+    } else {
+      fillConfigFileDefaults();
+    }
     updateConfigPathPreview();
   } else {
-    $("configPath").value = state.manualConfigPath;
+    $("configPath").value = state.editingConfigId ? state.editingConfigPath : state.manualConfigPath;
   }
 }
 
@@ -740,7 +762,7 @@ function fillConfigFileDefaults(options = {}) {
     $("configBuildPlatform").value = project.defaultBuildPlatform;
   }
 
-  if (options.forceFileName || !$("configFileName").value.trim()) {
+  if (!state.editingConfigId && (options.forceFileName || !$("configFileName").value.trim())) {
     $("configFileName").value = `build-${platform}.${safeFilePart(configName)}.json`;
   }
 
@@ -758,6 +780,10 @@ function fillConfigFileDefaults(options = {}) {
 
 function updateConfigPathPreview() {
   if (!$("configCreateFile").checked) return;
+  if (state.editingConfigId) {
+    $("configPath").value = state.editingConfigPath;
+    return;
+  }
 
   const configName = $("configName").value.trim() || "release";
   const platform = $("configBuildPlatform").value || "ios";
@@ -791,6 +817,22 @@ function setConfigFileDefaults() {
   $("configOverwriteFile").checked = false;
 }
 
+function resetConfigForm() {
+  state.editingConfigId = null;
+  state.editingConfigPath = "";
+  state.manualConfigPath = "";
+  $("configForm").reset();
+  $("configFormTitle").textContent = "新增配置";
+  $("configSaveBtn").textContent = "保存配置";
+  $("configSaveBtn").dataset.defaultText = "保存配置";
+  $("configCancelEditBtn").classList.add("hidden");
+  $("configDeleteBtn").classList.add("hidden");
+  setConfigFileDefaults();
+  toggleConfigFileFields();
+  togglePlatformFields();
+  $("configAllowMcp").checked = false;
+}
+
 function togglePlatformFields() {
   const platform = $("configBuildPlatform").value || "ios";
   $("iosConfigFields").classList.toggle("hidden", platform !== "ios");
@@ -809,6 +851,13 @@ function safeFilePart(value) {
     .trim()
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "config";
+}
+
+function fileNameFromPath(value) {
+  return String(value || "")
+    .split(/[\\/]/)
+    .filter(Boolean)
+    .pop() || "";
 }
 
 function parseOptionalNumber(value) {
@@ -872,6 +921,133 @@ async function handleJobsListClick(event) {
   }
 }
 
+async function handleProjectsListClick(event) {
+  const editButton = event.target.closest("[data-edit-config-id]");
+  if (editButton) {
+    await editConfig(editButton.dataset.editConfigId);
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-config-id]");
+  if (deleteButton) {
+    await deleteConfig(deleteButton.dataset.deleteConfigId);
+  }
+}
+
+async function editConfig(configId) {
+  clearMessage();
+  const config = state.configs.find((item) => item.id === configId);
+  if (!config) {
+    showError(new Error("配置不存在，可能已经被删除。"));
+    return;
+  }
+
+  state.editingConfigId = config.id;
+  state.editingConfigPath = config.configPath;
+  $("configFormTitle").textContent = "编辑配置";
+  $("configSaveBtn").textContent = "更新配置";
+  $("configSaveBtn").dataset.defaultText = "更新配置";
+  $("configCancelEditBtn").classList.remove("hidden");
+  $("configDeleteBtn").classList.remove("hidden");
+
+  $("configProject").value = config.projectId;
+  $("configName").value = config.name || "";
+  $("configBuildPlatform").value = config.buildPlatform || "ios";
+  $("configPath").value = config.configPath || "";
+  $("configAllowMcp").checked = Boolean(config.allowMcpBuild);
+  $("configCreateFile").checked = false;
+  toggleConfigFileFields();
+  togglePlatformFields();
+
+  try {
+    const file = await api(`/api/configs/${encodeURIComponent(config.id)}/file`);
+    fillConfigFormFromJson(file.content || {}, config);
+    $("configCreateFile").checked = true;
+    toggleConfigFileFields();
+    showMessage("配置已载入，可以直接修改后保存。");
+  } catch (error) {
+    showError(error);
+  }
+
+  $("configForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function fillConfigFormFromJson(content, config) {
+  $("configProject").value = config.projectId;
+  $("configName").value = content.configName || config.name || "";
+  $("configBuildPlatform").value = content.buildPlatform || config.buildPlatform || "ios";
+  $("configPath").value = config.configPath || "";
+  $("configFileName").value = fileNameFromPath(config.configPath);
+  $("configProjectDirectoryName").value = content.projectDirectoryName || "";
+  $("configUnityRelativePath").value = content.unityProjectRelativePath || ".";
+  $("configUnityVersion").value = content.unityVersion || "";
+  $("configUnityExecutablePath").value = content.unityExecutablePath || "";
+  $("configProductName").value = content.productName || "";
+  $("configBundleIdentifier").value = content.bundleIdentifier || "";
+  $("configBuildNumber").value = content.buildNumber || "1";
+  $("configBundleVersion").value = content.bundleVersion || "1.0.0";
+  $("configSyncUnityVersion").checked = content.syncBundleVersionFromUnity !== false;
+  $("configAutoIncrementBuild").checked = content.autoIncrementBuildNumber !== false;
+  $("configTeamId").value = content.teamId || "";
+  $("configIosDeploymentTarget").value = content.iosDeploymentTarget || "13.0";
+  $("configExportMethod").value = content.exportMethod || "development";
+  $("configSigningStyle").value = content.signingStyle || "automatic";
+  $("configAllowProvisioningUpdates").checked = content.allowProvisioningUpdates !== false;
+  $("configCopyArchiveToOrganizer").checked = content.copyArchiveToOrganizer !== false;
+  $("configAppStoreConnectUploadEnabled").checked = Boolean(content.appStoreConnectUploadEnabled);
+  $("configAppStoreConnectApiKeyPath").value = content.appStoreConnectApiKeyPath || "";
+  $("configAppStoreConnectApiKeyId").value = content.appStoreConnectApiKeyId || "";
+  $("configAppStoreConnectApiIssuerId").value = content.appStoreConnectApiIssuerId || "";
+  $("configAndroidBuildFormat").value = content.androidBuildFormat || "aab";
+  $("configAndroidOutputDirectory").value = content.androidOutputDirectory || "";
+  $("configApkOutputPath").value = content.apkOutputPath || "";
+  $("configAabOutputPath").value = content.aabOutputPath || "";
+  $("configAndroidMinSdkVersion").value = content.androidMinSdkVersion || "";
+  $("configAndroidTargetSdkVersion").value = content.androidTargetSdkVersion || "";
+  $("configAndroidKeystoreName").value = content.androidKeystoreName || "";
+  $("configAndroidKeystorePass").value = content.androidKeystorePass || "";
+  $("configAndroidKeyaliasName").value = content.androidKeyaliasName || "";
+  $("configAndroidKeyaliasPass").value = content.androidKeyaliasPass || "";
+  $("configGooglePlayUploadEnabled").checked = Boolean(content.googlePlayUploadEnabled);
+  $("configGooglePlayPackageName").value = content.googlePlayPackageName || "";
+  $("configGooglePlayServiceAccountJsonPath").value = content.googlePlayServiceAccountJsonPath || "";
+  $("configGooglePlayTrack").value = content.googlePlayTrack || "internal";
+  $("configGooglePlayReleaseStatus").value = content.googlePlayReleaseStatus || "draft";
+  $("configGooglePlayReleaseName").value = content.googlePlayReleaseName || "";
+  $("configGooglePlayUploadArtifact").value = content.googlePlayUploadArtifact || "aab";
+  $("configGooglePlayChangesNotSentForReview").checked = Boolean(content.googlePlayChangesNotSentForReview);
+  $("configGooglePlayUserFraction").value = content.googlePlayUserFraction ?? "";
+  $("configOverwriteFile").checked = true;
+  $("configAllowMcp").checked = Boolean(config.allowMcpBuild);
+  togglePlatformFields();
+}
+
+async function deleteConfig(configId) {
+  const config = state.configs.find((item) => item.id === configId);
+  if (!config) {
+    showError(new Error("配置不存在，可能已经被删除。"));
+    return;
+  }
+
+  if (!confirm(`确定删除配置「${config.name}」吗？\n\n删除后网页列表和打包选择里不会再出现它。`)) {
+    return;
+  }
+
+  const deleteFile = confirm(`是否同时删除这个 JSON 配置文件？\n\n${config.configPath}\n\n确定 = 删除网页记录和 JSON 文件\n取消 = 只删除网页记录，JSON 文件保留`);
+  try {
+    await api(`/api/configs/${encodeURIComponent(config.id)}?deleteFile=${deleteFile ? "true" : "false"}`, {
+      method: "DELETE",
+    });
+    if (state.editingConfigId === config.id) {
+      resetConfigForm();
+    }
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(deleteFile ? "配置和 JSON 文件已删除。" : "配置已从网页列表删除，JSON 文件已保留。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
 function renderProjects() {
   if (state.projects.length === 0) {
     $("projectsList").innerHTML = `<article class="item muted">暂无项目。请先在左侧表单新增项目。</article>`;
@@ -885,20 +1061,36 @@ function renderProjects() {
       <div class="muted">${escapeHtml(project.repositoryUrl)} [${escapeHtml(project.defaultBranch)}] / ${platformBadge(project.defaultBuildPlatform || "ios")}</div>
       <div>Workspace: ${escapeHtml(project.workspaceRoot)}</div>
       <div>Artifacts: ${escapeHtml(project.artifactsRoot)}</div>
-      <div class="muted">配置: ${configs.map((config) => escapeHtml(config.name)).join(", ") || "暂无"}</div>
+      <div class="config-list">${configs.length ? configs.map(renderConfigRow).join("") : `<div class="muted">暂无配置</div>`}</div>
     </article>`;
   }).join("");
+}
+
+function renderConfigRow(config) {
+  return `<div class="config-row">
+    <div>
+      <strong>${escapeHtml(config.name)}</strong> ${platformBadge(config.buildPlatform || "ios")}
+      <div class="muted">${escapeHtml(config.configPath)}</div>
+      <div class="muted">MCP: ${config.allowMcpBuild ? "允许" : "不允许"} / ${config.enabled ? "启用" : "禁用"}</div>
+    </div>
+    <div class="item-actions">
+      <button class="secondary" type="button" data-edit-config-id="${escapeHtml(config.id)}">编辑</button>
+      <button class="danger" type="button" data-delete-config-id="${escapeHtml(config.id)}">删除</button>
+    </div>
+  </div>`;
 }
 
 function renderConfigsSelects() {
   const projectOptions = state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join("");
   $("buildProject").innerHTML = projectOptions;
   $("configProject").innerHTML = projectOptions;
-  const project = state.projects.find((item) => item.id === $("configProject").value);
-  if (project?.defaultBuildPlatform) {
-    $("configBuildPlatform").value = project.defaultBuildPlatform;
+  if (!state.editingConfigId) {
+    const project = state.projects.find((item) => item.id === $("configProject").value);
+    if (project?.defaultBuildPlatform) {
+      $("configBuildPlatform").value = project.defaultBuildPlatform;
+    }
+    fillConfigFileDefaults();
   }
-  fillConfigFileDefaults();
   renderBuildConfigs();
 }
 

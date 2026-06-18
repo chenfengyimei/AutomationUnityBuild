@@ -379,6 +379,13 @@ input:disabled {
   min-height: 16px;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -432,6 +439,28 @@ input:disabled {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+}
+
+.config-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #dce7f5;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.config-row .muted {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
 }
 
 .muted,
