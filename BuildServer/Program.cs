@@ -40,8 +40,10 @@ JsonDatabase database = app.Services.GetRequiredService<JsonDatabase>();
 AuthService auth = app.Services.GetRequiredService<AuthService>();
 await database.InitializeAsync();
 await auth.SeedDefaultsAsync();
+GatewayTokenInitializer.Ensure(options, app.Logger);
 app.Logger.LogInformation("BuildServer data root: {DataRoot}", options.DataRoot);
 app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
+app.Logger.LogInformation("Initial gateway token file: {InitialGatewayTokenPath}", Path.Combine(options.DataRoot, "initial-gateway-token.txt"));
 
 app.UseExceptionHandler(errorApp =>
 {

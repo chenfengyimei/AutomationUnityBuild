@@ -44,7 +44,47 @@ async function fetchText(path) {
 
 function showError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
-  if (message) alert(message);
+  if (message) showMessage(message, "error");
+}
+
+function showMessage(message, type = "info") {
+  const element = $("globalMessage");
+  if (!element) {
+    alert(message);
+    return;
+  }
+
+  element.textContent = message;
+  element.className = `toast ${type === "error" ? "error" : ""}`.trim();
+}
+
+function clearMessage() {
+  const element = $("globalMessage");
+  if (!element) return;
+  element.textContent = "";
+  element.className = "toast hidden";
+}
+
+function showLoginError(error) {
+  const element = $("loginError");
+  element.textContent = error instanceof Error ? error.message : String(error || "");
+  element.classList.remove("hidden");
+}
+
+function clearLoginError() {
+  $("loginError").textContent = "";
+  $("loginError").classList.add("hidden");
+}
+
+function setButtonBusy(id, busy, busyText = "处理中...") {
+  const button = $(id);
+  if (!button) return;
+  if (!button.dataset.defaultText) {
+    button.dataset.defaultText = button.textContent;
+  }
+
+  button.disabled = busy;
+  button.textContent = busy ? busyText : button.dataset.defaultText;
 }
 
 async function init() {
@@ -110,12 +150,20 @@ function bindEvents() {
 
 async function login(event) {
   event.preventDefault();
-  state.user = await api("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ userName: $("loginUser").value, password: $("loginPassword").value }),
-  });
-  showMain();
-  await refreshAll();
+  clearLoginError();
+  setButtonBusy("loginBtn", true, "登录中...");
+  try {
+    state.user = await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ userName: $("loginUser").value, password: $("loginPassword").value }),
+    });
+    showMain();
+    await refreshAll();
+  } catch (error) {
+    showLoginError(error);
+  } finally {
+    setButtonBusy("loginBtn", false);
+  }
 }
 
 async function logout() {
@@ -143,27 +191,44 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  $("pageTitle").textContent = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志" }[tab];
+  $("pageTitle").textContent = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", help: "填写说明" }[tab];
 }
 
-async function refreshAll() {
-  const [projects, configs, jobs, workers, settings] = await Promise.all([
-    api("/api/projects"),
-    api("/api/configs"),
-    api("/api/builds"),
-    api("/api/workers"),
-    api("/api/settings"),
-  ]);
-  state.projects = projects;
-  state.configs = configs;
-  state.jobs = jobs;
-  state.settings = settings;
-  renderProjects();
-  renderConfigsSelects();
-  renderJobs();
-  renderWorkers(workers);
-  if (state.activeTab === "audit") await refreshAudit();
-  if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
+async function refreshAll(options = {}) {
+  const showSuccess = options.showSuccess ?? true;
+  const throwOnError = options.throwOnError ?? false;
+  clearMessage();
+  setButtonBusy("refreshBtn", true, "刷新中...");
+  try {
+    const [projects, configs, jobs, workers, settings] = await Promise.all([
+      api("/api/projects"),
+      api("/api/configs"),
+      api("/api/builds"),
+      api("/api/workers"),
+      api("/api/settings"),
+    ]);
+    state.projects = projects;
+    state.configs = configs;
+    state.jobs = jobs;
+    state.settings = settings;
+    renderProjects();
+    renderConfigsSelects();
+    renderJobs();
+    renderMetrics();
+    renderWorkers(workers);
+    if (state.activeTab === "audit") await refreshAudit();
+    if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
+    if (showSuccess) {
+      showMessage("数据已刷新。");
+    }
+  } catch (error) {
+    showError(error);
+    if (throwOnError) {
+      throw error;
+    }
+  } finally {
+    setButtonBusy("refreshBtn", false);
+  }
 }
 
 async function refreshJobsSoft() {
@@ -171,6 +236,7 @@ async function refreshJobsSoft() {
   try {
     state.jobs = await api("/api/builds");
     renderJobs();
+    renderMetrics();
     if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
   } catch {
     // 登录过期时下一次手动刷新会提示。
@@ -179,97 +245,115 @@ async function refreshJobsSoft() {
 
 async function createProject(event) {
   event.preventDefault();
-  await api("/api/projects", {
-    method: "POST",
-    body: JSON.stringify({
-      name: $("projectName").value,
-      repositoryUrl: $("projectRepo").value,
-      defaultBranch: $("projectBranch").value,
-      allowedBranches: $("projectAllowedBranches").value.split(",").map((item) => item.trim()).filter(Boolean),
-      workspaceRoot: $("projectWorkspace").value,
-      artifactsRoot: $("projectArtifacts").value,
-      defaultBuildPlatform: $("projectDefaultPlatform").value,
-      description: $("projectDescription").value,
-    }),
-  });
-  $("projectForm").reset();
-  $("projectBranch").value = "main";
-  $("projectAllowedBranches").value = "main";
-  $("projectWorkspace").value = "~/UnityBuildWorkspace";
-  $("projectArtifacts").value = "~/UnityBuildArtifacts";
-  $("projectDefaultPlatform").value = "ios";
-  await refreshAll();
+  clearMessage();
+  setButtonBusy("projectSaveBtn", true, "保存中...");
+  try {
+    await api("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: $("projectName").value,
+        repositoryUrl: $("projectRepo").value,
+        defaultBranch: $("projectBranch").value,
+        allowedBranches: $("projectAllowedBranches").value.split(",").map((item) => item.trim()).filter(Boolean),
+        workspaceRoot: $("projectWorkspace").value,
+        artifactsRoot: $("projectArtifacts").value,
+        defaultBuildPlatform: $("projectDefaultPlatform").value,
+        description: $("projectDescription").value,
+      }),
+    });
+    $("projectForm").reset();
+    $("projectBranch").value = "main";
+    $("projectAllowedBranches").value = "main";
+    $("projectWorkspace").value = "~/UnityBuildWorkspace";
+    $("projectArtifacts").value = "~/UnityBuildArtifacts";
+    $("projectDefaultPlatform").value = "ios";
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("项目已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("projectSaveBtn", false);
+  }
 }
 
 async function createConfig(event) {
   event.preventDefault();
-  const createFile = $("configCreateFile").checked;
-  if (createFile) {
-    await api("/api/config-files", {
-      method: "POST",
-      body: JSON.stringify({
-        projectId: $("configProject").value,
-        name: $("configName").value,
-        buildPlatform: $("configBuildPlatform").value,
-        fileName: $("configFileName").value || null,
-        projectDirectoryName: $("configProjectDirectoryName").value || null,
-        unityProjectRelativePath: $("configUnityRelativePath").value || ".",
-        unityVersion: $("configUnityVersion").value || null,
-        unityExecutablePath: $("configUnityExecutablePath").value || null,
-        productName: $("configProductName").value || null,
-        bundleIdentifier: $("configBundleIdentifier").value || null,
-        teamId: $("configTeamId").value || null,
-        iosDeploymentTarget: $("configIosDeploymentTarget").value || null,
-        buildNumber: $("configBuildNumber").value || "1",
-        bundleVersion: $("configBundleVersion").value || "1.0.0",
-        exportMethod: $("configExportMethod").value,
-        signingStyle: $("configSigningStyle").value,
-        syncBundleVersionFromUnity: $("configSyncUnityVersion").checked,
-        autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
-        allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
-        copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
-        androidBuildFormat: $("configAndroidBuildFormat").value,
-        androidOutputDirectory: $("configAndroidOutputDirectory").value || null,
-        apkOutputPath: $("configApkOutputPath").value || null,
-        aabOutputPath: $("configAabOutputPath").value || null,
-        androidMinSdkVersion: $("configAndroidMinSdkVersion").value || null,
-        androidTargetSdkVersion: $("configAndroidTargetSdkVersion").value || null,
-        androidKeystoreName: $("configAndroidKeystoreName").value || null,
-        androidKeystorePass: $("configAndroidKeystorePass").value || null,
-        androidKeyaliasName: $("configAndroidKeyaliasName").value || null,
-        androidKeyaliasPass: $("configAndroidKeyaliasPass").value || null,
-        googlePlayUploadEnabled: $("configGooglePlayUploadEnabled").checked,
-        googlePlayPackageName: $("configGooglePlayPackageName").value || null,
-        googlePlayServiceAccountJsonPath: $("configGooglePlayServiceAccountJsonPath").value || null,
-        googlePlayTrack: $("configGooglePlayTrack").value,
-        googlePlayReleaseStatus: $("configGooglePlayReleaseStatus").value,
-        googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
-        googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
-        googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
-        googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
-        overwriteExisting: $("configOverwriteFile").checked,
-        allowMcpBuild: $("configAllowMcp").checked,
-      }),
-    });
-  } else {
-    await api("/api/configs", {
-      method: "POST",
-      body: JSON.stringify({
-        projectId: $("configProject").value,
-        name: $("configName").value,
-        buildPlatform: $("configBuildPlatform").value,
-        configPath: $("configPath").value,
-        allowMcpBuild: $("configAllowMcp").checked,
-      }),
-    });
+  clearMessage();
+  setButtonBusy("configSaveBtn", true, "保存中...");
+  try {
+    const createFile = $("configCreateFile").checked;
+    if (createFile) {
+      await api("/api/config-files", {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: $("configProject").value,
+          name: $("configName").value,
+          buildPlatform: $("configBuildPlatform").value,
+          fileName: $("configFileName").value || null,
+          projectDirectoryName: $("configProjectDirectoryName").value || null,
+          unityProjectRelativePath: $("configUnityRelativePath").value || ".",
+          unityVersion: $("configUnityVersion").value || null,
+          unityExecutablePath: $("configUnityExecutablePath").value || null,
+          productName: $("configProductName").value || null,
+          bundleIdentifier: $("configBundleIdentifier").value || null,
+          teamId: $("configTeamId").value || null,
+          iosDeploymentTarget: $("configIosDeploymentTarget").value || null,
+          buildNumber: $("configBuildNumber").value || "1",
+          bundleVersion: $("configBundleVersion").value || "1.0.0",
+          exportMethod: $("configExportMethod").value,
+          signingStyle: $("configSigningStyle").value,
+          syncBundleVersionFromUnity: $("configSyncUnityVersion").checked,
+          autoIncrementBuildNumber: $("configAutoIncrementBuild").checked,
+          allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
+          copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
+          androidBuildFormat: $("configAndroidBuildFormat").value,
+          androidOutputDirectory: $("configAndroidOutputDirectory").value || null,
+          apkOutputPath: $("configApkOutputPath").value || null,
+          aabOutputPath: $("configAabOutputPath").value || null,
+          androidMinSdkVersion: $("configAndroidMinSdkVersion").value || null,
+          androidTargetSdkVersion: $("configAndroidTargetSdkVersion").value || null,
+          androidKeystoreName: $("configAndroidKeystoreName").value || null,
+          androidKeystorePass: $("configAndroidKeystorePass").value || null,
+          androidKeyaliasName: $("configAndroidKeyaliasName").value || null,
+          androidKeyaliasPass: $("configAndroidKeyaliasPass").value || null,
+          googlePlayUploadEnabled: $("configGooglePlayUploadEnabled").checked,
+          googlePlayPackageName: $("configGooglePlayPackageName").value || null,
+          googlePlayServiceAccountJsonPath: $("configGooglePlayServiceAccountJsonPath").value || null,
+          googlePlayTrack: $("configGooglePlayTrack").value,
+          googlePlayReleaseStatus: $("configGooglePlayReleaseStatus").value,
+          googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
+          googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
+          googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
+          googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
+          overwriteExisting: $("configOverwriteFile").checked,
+          allowMcpBuild: $("configAllowMcp").checked,
+        }),
+      });
+    } else {
+      await api("/api/configs", {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: $("configProject").value,
+          name: $("configName").value,
+          buildPlatform: $("configBuildPlatform").value,
+          configPath: $("configPath").value,
+          allowMcpBuild: $("configAllowMcp").checked,
+        }),
+      });
+    }
+    $("configForm").reset();
+    state.manualConfigPath = "";
+    setConfigFileDefaults();
+    toggleConfigFileFields();
+    togglePlatformFields();
+    $("configAllowMcp").checked = false;
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("配置已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("configSaveBtn", false);
   }
-  $("configForm").reset();
-  state.manualConfigPath = "";
-  setConfigFileDefaults();
-  toggleConfigFileFields();
-  togglePlatformFields();
-  $("configAllowMcp").checked = false;
-  await refreshAll();
 }
 
 function toggleConfigFileFields() {
@@ -379,24 +463,32 @@ function parseOptionalNumber(value) {
 
 async function startBuild(event) {
   event.preventDefault();
-  const job = await api("/api/builds", {
-    method: "POST",
-    body: JSON.stringify({
-      projectId: $("buildProject").value,
-      configId: $("buildConfig").value,
-      branch: $("buildBranch").value || null,
-      buildNumber: $("buildNumber").value || null,
-      dryRun: $("dryRun").checked,
-      skipGit: $("skipGit").checked,
-      skipUnity: $("skipUnity").checked,
-      skipXcode: $("skipXcode").checked,
-      allowNonMac: $("allowNonMac").checked,
-      notes: $("buildNotes").value,
-    }),
-  });
-  state.selectedJobId = job.id;
-  await refreshAll();
-  await openJobModal(job.id);
+  clearMessage();
+  setButtonBusy("buildSubmitBtn", true, "提交中...");
+  try {
+    const job = await api("/api/builds", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: $("buildProject").value,
+        configId: $("buildConfig").value,
+        branch: $("buildBranch").value || null,
+        buildNumber: $("buildNumber").value || null,
+        dryRun: $("dryRun").checked,
+        skipGit: $("skipGit").checked,
+        skipUnity: $("skipUnity").checked,
+        skipXcode: $("skipXcode").checked,
+        allowNonMac: $("allowNonMac").checked,
+        notes: $("buildNotes").value,
+      }),
+    });
+    state.selectedJobId = job.id;
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    await openJobModal(job.id);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("buildSubmitBtn", false);
+  }
 }
 
 async function cancelJob(jobId) {
@@ -421,6 +513,11 @@ async function handleJobsListClick(event) {
 }
 
 function renderProjects() {
+  if (state.projects.length === 0) {
+    $("projectsList").innerHTML = `<article class="item muted">暂无项目。请先在左侧表单新增项目。</article>`;
+    return;
+  }
+
   $("projectsList").innerHTML = state.projects.map((project) => {
     const configs = state.configs.filter((config) => config.projectId === project.id);
     return `<article class="item">
@@ -452,6 +549,11 @@ function renderBuildConfigs() {
 }
 
 function renderJobs() {
+  if (state.jobs.length === 0) {
+    $("jobsList").innerHTML = `<article class="item muted">暂无任务。选择项目和配置后即可发起打包。</article>`;
+    return;
+  }
+
   $("jobsList").innerHTML = state.jobs.map((job) => {
     const project = state.projects.find((item) => item.id === job.projectId);
     const config = state.configs.find((item) => item.id === job.configId);
@@ -467,6 +569,14 @@ function renderJobs() {
       </div>
     </article>`;
   }).join("");
+}
+
+function renderMetrics() {
+  const runningJobs = state.jobs.filter((job) => job.status === "Queued" || job.status === "Running").length;
+  $("metricProjects").textContent = String(state.projects.length);
+  $("metricConfigs").textContent = String(state.configs.length);
+  $("metricRunning").textContent = String(runningJobs);
+  $("metricJobs").textContent = String(state.jobs.length);
 }
 
 async function openJobModal(jobId) {
@@ -530,6 +640,11 @@ function platformBadge(platform) {
 }
 
 function renderWorkers(workers) {
+  if (workers.length === 0) {
+    $("workersList").innerHTML = `<article class="item muted">暂无 Worker 心跳。</article>`;
+    return;
+  }
+
   $("workersList").innerHTML = workers.map((worker) => `<article class="item">
     <header><strong>${escapeHtml(worker.name)}</strong><span class="status ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></header>
     <div>Host: ${escapeHtml(worker.hostName)}</div>
@@ -540,6 +655,11 @@ function renderWorkers(workers) {
 
 async function refreshAudit() {
   const audit = await api("/api/audit");
+  if (audit.length === 0) {
+    $("auditList").innerHTML = `<article class="item muted">暂无审计记录。</article>`;
+    return;
+  }
+
   $("auditList").innerHTML = audit.map((item) => `<article class="item">
     <strong>${escapeHtml(item.action)}</strong>
     <div>${escapeHtml(item.userName)} | ${escapeHtml(item.targetType)}:${escapeHtml(item.targetId)}</div>

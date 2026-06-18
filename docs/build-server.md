@@ -110,7 +110,7 @@ Header: X-Agent-Token: <BUILD_SERVER_AGENT_TOKEN>
 
 ## LinuxGateway 节点接口
 
-如果要把这台 Mac/Windows BuildServer 接入 LinuxGateway，在启动前设置：
+如果要把这台 Mac/Windows BuildServer 接入 LinuxGateway，可以手动设置：
 
 ```bash
 export BUILD_SERVER_GATEWAY_TOKEN="强随机 token"
@@ -124,7 +124,9 @@ $env:BUILD_SERVER_GATEWAY_TOKEN="强随机 token"
 $env:BUILD_SERVER_NODE_PLATFORMS="android"
 ```
 
-设置后会启用 `/api/gateway/*`，LinuxGateway 用 `X-Gateway-Token` 调用它来读取节点、提交任务、拉日志和产物。这个接口是可选的；不设置 token 时，本机网页和 MCP 仍然照常使用。
+也可以不手动设置 `BUILD_SERVER_GATEWAY_TOKEN`。服务启动时会自动生成 `initial-gateway-token.txt` 并在控制台打印可复制的 Gateway Token；之后重启会复用同一个文件，不会重复生成新值。
+
+设置或自动生成后会启用 `/api/gateway/*`，LinuxGateway 用 `X-Gateway-Token` 调用它来读取节点、提交任务、拉日志和产物。
 
 ## 安全边界
 
