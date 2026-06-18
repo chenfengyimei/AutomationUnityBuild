@@ -146,7 +146,17 @@ internal static class Cli
 
         if (Console.IsInputRedirected)
         {
-            return File.Exists("build-ios.json") ? "build-ios.json" : options.ConfigPath;
+            if (File.Exists("build-ios.json"))
+            {
+                return "build-ios.json";
+            }
+
+            if (File.Exists("build-android.json"))
+            {
+                return "build-android.json";
+            }
+
+            return options.ConfigPath;
         }
 
         return ConfigFileSelector.SelectConfigFile(actionName);

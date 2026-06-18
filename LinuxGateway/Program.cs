@@ -3,6 +3,7 @@ using LinuxGateway.Persistence;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 
 var contentRoot = ResolveContentRoot();
@@ -59,6 +60,11 @@ app.UseExceptionHandler(errorApp =>
             error = statusCode == StatusCodes.Status500InternalServerError ? "服务器内部错误。" : exception?.Message
         });
     });
+});
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
 });
 
 app.Use(async (context, next) =>

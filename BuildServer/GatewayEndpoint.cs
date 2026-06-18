@@ -212,8 +212,16 @@ public static class GatewayEndpoint
 
         string fullPath = Path.GetFullPath(path);
         string fullRoot = Path.GetFullPath(job.ArtifactRoot);
-        return fullPath.Equals(fullRoot, StringComparison.OrdinalIgnoreCase) ||
-               fullPath.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        StringComparison comparison = PathComparison();
+        return fullPath.Equals(fullRoot, comparison) ||
+               fullPath.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison);
+    }
+
+    private static StringComparison PathComparison()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
     }
 
     private static string Tail(string path, int lines)

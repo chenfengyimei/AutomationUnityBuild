@@ -13,14 +13,24 @@ public sealed class JsonGatewayDatabase(LinuxGatewayOptions options)
     };
 
     private string DatabasePath => Path.Combine(options.DataRoot, "linux-gateway-db.json");
+    private string LockPath => Path.Combine(options.DataRoot, "linux-gateway-db.lock");
 
     public async Task InitializeAsync()
     {
-        Directory.CreateDirectory(options.DataRoot);
-        if (!File.Exists(DatabasePath))
+        await _lock.WaitAsync();
+        try
         {
-            await SaveUnlockedAsync(new GatewayDatabase());
-            TryRestrictSecretFile(DatabasePath);
+            Directory.CreateDirectory(options.DataRoot);
+            await using FileStream _ = await AcquireProcessLockAsync();
+            if (!File.Exists(DatabasePath))
+            {
+                await SaveUnlockedAsync(new GatewayDatabase());
+                TryRestrictSecretFile(DatabasePath);
+            }
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 
@@ -29,6 +39,7 @@ public sealed class JsonGatewayDatabase(LinuxGatewayOptions options)
         await _lock.WaitAsync();
         try
         {
+            await using FileStream _ = await AcquireProcessLockAsync();
             GatewayDatabase database = await LoadUnlockedAsync();
             return read(database);
         }
@@ -43,6 +54,7 @@ public sealed class JsonGatewayDatabase(LinuxGatewayOptions options)
         await _lock.WaitAsync();
         try
         {
+            await using FileStream _ = await AcquireProcessLockAsync();
             GatewayDatabase database = await LoadUnlockedAsync();
             T result = update(database);
             await SaveUnlockedAsync(database);
@@ -77,20 +89,86 @@ public sealed class JsonGatewayDatabase(LinuxGatewayOptions options)
     private async Task SaveUnlockedAsync(GatewayDatabase database)
     {
         Directory.CreateDirectory(options.DataRoot);
-        string tempPath = $"{DatabasePath}.{Guid.NewGuid():N}.tmp";
-        await using (FileStream stream = File.Create(tempPath))
+        string tempPath = $"{DatabasePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, database, _jsonOptions);
-            await stream.FlushAsync();
+            await using (FileStream stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, database, _jsonOptions);
+                await stream.FlushAsync();
+            }
+
+            await MoveWithRetryAsync(tempPath, DatabasePath);
+            TryRestrictSecretFile(DatabasePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException(
+                $"保存 LinuxGateway 数据库失败: {DatabasePath}{Environment.NewLine}" +
+                "请确认没有启动多个 LinuxGateway，数据目录有写权限，并且 linux-gateway-db.json 没有被编辑器或同步软件锁定。",
+                ex);
+        }
+        finally
+        {
+            TryDeleteTempFile(tempPath);
+        }
+    }
+
+    private async Task<FileStream> AcquireProcessLockAsync()
+    {
+        Exception? lastException = null;
+        for (int attempt = 1; attempt <= 30; attempt++)
+        {
+            try
+            {
+                Directory.CreateDirectory(options.DataRoot);
+                return new FileStream(LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lastException = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
         }
 
-        if (File.Exists(DatabasePath))
+        throw new IOException(
+            $"等待 LinuxGateway 数据库锁超时: {LockPath}{Environment.NewLine}" +
+            "通常是另一个 LinuxGateway 进程正在使用同一个数据目录。请关闭重复进程，或为不同实例指定不同的 LINUX_GATEWAY_DATA_ROOT。",
+            lastException);
+    }
+
+    private static async Task MoveWithRetryAsync(string sourcePath, string targetPath)
+    {
+        Exception? lastException = null;
+        for (int attempt = 1; attempt <= 10; attempt++)
         {
-            File.Delete(DatabasePath);
+            try
+            {
+                File.Move(sourcePath, targetPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lastException = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(100));
+            }
         }
 
-        File.Move(tempPath, DatabasePath);
-        TryRestrictSecretFile(DatabasePath);
+        throw lastException ?? new IOException($"移动文件失败: {sourcePath} -> {targetPath}");
+    }
+
+    private static void TryDeleteTempFile(string tempPath)
+    {
+        try
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static void TryRestrictSecretFile(string path)

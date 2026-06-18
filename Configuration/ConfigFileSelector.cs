@@ -8,13 +8,16 @@ internal static class ConfigFileSelector
     {
         var files = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         AddFiles(Environment.CurrentDirectory, "build-ios*.json", files);
+        AddFiles(Environment.CurrentDirectory, "build-android*.json", files);
         AddFiles(Environment.CurrentDirectory, "*.iosbuild.json", files);
+        AddFiles(Environment.CurrentDirectory, "*.androidbuild.json", files);
 
         string configsDirectory = Path.Combine(Environment.CurrentDirectory, "configs");
         AddFiles(configsDirectory, "*.json", files);
 
         return files
             .Where(file => !Path.GetFileName(file).Equals("build-ios.sample.json", StringComparison.OrdinalIgnoreCase))
+            .Where(file => !Path.GetFileName(file).Equals("build-android.sample.json", StringComparison.OrdinalIgnoreCase))
             .Select(CreateEntry)
             .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.DisplayPath, StringComparer.OrdinalIgnoreCase)

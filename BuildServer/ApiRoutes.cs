@@ -913,6 +913,7 @@ public static class ApiRoutes
 
     private static string ValidateGitUrl(string value, BuildServerOptions options)
     {
+        value = NormalizeGitUrlInput(value);
         if (value.Any(char.IsWhiteSpace) || value.Contains('[') || value.Contains(']'))
         {
             throw new InvalidOperationException("Git 仓库地址格式不正确。");
@@ -935,6 +936,56 @@ public static class ApiRoutes
         }
 
         return value;
+    }
+
+    private static string NormalizeGitUrlInput(string value)
+    {
+        string normalized = value.Trim();
+        int markdownStart = normalized.IndexOf('(');
+        int markdownEnd = normalized.LastIndexOf(')');
+        if (markdownStart >= 0 && markdownEnd > markdownStart)
+        {
+            string candidate = normalized[(markdownStart + 1)..markdownEnd].Trim();
+            if (candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase) ||
+                candidate.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = candidate;
+            }
+        }
+
+        int queryIndex = normalized.IndexOfAny(['?', '#']);
+        if (queryIndex >= 0)
+        {
+            normalized = normalized[..queryIndex];
+        }
+
+        normalized = normalized.Trim().TrimEnd('/');
+        if (IsBareGitHubHttpsUrl(normalized))
+        {
+            normalized += ".git";
+        }
+
+        if (normalized.StartsWith("git@github.com:", StringComparison.OrdinalIgnoreCase) &&
+            !normalized.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized += ".git";
+        }
+
+        return normalized;
+    }
+
+    private static bool IsBareGitHubHttpsUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            !string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+            value.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 2;
     }
 
     private static string? TryGetGitHost(string value)
@@ -994,14 +1045,22 @@ public static class ApiRoutes
     {
         string normalizedPath = NormalizeDirectory(path);
         string normalizedRoot = NormalizeDirectory(root);
-        return normalizedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
-               normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        StringComparison comparison = PathComparison();
+        return normalizedPath.Equals(normalizedRoot, comparison) ||
+               normalizedPath.StartsWith(normalizedRoot, comparison);
     }
 
     private static string NormalizeDirectory(string path)
     {
         string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return fullPath + Path.DirectorySeparatorChar;
+    }
+
+    private static StringComparison PathComparison()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
     }
 
     private static string Tail(string path, int lines)
