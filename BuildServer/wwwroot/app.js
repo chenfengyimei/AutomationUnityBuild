@@ -422,6 +422,8 @@ function bindEvents() {
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
   });
   $("configCreateFile").addEventListener("change", toggleConfigFileFields);
+  $("configAppStoreConnectUploadEnabled").addEventListener("change", toggleUploadSections);
+  $("configGooglePlayUploadEnabled").addEventListener("change", toggleUploadSections);
   $("configBuildPlatform").addEventListener("change", () => {
     fillConfigFileDefaults({ forceFileName: true });
     togglePlatformFields();
@@ -815,6 +817,7 @@ function setConfigFileDefaults() {
   $("configGooglePlayUploadEnabled").checked = false;
   $("configGooglePlayChangesNotSentForReview").checked = false;
   $("configOverwriteFile").checked = false;
+  toggleUploadSections();
 }
 
 function resetConfigForm() {
@@ -830,6 +833,7 @@ function resetConfigForm() {
   setConfigFileDefaults();
   toggleConfigFileFields();
   togglePlatformFields();
+  toggleUploadSections();
   $("configAllowMcp").checked = false;
 }
 
@@ -837,6 +841,23 @@ function togglePlatformFields() {
   const platform = $("configBuildPlatform").value || "ios";
   $("iosConfigFields").classList.toggle("hidden", platform !== "ios");
   $("androidConfigFields").classList.toggle("hidden", platform !== "android");
+  toggleUploadSections();
+}
+
+function toggleUploadSections() {
+  const appStoreUploadEnabled = $("configAppStoreConnectUploadEnabled")?.checked;
+  const googlePlayUploadEnabled = $("configGooglePlayUploadEnabled")?.checked;
+
+  $("appStoreConnectAdvancedFields")?.classList.toggle("hidden", !appStoreUploadEnabled);
+  $("googlePlayAdvancedFields")?.classList.toggle("hidden", !googlePlayUploadEnabled);
+
+  if (appStoreUploadEnabled) {
+    $("appStoreConnectSection")?.setAttribute("open", "");
+  }
+
+  if (googlePlayUploadEnabled) {
+    $("googlePlaySection")?.setAttribute("open", "");
+  }
 }
 
 function deriveRepoFolderName(repositoryUrl) {
