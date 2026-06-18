@@ -48,7 +48,7 @@ internal static class SampleFiles
           "iosDeploymentTarget": "13.0",
 
           "allowProvisioningUpdates": true,
-          "resetRepository": false,
+          "resetRepository": true,
           "preserveUnityLibraryOnReset": true,
           "cleanXcodeOutputBeforeBuild": true,
           "useWorkspaceIfPresent": true,
@@ -57,6 +57,10 @@ internal static class SampleFiles
           "saveConfigSnapshot": true,
           "compileBitcode": null,
           "uploadSymbols": true,
+          "appStoreConnectUploadEnabled": false,
+          "appStoreConnectApiKeyPath": "~/Secrets/AuthKey_XXXXXXXXXX.p8",
+          "appStoreConnectApiKeyId": "",
+          "appStoreConnectApiIssuerId": "",
 
           "xcodeBuildSettings": {},
           "environment": {},
@@ -120,7 +124,7 @@ internal static class SampleFiles
           "googlePlayUserFraction": null,
 
           "allowProvisioningUpdates": true,
-          "resetRepository": false,
+          "resetRepository": true,
           "preserveUnityLibraryOnReset": true,
           "saveConfigSnapshot": true,
 

@@ -280,6 +280,38 @@ label {
   font-weight: 700;
 }
 
+.label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.field-help-button {
+  width: 19px;
+  min-width: 19px;
+  height: 19px;
+  min-height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bad0f2;
+  border-radius: 999px;
+  padding: 0;
+  background: #eef5ff;
+  color: var(--primary);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.field-help-button:hover {
+  background: #dceaff;
+  box-shadow: none;
+}
+
 input,
 select,
 textarea {
@@ -586,6 +618,43 @@ pre {
   border-radius: 8px;
   background: white;
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+}
+
+.field-help-modal {
+  width: min(680px, 100%);
+}
+
+.field-help-body {
+  display: grid;
+  gap: 14px;
+  color: #2a3b53;
+  line-height: 1.7;
+}
+
+.field-help-body p {
+  margin: 0;
+}
+
+.field-help-body h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.field-help-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.field-help-body li {
+  margin: 4px 0;
+}
+
+.field-help-body code {
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: #eaf2ff;
+  color: #143b74;
+  font-family: Consolas, "Courier New", monospace;
 }
 
 .modal-header {

@@ -154,6 +154,10 @@
                   </label>
                   <label><input id="configAllowProvisioningUpdates" type="checkbox" checked> 允许 Xcode 自动处理签名</label>
                   <label><input id="configCopyArchiveToOrganizer" type="checkbox" checked> 复制 Archive 到 Organizer</label>
+                  <label><input id="configAppStoreConnectUploadEnabled" type="checkbox"> 上传 App Store Connect/TestFlight</label>
+                  <label>API Key .p8 路径<input id="configAppStoreConnectApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey_XXXXXXXXXX.p8"></label>
+                  <label>API Key ID<input id="configAppStoreConnectApiKeyId" placeholder="ABCDE12345"></label>
+                  <label>Issuer ID<input id="configAppStoreConnectApiIssuerId" placeholder="App Store Connect Issuer ID"></label>
                 </div>
                 <div id="androidConfigFields" class="form-grid nested-section hidden">
                   <label>Android Build Format
@@ -282,6 +286,8 @@
                   <dd><code>development</code> 开发测试，<code>ad-hoc</code> 测试分发，<code>app-store</code> 提交 App Store。</dd>
                   <dt>允许 Xcode 自动处理签名</dt>
                   <dd>使用自动签名时建议开启；证书和描述文件必须在 Mac 当前用户的 Keychain / Xcode 里配置好。</dd>
+                  <dt>上传 App Store Connect/TestFlight</dt>
+                  <dd>开启后必须使用 <code>app-store</code> 导出方式，并填写 App Store Connect API Key 的 <code>.p8</code> 路径、Key ID 和 Issuer ID。上传成功后构建会进入 TestFlight 处理队列。</dd>
                 </dl>
               </article>
 
@@ -367,6 +373,21 @@
           <h3>完整日志</h3>
           <pre id="jobModalLog"></pre>
         </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="fieldHelpModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal field-help-modal" role="dialog" aria-modal="true" aria-labelledby="fieldHelpTitle">
+      <header class="modal-header">
+        <div>
+          <h2 id="fieldHelpTitle">字段说明</h2>
+          <p id="fieldHelpSubTitle" class="muted"></p>
+        </div>
+        <button id="fieldHelpClose" class="secondary" type="button">关闭</button>
+      </header>
+      <div class="modal-body">
+        <section id="fieldHelpBody" class="field-help-body"></section>
       </div>
     </div>
   </section>

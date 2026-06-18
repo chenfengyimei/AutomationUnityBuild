@@ -52,7 +52,7 @@
   "googlePlayUserFraction": null,
 
   "allowProvisioningUpdates": true,
-  "resetRepository": false,
+  "resetRepository": true,
   "preserveUnityLibraryOnReset": true,
   "saveConfigSnapshot": true,
 

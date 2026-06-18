@@ -6,6 +6,7 @@
 2. 用 Unity BatchMode 导出 iOS Xcode 工程。
 3. 用 `xcodebuild archive` 生成 `.xcarchive`。
 4. 用 `xcodebuild -exportArchive` 导出 `.ipa` 或对应分发产物。
+5. 可选：用 App Store Connect API Key 自动上传到 App Store Connect/TestFlight。
 
 Windows 负责开发和发布这个 C# 工具；真正的 iOS 打包必须在 macOS 上跑，因为 Unity iOS Build Support 和 Xcode 只能在 Mac 侧完成最终构建。
 
@@ -114,6 +115,7 @@ Android 配置使用 `buildPlatform: "android"`。常用字段：
 - 工作区目录和产物输出目录
 - 是否允许 Xcode 自动处理签名
 - 是否复制 `.xcarchive` 到 Xcode Organizer
+- 如果 `exportMethod=app-store`，可选择是否自动上传到 App Store Connect/TestFlight
 - 是否每次打包前强制重置 Git 仓库
 - 强制重置 Git 时是否保留 Unity `Library` 缓存，避免每次重新导入资源
 
@@ -135,6 +137,28 @@ Unity 工程目录：不能自动创建，必须是 Git 仓库里真实存在的
 Git 新拉下来的 Unity 项目不需要先手动打开。Unity 命令行第一次运行时会自动导入资源并生成 `Library`，只是第一次会比较慢。前提是 Unity 版本正确、iOS Build Support 已安装、Unity License 已激活。
 
 生成一次后，后续只需要选择这个配置文件，不需要重复填写。
+
+## iOS 自动上传 App Store Connect / TestFlight
+
+默认流程会生成 `.xcarchive`、导出 `.ipa`，并可复制到 Xcode Organizer。Xcode Organizer 里的上传按钮本身仍然是手动操作；如果要无人值守上传，需要在 iOS 配置里开启：
+
+```json
+{
+  "exportMethod": "app-store",
+  "appStoreConnectUploadEnabled": true,
+  "appStoreConnectApiKeyPath": "~/Secrets/AuthKey_XXXXXXXXXX.p8",
+  "appStoreConnectApiKeyId": "XXXXXXXXXX",
+  "appStoreConnectApiIssuerId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+说明：
+
+- `appStoreConnectApiKeyPath` 是 Mac 打包机本地的 `.p8` 文件路径。
+- `appStoreConnectApiKeyId` 是 App Store Connect API Key 的 Key ID。
+- `appStoreConnectApiIssuerId` 是 App Store Connect API 页面显示的 Issuer ID。
+- 开启上传时 `exportMethod` 必须是 `app-store`。
+- 上传成功后，构建会进入 App Store Connect/TestFlight 的处理队列；是否提交审核、是否发布生产环境，仍需要按 App Store Connect 的版本和测试策略处理。
 
 如果只是想生成空模板，仍然可以用：
 
@@ -357,6 +381,7 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 - `build-config-snapshot.json`: 本次运行使用的配置快照和解析后的路径，已做基础脱敏。
 - `xcode-archive.log`: `xcodebuild archive` 的完整输出。
 - `xcode-export.log`: `xcodebuild -exportArchive` 的完整输出。
+- `xcode-upload.log`: 开启 App Store Connect 自动上传时，记录上传命令的完整输出。
 
 排查顺序建议：
 

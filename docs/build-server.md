@@ -75,7 +75,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-serv
 
 1. 新增项目：填写项目名、Git 仓库、默认分支、允许分支、工作区、产物目录。
 2. 新增配置：选择 iOS 或 Android。可以填写现有配置 JSON 路径，也可以勾选“生成新的配置文件”，在网页里填写 Unity 版本、Bundle ID、平台专属字段后由服务端自动生成 JSON 并登记。
-   - iOS 字段包括 Team ID、Deployment Target、Export Method、Signing Style、是否复制 archive 到 Organizer。
+   - iOS 字段包括 Team ID、Deployment Target、Export Method、Signing Style、是否复制 archive 到 Organizer、是否上传 App Store Connect/TestFlight。
    - Android 字段包括 APK/AAB/both、SDK 版本、keystore、Google Play Service Account、track、release status、上传产物。
 3. 发起打包：选择项目和配置，提交任务。
 
