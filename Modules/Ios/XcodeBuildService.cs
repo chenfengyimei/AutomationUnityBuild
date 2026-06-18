@@ -54,7 +54,10 @@ internal sealed class XcodeBuildService(BuildRunContext context, XcodeProjectLoc
         }
 
         AddXcodeSetting(archiveArgs, "DEVELOPMENT_TEAM", _config.TeamId);
-        AddXcodeSetting(archiveArgs, "PRODUCT_BUNDLE_IDENTIFIER", _config.BundleIdentifier);
+        // Unity writes the app bundle identifier into the exported Xcode project.
+        // Passing PRODUCT_BUNDLE_IDENTIFIER to xcodebuild is global and can also
+        // affect UnityFramework, which makes App Store validation report duplicate
+        // CFBundleIdentifier values inside the same .app bundle.
         AddXcodeSetting(archiveArgs, "CODE_SIGN_STYLE", ToXcodeSigningStyle(_config.SigningStyle));
 
         foreach ((string key, string value) in _config.XcodeBuildSettings)
