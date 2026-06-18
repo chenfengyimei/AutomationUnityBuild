@@ -386,6 +386,57 @@ input:disabled {
   align-items: center;
 }
 
+.config-sections {
+  display: grid;
+  gap: 11px;
+  margin: 0 0 14px;
+}
+
+.platform-section {
+  display: grid;
+  gap: 11px;
+}
+
+.config-section {
+  border: 1px solid #d9e5f4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdff, #f6f9fe);
+  overflow: hidden;
+}
+
+.config-section summary {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  color: #182b45;
+  cursor: pointer;
+  font-weight: 800;
+  list-style-position: outside;
+}
+
+.config-section summary span {
+  font-size: 15px;
+}
+
+.config-section summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.config-section[open] summary {
+  border-bottom: 1px solid #e1ebf7;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.optional-section:not([open]) {
+  background: #fff;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -395,6 +446,21 @@ input:disabled {
   border: 1px solid #d9e5f4;
   border-radius: 8px;
   background: linear-gradient(180deg, #fbfdff, #f6f9fe);
+}
+
+.config-section > .form-grid {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.config-section > .form-grid + .form-grid {
+  border-top: 1px solid #e1ebf7;
+}
+
+.optional-fields {
+  background: #fff !important;
 }
 
 .form-grid label:has(input[type="checkbox"]) {
@@ -770,6 +836,14 @@ pre {
   .help-grid,
   .metrics {
     grid-template-columns: 1fr;
+  }
+
+  .config-section summary {
+    grid-template-columns: 1fr;
+  }
+
+  .config-section summary small {
+    text-align: left;
   }
 }
 
