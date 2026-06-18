@@ -42,7 +42,7 @@ internal sealed partial class BuildConfig
     public bool AutoIncrementBuildNumber { get; set; } = true;
 
     public bool AllowProvisioningUpdates { get; set; } = true;
-    public bool ResetRepository { get; set; }
+    public bool ResetRepository { get; set; } = true;
     public bool PreserveUnityLibraryOnReset { get; set; } = true;
     public bool CleanXcodeOutputBeforeBuild { get; set; } = true;
     public bool UseWorkspaceIfPresent { get; set; } = true;
@@ -52,6 +52,11 @@ internal sealed partial class BuildConfig
 
     public bool? CompileBitcode { get; set; }
     public bool? UploadSymbols { get; set; } = true;
+
+    public bool AppStoreConnectUploadEnabled { get; set; }
+    public string AppStoreConnectApiKeyPath { get; set; } = "";
+    public string AppStoreConnectApiKeyId { get; set; } = "";
+    public string AppStoreConnectApiIssuerId { get; set; } = "";
 
     public string AndroidBuildFormat { get; set; } = AndroidBuildFormats.Aab;
     public string AndroidOutputDirectory { get; set; } = "";
@@ -147,6 +152,9 @@ internal sealed partial class BuildConfig
         AndroidKeystorePass ??= "";
         AndroidKeyaliasName ??= "";
         AndroidKeyaliasPass ??= "";
+        AppStoreConnectApiKeyPath ??= "";
+        AppStoreConnectApiKeyId ??= "";
+        AppStoreConnectApiIssuerId ??= "";
         GooglePlayPackageName ??= "";
         GooglePlayServiceAccountJsonPath ??= "";
         GooglePlayTrack = string.IsNullOrWhiteSpace(GooglePlayTrack) ? "internal" : GooglePlayTrack.Trim();
@@ -213,6 +221,29 @@ internal sealed partial class BuildConfig
         if (IsIos && !string.IsNullOrWhiteSpace(IosDeploymentTarget) && !Version.TryParse(IosDeploymentTarget, out _))
         {
             throw new InvalidOperationException("配置 iosDeploymentTarget 必须是版本号格式，例如 13.0 或 14.0。");
+        }
+
+        if (IsIos && AppStoreConnectUploadEnabled)
+        {
+            if (!string.Equals(ExportMethod, "app-store", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 自动上传时，exportMethod 必须是 app-store。");
+            }
+
+            if (string.IsNullOrWhiteSpace(AppStoreConnectApiKeyPath))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 自动上传时，必须配置 appStoreConnectApiKeyPath。");
+            }
+
+            if (string.IsNullOrWhiteSpace(AppStoreConnectApiKeyId))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 自动上传时，必须配置 appStoreConnectApiKeyId。");
+            }
+
+            if (string.IsNullOrWhiteSpace(AppStoreConnectApiIssuerId))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 自动上传时，必须配置 appStoreConnectApiIssuerId。");
+            }
         }
 
         if (!SyncBundleVersionFromUnity && string.IsNullOrWhiteSpace(BundleVersion))

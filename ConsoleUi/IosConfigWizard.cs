@@ -89,6 +89,33 @@ internal static class IosConfigWizard
             "Xcode 导出方式 exportMethod",
             ["development", "ad-hoc", "app-store", "enterprise"],
             "development");
+        bool appStoreConnectUploadEnabled = false;
+        string appStoreConnectApiKeyPath = "";
+        string appStoreConnectApiKeyId = "";
+        string appStoreConnectApiIssuerId = "";
+        if (exportMethod.Equals("app-store", StringComparison.OrdinalIgnoreCase))
+        {
+            appStoreConnectUploadEnabled = ConsolePrompts.AskBool(
+                "打包完成后自动上传到 App Store Connect/TestFlight",
+                false);
+            if (appStoreConnectUploadEnabled)
+            {
+                Console.WriteLine("需要先在 App Store Connect 生成 API Key，并把 .p8 文件放到 Mac 打包机本地安全目录。");
+                appStoreConnectApiKeyPath = ConsolePrompts.AskRequired(
+                    "API Key .p8 文件路径",
+                    "例如 ~/Secrets/AuthKey_XXXXXXXXXX.p8");
+                appStoreConnectApiKeyId = ConsolePrompts.AskRequired(
+                    "API Key ID",
+                    "例如 ABCDE12345");
+                appStoreConnectApiIssuerId = ConsolePrompts.AskRequired(
+                    "Issuer ID",
+                    "App Store Connect API 页面里的 Issuer ID");
+            }
+        }
+        else
+        {
+            Console.WriteLine("App Store Connect/TestFlight 自动上传只适用于 exportMethod=app-store。");
+        }
 
         PrintSection("7. Mac 路径和清理策略");
         Console.WriteLine("下面这些目录不用提前创建。打包时如果不存在，工具会自动创建。");
@@ -101,10 +128,10 @@ internal static class IosConfigWizard
         bool allowProvisioningUpdates = ConsolePrompts.AskBool(
             "允许 xcodebuild 自动更新签名配置",
             true);
-        Console.WriteLine("强制重置 Git 仓库会删除 Mac 本地未提交修改和未跟踪文件。专用打包机可选 y，普通开发机建议 n。");
+        Console.WriteLine("强制重置 Git 仓库会删除 Mac 本地未提交修改和未跟踪文件。专用打包机推荐 y，只有把这个目录当开发目录用时才选 n。");
         bool resetRepository = ConsolePrompts.AskBool(
             "每次打包前强制重置 Git 仓库到远端分支",
-            false);
+            true);
         bool preserveUnityLibraryOnReset = !resetRepository || ConsolePrompts.AskBool(
             "强制重置时保留 Unity Library 缓存，避免每次重新导入资源",
             true);
@@ -162,6 +189,10 @@ internal static class IosConfigWizard
             SaveConfigSnapshot = true,
             CompileBitcode = null,
             UploadSymbols = true,
+            AppStoreConnectUploadEnabled = appStoreConnectUploadEnabled,
+            AppStoreConnectApiKeyPath = appStoreConnectApiKeyPath,
+            AppStoreConnectApiKeyId = appStoreConnectApiKeyId,
+            AppStoreConnectApiIssuerId = appStoreConnectApiIssuerId,
 
             XcodeBuildSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
             Environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
@@ -325,6 +356,7 @@ internal static class IosConfigWizard
         Console.WriteLine($"iOS Deployment Target: {(string.IsNullOrWhiteSpace(config.IosDeploymentTarget) ? "(使用 Unity 项目原配置)" : config.IosDeploymentTarget)}");
         Console.WriteLine($"Team ID: {config.TeamId}");
         Console.WriteLine($"导出方式: {config.ExportMethod}");
+        Console.WriteLine($"App Store Connect 自动上传: {(config.AppStoreConnectUploadEnabled ? "是" : "否")}");
         Console.WriteLine($"产物目录: {config.ArtifactsRoot}");
         Console.WriteLine($"复制 archive 到 Organizer: {(config.CopyArchiveToOrganizer ? "是" : "否")}");
         Console.WriteLine($"强制重置 Git: {(config.ResetRepository ? "是" : "否")}");

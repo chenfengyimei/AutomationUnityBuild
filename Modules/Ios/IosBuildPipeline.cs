@@ -7,6 +7,7 @@ internal sealed class IosBuildPipeline : IPlatformBuildPipeline
     private readonly UnityProjectValidator _unityProjectValidator;
     private readonly IosUnityBuildService _iosUnityBuildService;
     private readonly XcodeBuildService _xcodeBuildService;
+    private readonly AppStoreConnectUploader _appStoreConnectUploader;
 
     private BuildConfig _config => _context.Config;
     private CliOptions _options => _context.Options;
@@ -21,6 +22,7 @@ internal sealed class IosBuildPipeline : IPlatformBuildPipeline
         var xcodeProjectLocator = new XcodeProjectLocator(context);
         _iosUnityBuildService = new IosUnityBuildService(context, xcodeProjectLocator);
         _xcodeBuildService = new XcodeBuildService(context, xcodeProjectLocator);
+        _appStoreConnectUploader = new AppStoreConnectUploader(context);
     }
 
     public string ResultPathLabel => "导出目录";
@@ -32,6 +34,7 @@ internal sealed class IosBuildPipeline : IPlatformBuildPipeline
         _logger.Info($"归档: {_paths.ArchivePath}");
         _logger.Info($"导出目录: {_paths.ExportPath}");
         _logger.Info($"复制 archive 到 Organizer: {(_config.CopyArchiveToOrganizer ? "启用" : "关闭")}");
+        _logger.Info($"App Store Connect 自动上传: {(_config.AppStoreConnectUploadEnabled ? "启用" : "关闭")}");
     }
 
     public async Task RunAsync()
@@ -53,6 +56,10 @@ internal sealed class IosBuildPipeline : IPlatformBuildPipeline
         if (!_options.SkipXcode)
         {
             await _stepRunner.RunAsync("Xcode archive/export", _xcodeBuildService.ArchiveAndExportAsync);
+            if (_config.AppStoreConnectUploadEnabled)
+            {
+                await _stepRunner.RunAsync("App Store Connect 上传", _appStoreConnectUploader.UploadAsync);
+            }
         }
         else
         {

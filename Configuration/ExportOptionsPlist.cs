@@ -5,7 +5,7 @@ namespace AutomationUnityBuildIOS;
 
 internal static class ExportOptionsPlist
 {
-    public static void Write(BuildConfig config, string path)
+    public static void Write(BuildConfig config, string path, string? destination = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
@@ -16,6 +16,7 @@ internal static class ExportOptionsPlist
         builder.AppendLine("<dict>");
 
         AppendString(builder, "method", config.ExportMethod);
+        AppendString(builder, "destination", destination ?? "");
         AppendString(builder, "teamID", config.TeamId);
         AppendString(builder, "signingStyle", config.SigningStyle);
         AppendNullableBool(builder, "compileBitcode", config.CompileBitcode);

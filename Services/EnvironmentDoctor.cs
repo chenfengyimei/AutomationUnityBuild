@@ -27,6 +27,16 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
         if (_config.IsIos && !_options.SkipXcode)
         {
             await _processRunner.RunAsync("xcodebuild", ["-version"]);
+            if (_config.AppStoreConnectUploadEnabled)
+            {
+                string apiKeyPath = Path.GetFullPath(PathTools.ExpandHome(_config.AppStoreConnectApiKeyPath));
+                if (!_options.DryRun && !File.Exists(apiKeyPath))
+                {
+                    throw new FileNotFoundException($"App Store Connect API Key .p8 文件不存在: {apiKeyPath}");
+                }
+
+                _logger.Info($"App Store Connect API Key: {apiKeyPath}");
+            }
         }
 
         if (_config.IsAndroid)

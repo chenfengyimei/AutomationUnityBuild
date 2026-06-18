@@ -85,6 +85,32 @@ internal static class ConfigEditor
             config.CopyArchiveToOrganizer = ConsolePrompts.AskBool("Copy Archive To Organizer", config.CopyArchiveToOrganizer);
             return true;
         }) { IsVisible = config => config.IsIos },
+        new(48, "App Store Connect", "Upload Enabled", config => BoolText(config.AppStoreConnectUploadEnabled), config =>
+        {
+            config.AppStoreConnectUploadEnabled = ConsolePrompts.AskBool("App Store Connect Upload Enabled", config.AppStoreConnectUploadEnabled);
+            if (config.AppStoreConnectUploadEnabled && !config.ExportMethod.Equals("app-store", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("已启用 App Store Connect 上传，exportMethod 会自动改为 app-store。");
+                config.ExportMethod = "app-store";
+            }
+
+            return true;
+        }) { IsVisible = config => config.IsIos },
+        new(49, "App Store Connect", "API Key .p8 Path", config => Display(config.AppStoreConnectApiKeyPath), config =>
+        {
+            config.AppStoreConnectApiKeyPath = AskString("App Store Connect API Key .p8 Path", config.AppStoreConnectApiKeyPath);
+            return true;
+        }) { IsVisible = config => config.IsIos },
+        new(50, "App Store Connect", "API Key ID", config => Display(config.AppStoreConnectApiKeyId), config =>
+        {
+            config.AppStoreConnectApiKeyId = AskString("App Store Connect API Key ID", config.AppStoreConnectApiKeyId);
+            return true;
+        }) { IsVisible = config => config.IsIos },
+        new(51, "App Store Connect", "Issuer ID", config => Display(config.AppStoreConnectApiIssuerId), config =>
+        {
+            config.AppStoreConnectApiIssuerId = AskString("App Store Connect Issuer ID", config.AppStoreConnectApiIssuerId);
+            return true;
+        }) { IsVisible = config => config.IsIos },
         new(13, "Git 和 Unity", "Repository Url", config => Display(config.RepositoryUrl), config =>
         {
             config.RepositoryUrl = AskRepositoryUrl(config.RepositoryUrl);
@@ -359,6 +385,7 @@ internal static class ConfigEditor
         {
             Console.WriteLine($"iOS Deployment Target: {Display(config.IosDeploymentTarget)}");
             Console.WriteLine($"签名: team={config.TeamId}, style={config.SigningStyle}, export={config.ExportMethod}");
+            Console.WriteLine($"App Store Connect: upload={config.AppStoreConnectUploadEnabled}, apiKeyPath={Display(config.AppStoreConnectApiKeyPath)}");
         }
         else
         {

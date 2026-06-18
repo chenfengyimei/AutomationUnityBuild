@@ -469,7 +469,7 @@ public static class ApiRoutes
             ["syncBundleVersionFromUnity"] = request.SyncBundleVersionFromUnity,
             ["buildNumber"] = buildNumber,
             ["autoIncrementBuildNumber"] = request.AutoIncrementBuildNumber,
-            ["resetRepository"] = false,
+            ["resetRepository"] = true,
             ["preserveUnityLibraryOnReset"] = true,
             ["saveConfigSnapshot"] = true,
             ["environment"] = new JsonObject()
@@ -493,6 +493,9 @@ public static class ApiRoutes
         string signingStyle = ChoiceOrDefault(request.SigningStyle, ["automatic", "manual"], "automatic", "Signing Style");
         string teamId = (request.TeamId ?? "").Trim();
         string iosDeploymentTarget = (request.IosDeploymentTarget ?? "").Trim();
+        string appStoreConnectApiKeyPath = (request.AppStoreConnectApiKeyPath ?? "").Trim();
+        string appStoreConnectApiKeyId = (request.AppStoreConnectApiKeyId ?? "").Trim();
+        string appStoreConnectApiIssuerId = (request.AppStoreConnectApiIssuerId ?? "").Trim();
 
         if (!string.IsNullOrWhiteSpace(teamId) && (teamId.Length != 10 || !teamId.All(char.IsLetterOrDigit)))
         {
@@ -502,6 +505,29 @@ public static class ApiRoutes
         if (!string.IsNullOrWhiteSpace(iosDeploymentTarget) && !Version.TryParse(iosDeploymentTarget, out _))
         {
             throw new InvalidOperationException("iOS Deployment Target 必须是版本号格式，例如 13.0。");
+        }
+
+        if (request.AppStoreConnectUploadEnabled)
+        {
+            if (!exportMethod.Equals("app-store", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 上传时，Export Method 必须选择 app-store。");
+            }
+
+            if (string.IsNullOrWhiteSpace(appStoreConnectApiKeyPath))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 上传时，必须填写 API Key .p8 文件路径。");
+            }
+
+            if (string.IsNullOrWhiteSpace(appStoreConnectApiKeyId))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 上传时，必须填写 API Key ID。");
+            }
+
+            if (string.IsNullOrWhiteSpace(appStoreConnectApiIssuerId))
+            {
+                throw new InvalidOperationException("启用 App Store Connect 上传时，必须填写 Issuer ID。");
+            }
         }
 
         json["xcodeOutputDirectory"] = "";
@@ -521,6 +547,10 @@ public static class ApiRoutes
         json["copyArchiveToOrganizer"] = request.CopyArchiveToOrganizer;
         json["compileBitcode"] = null;
         json["uploadSymbols"] = true;
+        json["appStoreConnectUploadEnabled"] = request.AppStoreConnectUploadEnabled;
+        json["appStoreConnectApiKeyPath"] = appStoreConnectApiKeyPath;
+        json["appStoreConnectApiKeyId"] = appStoreConnectApiKeyId;
+        json["appStoreConnectApiIssuerId"] = appStoreConnectApiIssuerId;
         json["xcodeBuildSettings"] = new JsonObject();
         json["provisioningProfiles"] = new JsonObject();
     }
