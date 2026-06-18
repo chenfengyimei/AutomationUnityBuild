@@ -135,14 +135,22 @@ public sealed class MaintenanceService(
     {
         string normalizedPath = NormalizeDirectory(path);
         string normalizedRoot = NormalizeDirectory(root);
-        return normalizedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase) ||
-               normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        StringComparison comparison = PathComparison();
+        return normalizedPath.Equals(normalizedRoot, comparison) ||
+               normalizedPath.StartsWith(normalizedRoot, comparison);
     }
 
     private static string NormalizeDirectory(string path)
     {
         string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return fullPath + Path.DirectorySeparatorChar;
+    }
+
+    private static StringComparison PathComparison()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
     }
 
     private static bool IsCompleted(string status)

@@ -4,4 +4,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="linuxgateway-data\**" />
+    <None Remove="linuxgateway-data\**" />
+  </ItemGroup>
 </Project>

@@ -58,6 +58,12 @@ packages/
 !*.config  # 保留配置文件
 buildserver-data/
 BuildServer/buildserver-data/
+linuxgateway-data/
+LinuxGateway/linuxgateway-data/
+**/initial-admin.txt
+**/initial-agent-token.txt
+**/initial-gateway-token.txt
+**/admin-password.hash
 
 ## Windows 临时文件
 Thumbs.db
