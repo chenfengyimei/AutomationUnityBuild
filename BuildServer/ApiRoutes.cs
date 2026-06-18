@@ -21,7 +21,11 @@ public static class ApiRoutes
         app.MapPost("/api/projects", CreateProjectAsync);
         app.MapGet("/api/configs", ListConfigsAsync);
         app.MapPost("/api/configs", CreateConfigAsync);
+        app.MapGet("/api/configs/{configId}/file", GetConfigFileAsync);
+        app.MapPut("/api/configs/{configId}", UpdateConfigAsync);
+        app.MapDelete("/api/configs/{configId}", DeleteConfigAsync);
         app.MapPost("/api/config-files", CreateConfigFileAsync);
+        app.MapPut("/api/config-files/{configId}", UpdateConfigFileAsync);
 
         app.MapPost("/api/builds", StartBuildAsync);
         app.MapGet("/api/builds", ListJobsAsync);
@@ -246,6 +250,174 @@ public static class ApiRoutes
             });
 
             return Results.Ok(config);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
+    }
+
+    private static async Task<IResult> GetConfigFileAsync(string configId, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            BuildConfigRecord config = await database.ReadAsync(db => db.Configs.FirstOrDefault(config => config.Id == configId))
+                ?? throw new FileNotFoundException("配置不存在。");
+            string configPath = ValidatePathUnderAllowedRoots(config.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
+            if (!File.Exists(configPath))
+            {
+                throw new FileNotFoundException($"配置文件不存在: {configPath}");
+            }
+
+            JsonNode content = JsonNode.Parse(File.ReadAllText(configPath))
+                ?? throw new InvalidOperationException($"配置文件不是有效 JSON: {configPath}");
+            return Results.Ok(new { config, content });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateConfigAsync(string configId, BuildConfigRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            BuildConfigRecord updatedConfig = await database.UpdateAsync(db =>
+            {
+                BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
+                    ?? throw new FileNotFoundException("配置不存在。");
+                if (!db.Projects.Any(project => project.Id == request.ProjectId && project.Enabled))
+                {
+                    throw new InvalidOperationException("项目不存在或已禁用。");
+                }
+
+                string configPath = ValidatePathUnderAllowedRoots(Required(request.ConfigPath, "配置文件路径"), options.AllowedConfigRoots, "配置文件路径");
+                if (!File.Exists(configPath))
+                {
+                    throw new FileNotFoundException($"配置文件不存在: {configPath}");
+                }
+
+                string buildPlatform = string.IsNullOrWhiteSpace(request.BuildPlatform)
+                    ? DetectBuildPlatformFromConfig(configPath)
+                    : NormalizeBuildPlatform(request.BuildPlatform);
+                EnsureConfigPathUnique(db, record.Id, request.ProjectId, configPath);
+
+                record.ProjectId = request.ProjectId;
+                record.Name = Required(request.Name, "配置名称");
+                record.BuildPlatform = buildPlatform;
+                record.ConfigPath = configPath;
+                record.AllowMcpBuild = request.AllowMcpBuild;
+                record.Enabled = true;
+                AuthService.AddAudit(db, user.Id, user.UserName, "config.update", "config", record.Id, $"更新配置 {record.Name}");
+                return record;
+            });
+
+            return Results.Ok(updatedConfig);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateConfigFileAsync(string configId, BuildConfigFileRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            BuildConfigRecord updatedConfig = await database.UpdateAsync(db =>
+            {
+                BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
+                    ?? throw new FileNotFoundException("配置不存在。");
+                ProjectRecord project = db.Projects.FirstOrDefault(project => project.Id == request.ProjectId && project.Enabled)
+                    ?? throw new InvalidOperationException("项目不存在或已禁用。");
+
+                string configName = Required(request.Name, "配置名称");
+                string buildPlatform = NormalizeBuildPlatform(request.BuildPlatform ?? project.DefaultBuildPlatform);
+                string configPath = ValidatePathUnderAllowedRoots(record.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
+
+                Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+                File.WriteAllText(
+                    configPath,
+                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    }) + Environment.NewLine);
+
+                record.ProjectId = project.Id;
+                record.Name = configName;
+                record.BuildPlatform = buildPlatform;
+                record.AllowMcpBuild = request.AllowMcpBuild;
+                record.Enabled = true;
+                AuthService.AddAudit(db, user.Id, user.UserName, "config-file.update", "config", record.Id, $"更新配置文件 {configPath}");
+                return record;
+            });
+
+            return Results.Ok(updatedConfig);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ClientInputError(ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteConfigAsync(string configId, bool deleteFile, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            bool deletedFile = false;
+            BuildConfigRecord deletedConfig = await database.UpdateAsync(db =>
+            {
+                BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
+                    ?? throw new FileNotFoundException("配置不存在。");
+                if (db.Jobs.Any(job => job.ConfigId == record.Id && (job.Status == BuildStatuses.Queued || job.Status == BuildStatuses.Running)))
+                {
+                    throw new InvalidOperationException("这个配置还有排队中或运行中的任务，不能删除。");
+                }
+
+                if (deleteFile)
+                {
+                    string configPath = ValidatePathUnderAllowedRoots(record.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
+                    if (db.Configs.Any(other => other.Id != record.Id && string.Equals(Path.GetFullPath(BuildServerEnvironment.ExpandHome(other.ConfigPath)), configPath, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        throw new InvalidOperationException("还有其他配置引用同一个 JSON 文件，不能同时删除文件。");
+                    }
+
+                    if (!string.Equals(Path.GetExtension(configPath), ".json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("只能删除 .json 配置文件。");
+                    }
+
+                    if (File.Exists(configPath))
+                    {
+                        File.Delete(configPath);
+                        deletedFile = true;
+                    }
+                }
+
+                db.Configs.Remove(record);
+                AuthService.AddAudit(db, user.Id, user.UserName, "config.delete", "config", record.Id, $"删除配置 {record.Name}, deleteFile={deleteFile}");
+                return record;
+            });
+
+            return Results.Ok(new { deleted = true, deletedFile, config = deletedConfig });
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
@@ -620,6 +792,17 @@ public static class ApiRoutes
         json["googlePlayUploadArtifact"] = googlePlayUploadArtifact;
         json["googlePlayChangesNotSentForReview"] = request.GooglePlayChangesNotSentForReview;
         json["googlePlayUserFraction"] = request.GooglePlayUserFraction;
+    }
+
+    private static void EnsureConfigPathUnique(BuildServerDatabase db, string currentConfigId, string projectId, string configPath)
+    {
+        if (db.Configs.Any(config =>
+                config.Id != currentConfigId &&
+                config.ProjectId == projectId &&
+                string.Equals(Path.GetFullPath(BuildServerEnvironment.ExpandHome(config.ConfigPath)), configPath, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("同一个项目下已经存在使用这个配置文件路径的配置。");
+        }
     }
 
     private static string SafeConfigFileName(string? requestedFileName, string configName, string buildPlatform)
