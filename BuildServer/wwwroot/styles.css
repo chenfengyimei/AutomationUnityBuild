@@ -305,6 +305,21 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(29, 95, 209, 0.13);
 }
 
+label:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 input:disabled {
   background: #eef3f9;
   color: #69758a;
@@ -328,8 +343,8 @@ input:disabled {
 }
 
 .checks input {
-  width: auto;
-  min-height: auto;
+  width: 16px;
+  min-height: 16px;
 }
 
 .form-grid {
@@ -350,8 +365,8 @@ input:disabled {
 }
 
 .form-grid input[type="checkbox"] {
-  width: auto;
-  min-height: auto;
+  width: 16px;
+  min-height: 16px;
 }
 
 .list {
