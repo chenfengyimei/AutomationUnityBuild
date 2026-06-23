@@ -1071,7 +1071,7 @@ public static class ApiRoutes
 
         ValidateOptionalInteger(androidMinSdkVersion, "Android Min SDK Version");
         ValidateOptionalInteger(androidTargetSdkVersion, "Android Target SDK Version");
-        if (request.GooglePlayUserFraction is <= 0 or > 1)
+        if (request.GooglePlayUploadEnabled && request.GooglePlayUserFraction is <= 0 or > 1)
         {
             throw new InvalidOperationException("Google Play User Fraction 必须大于 0 且小于等于 1。");
         }
