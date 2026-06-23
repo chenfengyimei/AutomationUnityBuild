@@ -7,6 +7,12 @@ namespace BuildServer.Services;
 
 public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions options)
 {
+    private static readonly JsonSerializerOptions IndentedCamelizeOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public async Task<BuildJobRecord> EnqueueAsync(
         StartBuildRequest request,
         CurrentUser user,
@@ -218,14 +224,13 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         json["autoIncrementBuildNumber"] = false;
         json["saveConfigSnapshot"] = true;
 
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        if (Path.GetDirectoryName(targetPath) is string targetDir && targetDir.Length > 0)
+        {
+            Directory.CreateDirectory(targetDir);
+        }
         File.WriteAllText(
             targetPath,
-            json.ToJsonString(new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            }) + Environment.NewLine);
+            json.ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
     }
 
     public static string ExpandPath(string path)

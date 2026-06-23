@@ -116,10 +116,10 @@ public sealed class GatewayAuthService(JsonGatewayDatabase database, LinuxGatewa
         }
 
         string tokenHash = PasswordHasher.HashToken(token);
-        return await database.UpdateAsync(db =>
+        return await database.ReadAsync(db =>
         {
-            db.Sessions.RemoveAll(session => session.ExpiresAt <= DateTimeOffset.Now);
-            GatewaySessionRecord? session = db.Sessions.FirstOrDefault(session => session.TokenHash == tokenHash);
+            GatewaySessionRecord? session = db.Sessions.FirstOrDefault(session =>
+                session.TokenHash == tokenHash && session.ExpiresAt > DateTimeOffset.Now);
             if (session is null)
             {
                 return null;
@@ -224,22 +224,29 @@ public static class PasswordHasher
 
     public static bool Verify(string password, string storedHash)
     {
-        string[] parts = storedHash.Split(':');
-        if (parts.Length != 4 || parts[0] != "pbkdf2-sha256")
+        try
+        {
+            string[] parts = storedHash.Split(':');
+            if (parts.Length != 4 || parts[0] != "pbkdf2-sha256")
+            {
+                return false;
+            }
+
+            int iterations = int.Parse(parts[1]);
+            byte[] salt = Convert.FromBase64String(parts[2]);
+            byte[] expected = Convert.FromBase64String(parts[3]);
+            byte[] actual = Rfc2898DeriveBytes.Pbkdf2(
+                Encoding.UTF8.GetBytes(password),
+                salt,
+                iterations,
+                HashAlgorithmName.SHA256,
+                expected.Length);
+            return CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+        catch
         {
             return false;
         }
-
-        int iterations = int.Parse(parts[1]);
-        byte[] salt = Convert.FromBase64String(parts[2]);
-        byte[] expected = Convert.FromBase64String(parts[3]);
-        byte[] actual = Rfc2898DeriveBytes.Pbkdf2(
-            Encoding.UTF8.GetBytes(password),
-            salt,
-            iterations,
-            HashAlgorithmName.SHA256,
-            expected.Length);
-        return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
 
     public static string HashToken(string token)

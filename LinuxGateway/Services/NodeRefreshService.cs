@@ -115,7 +115,7 @@ public sealed class NodeRefreshService(
                 }
             });
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             await database.UpdateAsync(db =>
             {

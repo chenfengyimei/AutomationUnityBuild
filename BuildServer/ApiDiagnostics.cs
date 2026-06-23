@@ -38,7 +38,7 @@ public static class ApiDiagnostics
         int statusCode = exception switch
         {
             UnauthorizedAccessException => StatusCodes.Status403Forbidden,
-            FileNotFoundException => StatusCodes.Status400BadRequest,
+            FileNotFoundException => StatusCodes.Status404NotFound,
             InvalidOperationException => StatusCodes.Status400BadRequest,
             ArgumentException => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
