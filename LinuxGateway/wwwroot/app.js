@@ -31,7 +31,12 @@ function bindEvents() {
   $("buildForm").addEventListener("submit", startBuild);
   $("passwordForm").addEventListener("submit", changeMyPassword);
   $("userForm").addEventListener("submit", saveUser);
-  $("userCancelBtn").addEventListener("click", resetUserForm);
+  $("userAddBtn").addEventListener("click", () => openUserModal());
+  $("userCancelBtn").addEventListener("click", closeUserModal);
+  $("userModalClose").addEventListener("click", closeUserModal);
+  $("userModal").addEventListener("click", (event) => {
+    if (event.target === $("userModal")) closeUserModal();
+  });
   $("usersList").addEventListener("click", handleUsersClick);
   $("buildNode").addEventListener("change", renderProjectOptions);
   $("buildProject").addEventListener("change", renderConfigOptions);
@@ -39,6 +44,9 @@ function bindEvents() {
   $("jobsList").addEventListener("click", handleJobsClick);
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && isUserModalOpen()) closeUserModal();
   });
 }
 
@@ -97,9 +105,15 @@ function applyDashboard(dashboard) {
 function startDashboardEvents() {
   stopDashboardEvents();
   state.events = AppRuntime.connectEvents({
-    onDashboard: (dashboard) => applyDashboard(dashboard),
+    onDashboard: (dashboard) => {
+      applyDashboard(dashboard);
+      setTopStatus("实时同步");
+    },
     onStatus: (message) => {
-      if (!$("mainView").classList.contains("hidden")) showNotice(message);
+      if (!$("mainView").classList.contains("hidden")) {
+        setTopStatus(message);
+        showNotice(message);
+      }
     },
     onFallbackPoll: () => refreshAll({ silent: true }),
     fallbackIntervalMs: 5000,
@@ -280,29 +294,36 @@ async function startBuild(event) {
 function renderNodes() {
   renderSummary();
   if (state.nodes.length === 0) {
-    $("nodesList").innerHTML = `<article class="item muted">还没有设备。先添加 Mac 或 Windows BuildServer。</article>`;
+    $("nodesList").innerHTML = `<div class="empty-state compact">还没有设备。先添加 Mac 或 Windows BuildServer。</div>`;
     return;
   }
 
-  $("nodesList").innerHTML = state.nodes.map((node) => {
-    const remote = node.remote;
-    const projects = remote?.projects?.length || 0;
-    const configs = remote?.configs?.length || 0;
-    const lastSeen = node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : "-";
-    return `<article class="item">
-      <header>
-        <div>
-          <strong>${escapeHtml(node.name)}</strong>
-          <div class="muted small">${escapeHtml(node.baseUrl)}</div>
-        </div>
-        <span class="status ${escapeHtml(node.lastStatus || "Unknown")}">${escapeHtml(node.lastStatus || "Unknown")}</span>
-      </header>
-      <div class="item-row">${platforms(node.platforms)}</div>
-      <div class="muted">项目 ${projects} / 配置 ${configs} / 最后在线 ${escapeHtml(lastSeen)}</div>
-      ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
-      ${isAdmin() ? `<button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑</button>` : ""}
-    </article>`;
-  }).join("");
+  $("nodesList").innerHTML = `<div class="node-stack">${state.nodes.map(renderNodeCard).join("")}</div>`;
+}
+
+function renderNodeCard(node) {
+  const remote = node.remote;
+  const projects = remote?.projects?.length || 0;
+  const configs = remote?.configs?.length || 0;
+  const status = node.enabled ? (node.lastStatus || "Unknown") : "Disabled";
+  const lastSeen = node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : "-";
+  return `<article class="node-card">
+    <header>
+      <div class="node-main">
+        <strong>${escapeHtml(node.name)}</strong>
+        <span class="node-url">${escapeHtml(node.baseUrl)}</span>
+      </div>
+      <span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span>
+    </header>
+    <div class="item-row">${platforms(node.platforms)}</div>
+    <dl class="node-metrics">
+      <div><dt>项目</dt><dd>${projects}</dd></div>
+      <div><dt>配置</dt><dd>${configs}</dd></div>
+      <div><dt>最后在线</dt><dd>${escapeHtml(lastSeen)}</dd></div>
+    </dl>
+    ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
+    ${isAdmin() ? `<div class="node-actions"><button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑节点</button></div>` : ""}
+  </article>`;
 }
 
 function renderBuildSelectors() {
@@ -367,19 +388,47 @@ function updateBuildSubmitState() {
 function renderJobs() {
   renderSummary();
   if (state.jobs.length === 0) {
-    $("jobsList").innerHTML = `<article class="item muted">暂无任务。</article>`;
+    $("jobsList").innerHTML = `<div class="empty-state">暂无任务。选择在线设备、项目和配置后即可发起打包。</div>`;
     return;
   }
 
-  $("jobsList").innerHTML = state.jobs.map((job) => `<article class="item">
-    <header>
-      <strong>${escapeHtml(job.nodeName)} / ${escapeHtml(job.projectName)} / ${escapeHtml(job.configName)}</strong>
-      <span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
-    </header>
-    <div class="muted">${new Date(job.createdAt).toLocaleString()} / ${platformBadge(job.buildPlatform)} / build ${escapeHtml(job.buildNumber || "-")}</div>
-    ${job.error ? `<div class="error">${escapeHtml(job.error)}</div>` : ""}
-    <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看</button>
-  </article>`).join("");
+  $("jobsList").innerHTML = `<div class="table-shell jobs-table-shell">
+    <table class="data-table jobs-table">
+      <thead>
+        <tr>
+          <th>任务</th>
+          <th>状态</th>
+          <th>平台</th>
+          <th>Build</th>
+          <th>创建时间</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.jobs.map(renderJobRow).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderJobRow(job) {
+  const createdAt = job.createdAt ? new Date(job.createdAt).toLocaleString() : "-";
+  return `<tr>
+    <td>
+      <div class="job-title-cell">
+        <strong>${escapeHtml(job.projectName)} / ${escapeHtml(job.configName)}</strong>
+        <div class="muted small">${escapeHtml(job.nodeName)}${job.branch ? ` / ${escapeHtml(job.branch)}` : ""}</div>
+        ${job.error ? `<div class="error job-error">${escapeHtml(job.error)}</div>` : ""}
+      </div>
+    </td>
+    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
+    <td>${platformBadge(job.buildPlatform)}</td>
+    <td>${escapeHtml(job.buildNumber || "-")}</td>
+    <td class="nowrap">${escapeHtml(createdAt)}</td>
+    <td class="table-actions">
+      <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看详情</button>
+    </td>
+  </tr>`;
 }
 
 function handleNodesClick(event) {
@@ -428,13 +477,7 @@ async function selectJob(jobId) {
       ["更新时间", new Date(job.updatedAt).toLocaleString()],
       ["错误", job.error || "-"],
     ].map(([key, value]) => `<div><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`).join("");
-    $("artifactsList").innerHTML = artifacts.length
-      ? artifacts.map((artifact) => `<article class="item">
-          <strong>${escapeHtml(artifact.type)}</strong>
-          <div class="muted">${escapeHtml(artifact.path)} / ${formatBytes(artifact.sizeBytes)}</div>
-          <a href="/api/builds/${encodeURIComponent(job.id)}/artifacts/${encodeURIComponent(artifact.id)}/download">下载</a>
-        </article>`).join("")
-      : `<article class="item muted">暂无产物。</article>`;
+    $("artifactsList").innerHTML = renderArtifactsTable(job, artifacts);
     $("jobLog").textContent = log || "暂无日志。";
     await refreshAll({ silent: true });
   } catch (error) {
@@ -444,6 +487,35 @@ async function selectJob(jobId) {
     setButtonBusy("refreshJobBtn", false);
     setTopStatus("就绪");
   }
+}
+
+function renderArtifactsTable(job, artifacts) {
+  if (!artifacts.length) {
+    return `<div class="empty-state compact">暂无产物。</div>`;
+  }
+
+  return `<div class="table-shell artifacts-table-shell">
+    <table class="data-table artifacts-table">
+      <thead>
+        <tr>
+          <th>类型</th>
+          <th>路径</th>
+          <th>大小</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${artifacts.map((artifact) => `<tr>
+          <td><span class="role-pill">${escapeHtml(artifact.type)}</span></td>
+          <td class="path-cell">${escapeHtml(artifact.path || "-")}</td>
+          <td>${formatBytes(artifact.sizeBytes)}</td>
+          <td class="table-actions">
+            <a class="download-link" href="/api/builds/${encodeURIComponent(job.id)}/artifacts/${encodeURIComponent(artifact.id)}/download">下载</a>
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 function fillNodeForm(nodeId) {
@@ -467,25 +539,78 @@ async function refreshUsers() {
 
 function renderUsers() {
   if (!isAdmin()) return;
+  renderUserStats();
   if (state.users.length === 0) {
-    $("usersList").innerHTML = `<article class="item muted">暂无用户。</article>`;
+    $("usersList").innerHTML = `<div class="empty-state">暂无用户。点击右上角新增用户。</div>`;
     return;
   }
 
-  $("usersList").innerHTML = state.users.map((user) => `<article class="item">
-    <header>
-      <div>
-        <strong>${escapeHtml(user.displayName || user.userName)}</strong>
-        <div class="muted small">${escapeHtml(user.userName)} / ${escapeHtml(user.role)}</div>
+  $("usersList").innerHTML = `<table class="data-table">
+    <thead>
+      <tr>
+        <th>用户</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>创建时间</th>
+        <th class="table-actions">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.users.map(renderUserRow).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderUserStats() {
+  const total = state.users.length;
+  const enabled = state.users.filter((user) => user.enabled).length;
+  const admins = state.users.filter((user) => user.role === "Admin").length;
+  const protectedUsers = state.users.filter(isRootAdminUser).length;
+  $("userStats").innerHTML = [
+    ["用户总数", total],
+    ["启用账号", enabled],
+    ["管理员", admins],
+    ["受保护主账号", protectedUsers],
+  ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+}
+
+function renderUserRow(user) {
+  const protectedReason = protectedUserReason(user);
+  const disabled = protectedReason || !user.enabled ? "disabled" : "";
+  const title = protectedReason || (!user.enabled ? "用户已经禁用。" : "");
+  return `<tr>
+    <td>
+      <div class="user-cell">
+        <span class="avatar">${avatarText(user)}</span>
+        <div>
+          <strong>${escapeHtml(user.displayName || user.userName)}</strong>
+          <div class="muted small">${escapeHtml(user.userName)}</div>
+        </div>
       </div>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
-    </header>
-    <div class="muted">Created: ${new Date(user.createdAt).toLocaleString()}</div>
-    <div class="item-row">
+    </td>
+    <td><span class="role-pill">${escapeHtml(user.role)}</span></td>
+    <td><span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span></td>
+    <td>${new Date(user.createdAt).toLocaleString()}</td>
+    <td class="table-actions">
       <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑</button>
-      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" ${user.enabled ? "" : "disabled"}>禁用</button>
-    </div>
-  </article>`).join("");
+      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" title="${escapeHtml(title)}" ${disabled}>禁用</button>
+    </td>
+  </tr>`;
+}
+
+function avatarText(user) {
+  const source = (user.displayName || user.userName || "U").trim();
+  return escapeHtml(source.slice(0, 1).toUpperCase());
+}
+
+function protectedUserReason(user) {
+  if (isRootAdminUser(user)) return "主账号不可删除或禁用。";
+  if (user.id === state.user?.id) return "不能禁用当前登录账号。";
+  return "";
+}
+
+function isRootAdminUser(user) {
+  return (user.userName || "").toLowerCase() === "admin";
 }
 
 async function saveUser(event) {
@@ -512,6 +637,7 @@ async function saveUser(event) {
       }),
     });
     resetUserForm();
+    closeUserModal();
     await refreshUsers();
     showNotice(userId ? "用户已更新。" : "用户已创建。");
   } catch (error) {
@@ -524,7 +650,7 @@ async function saveUser(event) {
 function handleUsersClick(event) {
   const editButton = event.target.closest("[data-edit-user-id]");
   if (editButton) {
-    fillUserForm(editButton.dataset.editUserId);
+    openUserModal(editButton.dataset.editUserId);
     return;
   }
 
@@ -538,12 +664,38 @@ function handleUsersClick(event) {
 }
 
 async function disableUser(userId) {
+  const user = state.users.find((item) => item.id === userId);
+  const reason = user ? protectedUserReason(user) : "";
+  if (reason) {
+    showError(new Error(reason));
+    return;
+  }
+
   await api(`/api/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
   if ($("userId").value === userId) {
     resetUserForm();
   }
   await refreshUsers();
   showNotice("用户已禁用。");
+}
+
+function openUserModal(userId = "") {
+  resetUserForm();
+  if (userId) {
+    fillUserForm(userId);
+  }
+  $("userModal").classList.remove("hidden");
+  $("userModal").setAttribute("aria-hidden", "false");
+  setTimeout(() => $("userName").focus(), 0);
+}
+
+function closeUserModal() {
+  $("userModal").classList.add("hidden");
+  $("userModal").setAttribute("aria-hidden", "true");
+}
+
+function isUserModalOpen() {
+  return !$("userModal").classList.contains("hidden");
 }
 
 function fillUserForm(userId) {
@@ -555,9 +707,15 @@ function fillUserForm(userId) {
   $("userRole").value = user.role;
   $("userPassword").value = "";
   $("userEnabled").checked = Boolean(user.enabled);
+  const rootAdmin = isRootAdminUser(user);
+  $("userName").disabled = rootAdmin;
+  $("userRole").disabled = rootAdmin;
+  $("userEnabled").disabled = rootAdmin || user.id === state.user?.id;
+  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持 Admin 且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
+  $("userModalTitle").textContent = "编辑用户";
+  $("userModalSubTitle").textContent = "密码留空表示不修改。";
   $("userSaveBtn").textContent = "更新用户";
   $("userSaveBtn").dataset.defaultText = "更新用户";
-  showNotice("用户已载入。密码留空表示不修改。");
 }
 
 function resetUserForm() {
@@ -565,6 +723,12 @@ function resetUserForm() {
   $("userId").value = "";
   $("userRole").value = "Builder";
   $("userEnabled").checked = true;
+  $("userName").disabled = false;
+  $("userRole").disabled = false;
+  $("userEnabled").disabled = false;
+  $("userEnabled").parentElement.title = "";
+  $("userModalTitle").textContent = "新增用户";
+  $("userModalSubTitle").textContent = "为 LinuxGateway 用户分配合适的访问级别。";
   $("userSaveBtn").textContent = "保存用户";
   $("userSaveBtn").dataset.defaultText = "保存用户";
 }

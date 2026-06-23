@@ -9,25 +9,30 @@
 <body>
   <main id="app">
     <section id="loginView" class="login">
-      <form id="loginForm" class="panel">
+      <form id="loginForm" class="panel login-panel">
+        <p class="eyebrow">LinuxGateway Console</p>
         <h1>Unity Build Gateway</h1>
-        <p class="muted">统一调度 Mac / Windows 打包机，项目配置仍在各节点的 BuildServer 里维护。</p>
+        <p class="login-copy">统一调度 Mac / Windows 打包机，项目配置仍在各节点的 BuildServer 里维护。</p>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
         <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="查看 linuxgateway-data/initial-admin.txt"></label>
         <button id="loginBtn" type="submit">登录</button>
         <p id="loginError" class="error"></p>
+        <p class="hint">首次启动默认账号 admin；生产环境请设置 LINUX_GATEWAY_ADMIN_PASSWORD，并妥善保存初始密码文件。</p>
       </form>
     </section>
 
     <section id="mainView" class="hidden">
       <header class="topbar">
         <div>
+          <p class="eyebrow">Fleet Orchestration</p>
           <h1>Unity Build Gateway</h1>
           <p>统一入口只负责调度，真正打包仍在 Mac / Windows 节点执行。</p>
         </div>
-        <div id="userInfo" class="top-status">未登录</div>
-        <div id="topStatus" class="top-status">就绪</div>
-        <button id="logoutBtn" type="button">退出</button>
+        <div class="topbar-actions">
+          <div id="userInfo" class="top-status">未登录</div>
+          <div id="topStatus" class="top-status">就绪</div>
+          <button id="logoutBtn" type="button">退出</button>
+        </div>
       </header>
 
       <div id="globalError" class="error banner hidden" role="alert" aria-live="assertive"></div>
@@ -73,29 +78,19 @@
               <button id="passwordSaveBtn" type="submit">更新密码</button>
             </form>
 
-            <section id="adminPanel" class="panel hidden">
-              <h2>用户权限</h2>
-              <form id="userForm">
-                <input id="userId" type="hidden">
-                <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
-                <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
-                <label>角色
-                  <select id="userRole">
-                    <option value="Admin">Admin</option>
-                    <option value="Builder">Builder</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
-                </label>
-                <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
-                <div class="checks">
-                  <label><input id="userEnabled" type="checkbox" checked> 启用</label>
+            <section id="adminPanel" class="panel admin-panel hidden">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">Identity & Access</p>
+                  <h2>用户权限</h2>
+                  <p class="muted">维护 Gateway 管理员、构建者与只读观察者。</p>
                 </div>
-                <div class="form-actions">
-                  <button id="userSaveBtn" type="submit">保存用户</button>
-                  <button id="userCancelBtn" class="secondary" type="button">重置</button>
-                </div>
-              </form>
-              <div id="usersList" class="list"></div>
+                <button id="userAddBtn" type="button">新增用户</button>
+              </header>
+              <div id="userStats" class="identity-stats"></div>
+              <div class="table-shell">
+                <div id="usersList" class="list"></div>
+              </div>
             </section>
           </section>
 
@@ -137,11 +132,14 @@
             </form>
           </div>
 
-          <section class="panel">
-            <div class="section-head compact">
-              <h2>任务</h2>
-              <span class="hint">查看任务会实时拉取远程节点状态、日志和产物。</span>
-            </div>
+          <section class="panel jobs-panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">Build Operations</p>
+                <h2>任务队列</h2>
+                <p class="muted">查看任务会实时拉取远程节点状态、日志和产物。</p>
+              </div>
+            </header>
             <div id="jobsList" class="list"></div>
           </section>
 
@@ -161,6 +159,39 @@
       </section>
     </section>
   </main>
+  <section id="userModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal user-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+      <form id="userForm">
+        <header class="modal-header">
+          <div>
+            <h2 id="userModalTitle">新增用户</h2>
+            <p id="userModalSubTitle" class="muted">为 LinuxGateway 用户分配合适的访问级别。</p>
+          </div>
+          <button id="userModalClose" class="secondary" type="button">关闭</button>
+        </header>
+        <div class="modal-body">
+          <input id="userId" type="hidden">
+          <div class="form-grid">
+            <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
+            <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
+            <label>角色
+              <select id="userRole">
+                <option value="Admin">Admin</option>
+                <option value="Builder">Builder</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </label>
+            <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
+            <label><input id="userEnabled" type="checkbox" checked> 启用</label>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button id="userSaveBtn" type="submit">保存用户</button>
+          <button id="userCancelBtn" class="secondary" type="button">取消</button>
+        </footer>
+      </form>
+    </div>
+  </section>
   <script src="/runtime.js"></script>
   <script src="/app.js"></script>
 </body>
