@@ -8,6 +8,11 @@ namespace LinuxGateway;
 
 public static class ApiRoutes
 {
+    private static readonly JsonSerializerOptions CamelizeOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTimeOffset.Now }));
@@ -83,23 +88,38 @@ public static class ApiRoutes
 
     private static async Task WriteSseEventAsync(HttpContext context, string eventName, object data)
     {
-        string json = JsonSerializer.Serialize(data, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        string json = JsonSerializer.Serialize(data, CamelizeOptions);
         await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
         await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
     }
 
+    private static readonly Dictionary<string, LoginAttempt> LoginAttempts = new(StringComparer.Ordinal);
+    private static readonly object LoginAttemptsLock = new();
+    private static readonly TimeSpan LoginAttemptWindow = TimeSpan.FromMinutes(5);
+    private const int MaxLoginAttempts = 10;
+
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, GatewayAuthService auth)
     {
+        string limiterKey = $"{context.Connection.RemoteIpAddress}|{request.UserName}";
+        if (!IsLoginAllowed(limiterKey))
+        {
+            return ApiDiagnostics.Problem(
+                context,
+                StatusCodes.Status429TooManyRequests,
+                "请求过于频繁",
+                "登录失败次数过多，请稍后再试。",
+                "rate_limited");
+        }
+
         GatewayUserRecord? user = await auth.ValidateLoginAsync(request.UserName, request.Password);
         if (user is null)
         {
+            RecordLoginFailure(limiterKey);
             return ApiDiagnostics.Unauthorized(context, "Invalid user name or password.");
         }
 
+        RecordLoginSuccess(limiterKey);
         string token = await auth.CreateSessionAsync(user);
         context.Response.Cookies.Append(GatewayAuthService.CookieName, token, new CookieOptions
         {
@@ -443,14 +463,16 @@ public static class ApiRoutes
             {
                 GatewayJobRecord? existingJob = await database.ReadAsync(db => db.Jobs
                     .OrderByDescending(job => job.CreatedAt)
-                    .FirstOrDefault(job => string.Equals(job.ClientRequestId, clientRequestId, StringComparison.OrdinalIgnoreCase)));
+                    .FirstOrDefault(job =>
+                        string.Equals(job.ClientRequestId, clientRequestId, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(job.RequestedByUserId, current.Id, StringComparison.OrdinalIgnoreCase)));
                 if (existingJob is not null)
                 {
                     return Results.Ok(existingJob);
                 }
             }
 
-            GatewayNodeRecord node = await GetEnabledNodeAsync(database, request.NodeId);
+            GatewayNodeRecord node = await GetNodeAsync(database, request.NodeId);
             RemoteNodeInfo remote = await client.GetNodeAsync(node);
             RemoteConfigSummary config = remote.Configs.FirstOrDefault(config => config.Id == request.ConfigId && config.ProjectId == request.ProjectId)
                 ?? throw new InvalidOperationException("节点上不存在这个配置。");
@@ -475,6 +497,19 @@ public static class ApiRoutes
 
             GatewayJobRecord gatewayJob = await database.UpdateAsync(db =>
             {
+                if (!string.IsNullOrWhiteSpace(clientRequestId))
+                {
+                    GatewayJobRecord? existing = db.Jobs
+                        .OrderByDescending(job => job.CreatedAt)
+                        .FirstOrDefault(job =>
+                            string.Equals(job.ClientRequestId, clientRequestId, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(job.RequestedByUserId, current.Id, StringComparison.OrdinalIgnoreCase));
+                    if (existing is not null)
+                    {
+                        return existing;
+                    }
+                }
+
                 var job = new GatewayJobRecord
                 {
                     Id = Ids.New("gwjob"),
@@ -537,7 +572,7 @@ public static class ApiRoutes
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
-        GatewayNodeRecord node = await GetEnabledNodeAsync(database, job.NodeId);
+        GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         string log = await client.GetJobLogAsync(node, job.RemoteJobId, Math.Clamp(lines ?? 300, 20, 2000));
         return Results.Text(log, "text/plain; charset=utf-8");
     }
@@ -552,7 +587,7 @@ public static class ApiRoutes
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
-        GatewayNodeRecord node = await GetEnabledNodeAsync(database, job.NodeId);
+        GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         return Results.Ok(await client.ListArtifactsAsync(node, job.RemoteJobId));
     }
 
@@ -567,12 +602,12 @@ public static class ApiRoutes
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
-        GatewayNodeRecord node = await GetEnabledNodeAsync(database, job.NodeId);
+        GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         HttpResponseMessage response = await client.DownloadArtifactAsync(node, artifactId);
         Stream stream = await response.Content.ReadAsStreamAsync();
         string fileName = FileNameFromContentDisposition(response.Content.Headers.ContentDisposition) ?? artifactId;
         string contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
-        return Results.Stream(stream, contentType, fileName);
+        return Results.Stream(new DisposingStream(stream, response), contentType, fileName);
     }
 
     private static async Task<IResult> SettingsAsync(HttpContext context, GatewayAuthService auth, LinuxGatewayOptions options)
@@ -656,59 +691,6 @@ public static class ApiRoutes
         return ex is InvalidOperationException or ArgumentException or FileNotFoundException;
     }
 
-    private static async Task<GatewayNodeView> ToNodeViewAsync(
-        GatewayNodeRecord node,
-        NodeGatewayClient client,
-        JsonGatewayDatabase database,
-        bool refreshRemote)
-    {
-        GatewayNodeView view = ToStoredNodeView(node);
-        if (!refreshRemote)
-        {
-            return view;
-        }
-
-        try
-        {
-            RemoteNodeInfo remote = await client.GetNodeAsync(node);
-            await database.UpdateAsync(db =>
-            {
-                GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
-                if (stored is null) return;
-                stored.LastSeenAt = DateTimeOffset.Now;
-                stored.LastStatus = remote.Status;
-                stored.LastError = "";
-                if (stored.Platforms.Count == 0)
-                {
-                    stored.Platforms = remote.Platforms;
-                }
-            });
-
-            view.Remote = remote;
-            view.LastSeenAt = DateTimeOffset.Now;
-            view.LastStatus = remote.Status;
-            view.LastError = "";
-            if (view.Platforms.Count == 0)
-            {
-                view.Platforms = remote.Platforms;
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
-        {
-            await database.UpdateAsync(db =>
-            {
-                GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
-                if (stored is null) return;
-                stored.LastStatus = "Offline";
-                stored.LastError = ex.Message;
-            });
-            view.LastStatus = "Offline";
-            view.LastError = ex.Message;
-        }
-
-        return view;
-    }
-
     private static GatewayNodeView ToStoredNodeView(GatewayNodeRecord node)
     {
         return new GatewayNodeView
@@ -758,6 +740,12 @@ public static class ApiRoutes
     {
         return await database.ReadAsync(db => db.Nodes.FirstOrDefault(node => node.Id == nodeId && node.Enabled))
             ?? throw new InvalidOperationException("节点不存在或已禁用。");
+    }
+
+    private static async Task<GatewayNodeRecord> GetNodeAsync(JsonGatewayDatabase database, string nodeId)
+    {
+        return await database.ReadAsync(db => db.Nodes.FirstOrDefault(node => node.Id == nodeId))
+            ?? throw new InvalidOperationException("节点不存在。");
     }
 
     private static async Task<GatewayJobRecord> GetJobAsync(JsonGatewayDatabase database, string jobId)
@@ -833,5 +821,99 @@ public static class ApiRoutes
     {
         string? value = contentDisposition?.FileNameStar ?? contentDisposition?.FileName;
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim('"');
+    }
+
+    private static bool IsLoginAllowed(string key)
+    {
+        lock (LoginAttemptsLock)
+        {
+            if (!LoginAttempts.TryGetValue(key, out LoginAttempt attempt))
+            {
+                return true;
+            }
+
+            if (DateTimeOffset.Now - attempt.WindowStart >= LoginAttemptWindow)
+            {
+                LoginAttempts.Remove(key);
+                return true;
+            }
+
+            return attempt.Failures < MaxLoginAttempts;
+        }
+    }
+
+    private static void RecordLoginFailure(string key)
+    {
+        lock (LoginAttemptsLock)
+        {
+            if (!LoginAttempts.TryGetValue(key, out LoginAttempt attempt) ||
+                DateTimeOffset.Now - attempt.WindowStart >= LoginAttemptWindow)
+            {
+                attempt = new LoginAttempt { WindowStart = DateTimeOffset.Now, Failures = 0 };
+                LoginAttempts[key] = attempt;
+            }
+
+            attempt.Failures++;
+        }
+    }
+
+    private static void RecordLoginSuccess(string key)
+    {
+        lock (LoginAttemptsLock)
+        {
+            LoginAttempts.Remove(key);
+        }
+    }
+
+    private sealed class LoginAttempt
+    {
+        public DateTimeOffset WindowStart { get; set; }
+        public int Failures { get; set; }
+    }
+
+    private sealed class DisposingStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly IDisposable _owner;
+
+        public DisposingStream(Stream inner, IDisposable owner)
+        {
+            _inner = inner;
+            _owner = owner;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            _inner.ReadAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            _inner.ReadAsync(buffer, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+        public override void Flush() => _inner.Flush();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+                _owner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await _inner.DisposeAsync();
+            _owner.Dispose();
+            await base.DisposeAsync();
+        }
     }
 }

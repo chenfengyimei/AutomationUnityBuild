@@ -9,6 +9,17 @@ namespace BuildServer;
 
 public static class ApiRoutes
 {
+    private static readonly JsonSerializerOptions CamelizeOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private static readonly JsonSerializerOptions IndentedCamelizeOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTimeOffset.Now }));
@@ -105,10 +116,7 @@ public static class ApiRoutes
 
     private static async Task WriteSseEventAsync(HttpContext context, string eventName, object data)
     {
-        string json = JsonSerializer.Serialize(data, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        string json = JsonSerializer.Serialize(data, CamelizeOptions);
         await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
         await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
@@ -458,14 +466,11 @@ public static class ApiRoutes
                     throw new InvalidOperationException($"配置文件已存在: {configPath}");
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+                string? dir = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
                 File.WriteAllText(
                     configPath,
-                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    }) + Environment.NewLine);
+                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
 
                 BuildConfigRecord? existingConfig = db.Configs.FirstOrDefault(config =>
                     config.ProjectId == project.Id &&
@@ -594,14 +599,11 @@ public static class ApiRoutes
                 string buildPlatform = NormalizeBuildPlatform(request.BuildPlatform ?? project.DefaultBuildPlatform);
                 string configPath = ValidatePathUnderAllowedRoots(record.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
 
-                Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+                string? dir2 = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrWhiteSpace(dir2)) Directory.CreateDirectory(dir2);
                 File.WriteAllText(
                     configPath,
-                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    }) + Environment.NewLine);
+                    BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
 
                 record.ProjectId = project.Id;
                 record.Name = configName;
