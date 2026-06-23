@@ -617,7 +617,9 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  $("pageTitle").textContent = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明" }[tab];
+  $("pageTitle").textContent = title;
+  $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
     refreshUsers();
   }
