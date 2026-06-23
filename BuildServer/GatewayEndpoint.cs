@@ -11,12 +11,28 @@ public static class GatewayEndpoint
     public static void Map(WebApplication app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/gateway");
+        group.MapGet("/health", HealthAsync);
         group.MapGet("/node", NodeAsync);
         group.MapPost("/builds", StartBuildAsync);
         group.MapGet("/jobs/{jobId}", GetJobAsync);
         group.MapGet("/jobs/{jobId}/log", GetJobLogAsync);
         group.MapGet("/jobs/{jobId}/artifacts", ListArtifactsAsync);
         group.MapGet("/artifacts/{artifactId}/download", DownloadArtifactAsync);
+    }
+
+    private static IResult HealthAsync(HttpContext context, BuildServerOptions options)
+    {
+        IResult? authFailure = RequireGateway(context, options);
+        if (authFailure is not null) return authFailure;
+
+        return Results.Ok(new
+        {
+            ok = true,
+            time = DateTimeOffset.Now,
+            machine = Environment.MachineName,
+            name = string.IsNullOrWhiteSpace(options.WorkerName) ? Environment.MachineName : options.WorkerName,
+            platforms = options.NodePlatforms
+        });
     }
 
     private static async Task<IResult> NodeAsync(HttpContext context, JsonDatabase database, BuildServerOptions options)
@@ -82,7 +98,7 @@ public static class GatewayEndpoint
         }
         catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException or ArgumentException)
         {
-            return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -178,7 +194,7 @@ public static class GatewayEndpoint
     {
         if (string.IsNullOrWhiteSpace(options.GatewayToken))
         {
-            return Results.Json(new { error = "Gateway 接口未启用。请设置 BUILD_SERVER_GATEWAY_TOKEN。" }, statusCode: StatusCodes.Status404NotFound);
+            return ApiDiagnostics.NotFound(context, "Gateway 接口未启用。请设置 BUILD_SERVER_GATEWAY_TOKEN。");
         }
 
         string token = context.Request.Headers["X-Gateway-Token"].ToString();
@@ -190,7 +206,7 @@ public static class GatewayEndpoint
 
         if (string.IsNullOrWhiteSpace(token) || !FixedTimeEquals(token, options.GatewayToken))
         {
-            return Results.Json(new { error = "Gateway Token 无效。" }, statusCode: StatusCodes.Status401Unauthorized);
+            return ApiDiagnostics.Unauthorized(context, "Gateway Token 无效。");
         }
 
         return null;

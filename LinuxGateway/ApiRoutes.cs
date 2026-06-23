@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text.Json;
 using LinuxGateway.Persistence;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
@@ -10,6 +11,8 @@ public static class ApiRoutes
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTimeOffset.Now }));
+        app.MapGet("/api/dashboard", DashboardAsync);
+        app.MapGet("/api/events", EventsAsync);
         app.MapPost("/api/auth/login", LoginAsync);
         app.MapPost("/api/auth/logout", LogoutAsync);
         app.MapGet("/api/me", MeAsync);
@@ -25,11 +28,69 @@ public static class ApiRoutes
         app.MapGet("/api/settings", SettingsAsync);
     }
 
+    private static async Task<IResult> DashboardAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database, LinuxGatewayOptions options)
+    {
+        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        return Results.Ok(await DashboardSnapshotAsync(database, options));
+    }
+
+    private static async Task EventsAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database, LinuxGatewayOptions options)
+    {
+        if (!await IsAuthenticatedAsync(context, auth))
+        {
+            await ApiDiagnostics.Unauthorized(context).ExecuteAsync(context);
+            return;
+        }
+
+        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.Headers.Connection = "keep-alive";
+        context.Response.ContentType = "text/event-stream; charset=utf-8";
+
+        try
+        {
+            await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
+            using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(context.RequestAborted))
+            {
+                await WriteSseEventAsync(context, "heartbeat", new { time = DateTimeOffset.Now });
+                await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
+            }
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static async Task<object> DashboardSnapshotAsync(JsonGatewayDatabase database, LinuxGatewayOptions options)
+    {
+        return await database.ReadAsync(db => new
+        {
+            nodes = db.Nodes.OrderBy(node => node.Name).Select(ToStoredNodeView).ToList(),
+            jobs = db.Jobs.OrderByDescending(job => job.CreatedAt).Take(100).ToList(),
+            settings = new
+            {
+                options.DataRoot,
+                options.PublicBaseUrl
+            }
+        });
+    }
+
+    private static async Task WriteSseEventAsync(HttpContext context, string eventName, object data)
+    {
+        string json = JsonSerializer.Serialize(data, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+        await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
+        await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
+        await context.Response.Body.FlushAsync(context.RequestAborted);
+    }
+
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, GatewayAuthService auth)
     {
         if (!await auth.ValidateLoginAsync(request.UserName, request.Password))
         {
-            return Results.Json(new { error = "账号或密码错误。" }, statusCode: StatusCodes.Status401Unauthorized);
+            return ApiDiagnostics.Unauthorized(context, "账号或密码错误。");
         }
 
         string token = await auth.CreateSessionAsync();
@@ -59,26 +120,22 @@ public static class ApiRoutes
     private static async Task<IResult> ListNodesAsync(
         HttpContext context,
         GatewayAuthService auth,
-        JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        JsonGatewayDatabase database)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
-        List<GatewayNodeRecord> nodes = await database.ReadAsync(db => db.Nodes.OrderBy(node => node.Name).ToList());
-        List<GatewayNodeView> views = [];
-        foreach (GatewayNodeRecord node in nodes)
-        {
-            views.Add(await ToNodeViewAsync(node, client, database, refreshRemote: node.Enabled));
-        }
-
-        return Results.Ok(views);
+        return Results.Ok(await database.ReadAsync(db => db.Nodes
+            .OrderBy(node => node.Name)
+            .Select(ToStoredNodeView)
+            .ToList()));
     }
 
     private static async Task<IResult> SaveNodeAsync(
         GatewayNodeRequest request,
         HttpContext context,
         GatewayAuthService auth,
-        JsonGatewayDatabase database)
+        JsonGatewayDatabase database,
+        NodeRefreshService refresher)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
@@ -118,11 +175,13 @@ public static class ApiRoutes
                 return existing;
             });
 
-            return Results.Ok(ToStoredNodeView(node));
+            await refresher.RefreshNodeAsync(node.Id, context.RequestAborted);
+            GatewayNodeRecord? refreshed = await database.ReadAsync(db => db.Nodes.FirstOrDefault(item => item.Id == node.Id));
+            return Results.Ok(ToStoredNodeView(refreshed ?? node));
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
-            return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -131,13 +190,15 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeRefreshService refresher)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayNodeRecord? node = await database.ReadAsync(db => db.Nodes.FirstOrDefault(node => node.Id == nodeId));
         if (node is null) return Results.NotFound();
-        return Results.Ok(await ToNodeViewAsync(node, client, database, refreshRemote: true));
+        await refresher.RefreshNodeAsync(node.Id, context.RequestAborted);
+        GatewayNodeRecord? refreshed = await database.ReadAsync(db => db.Nodes.FirstOrDefault(item => item.Id == node.Id));
+        return Results.Ok(ToStoredNodeView(refreshed ?? node));
     }
 
     private static async Task<IResult> ListBuildsAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database)
@@ -161,6 +222,18 @@ public static class ApiRoutes
 
         try
         {
+            string clientRequestId = NormalizeClientRequestId(request.ClientRequestId);
+            if (!string.IsNullOrWhiteSpace(clientRequestId))
+            {
+                GatewayJobRecord? existingJob = await database.ReadAsync(db => db.Jobs
+                    .OrderByDescending(job => job.CreatedAt)
+                    .FirstOrDefault(job => string.Equals(job.ClientRequestId, clientRequestId, StringComparison.OrdinalIgnoreCase)));
+                if (existingJob is not null)
+                {
+                    return Results.Ok(existingJob);
+                }
+            }
+
             GatewayNodeRecord node = await GetEnabledNodeAsync(database, request.NodeId);
             RemoteNodeInfo remote = await client.GetNodeAsync(node);
             RemoteConfigSummary config = remote.Configs.FirstOrDefault(config => config.Id == request.ConfigId && config.ProjectId == request.ProjectId)
@@ -180,6 +253,7 @@ public static class ApiRoutes
                 request.SkipUnity,
                 request.SkipXcode,
                 request.AllowNonMac,
+                clientRequestId,
                 request.Notes);
             RemoteBuildJobRecord remoteJob = await client.StartBuildAsync(node, remoteRequest);
 
@@ -199,6 +273,7 @@ public static class ApiRoutes
                     Branch = remoteJob.Branch,
                     BuildNumber = remoteJob.BuildNumber,
                     DryRun = remoteJob.DryRun,
+                    ClientRequestId = clientRequestId,
                     Status = remoteJob.Status,
                     Error = remoteJob.Error,
                     CreatedAt = DateTimeOffset.Now,
@@ -212,7 +287,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
-            return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -362,7 +437,8 @@ public static class ApiRoutes
             TokenConfigured = !string.IsNullOrWhiteSpace(node.GatewayToken),
             LastSeenAt = node.LastSeenAt,
             LastStatus = node.LastStatus,
-            LastError = node.LastError
+            LastError = node.LastError,
+            Remote = node.LastRemote
         };
     }
 
@@ -446,6 +522,27 @@ public static class ApiRoutes
         return string.IsNullOrWhiteSpace(value)
             ? throw new InvalidOperationException($"{field} 不能为空。")
             : value.Trim();
+    }
+
+    private static string NormalizeClientRequestId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        string normalized = value.Trim();
+        if (normalized.Length > 128)
+        {
+            throw new InvalidOperationException("Client Request ID 不能超过 128 个字符。");
+        }
+
+        if (normalized.Any(ch => char.IsControl(ch) || char.IsWhiteSpace(ch)))
+        {
+            throw new InvalidOperationException("Client Request ID 不能包含空白或控制字符。");
+        }
+
+        return normalized;
     }
 
     private static string? FileNameFromContentDisposition(ContentDispositionHeaderValue? contentDisposition)

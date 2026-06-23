@@ -20,6 +20,7 @@ public sealed class GatewayNodeRecord
     public DateTimeOffset? LastSeenAt { get; set; }
     public string LastStatus { get; set; } = "Unknown";
     public string LastError { get; set; } = "";
+    public RemoteNodeInfo? LastRemote { get; set; }
 }
 
 public sealed class GatewayJobRecord
@@ -36,6 +37,7 @@ public sealed class GatewayJobRecord
     public string Branch { get; set; } = "";
     public string BuildNumber { get; set; } = "";
     public bool DryRun { get; set; }
+    public string ClientRequestId { get; set; } = "";
     public string Status { get; set; } = "Queued";
     public string Error { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
@@ -71,6 +73,7 @@ public sealed record GatewayStartBuildRequest(
     bool SkipUnity = false,
     bool SkipXcode = false,
     bool AllowNonMac = false,
+    string? ClientRequestId = null,
     string? Notes = null);
 
 public sealed record RemoteStartBuildRequest(
@@ -83,7 +86,17 @@ public sealed record RemoteStartBuildRequest(
     bool SkipUnity,
     bool SkipXcode,
     bool AllowNonMac,
+    string? ClientRequestId,
     string? Notes);
+
+public sealed class RemoteGatewayHealth
+{
+    public bool Ok { get; set; }
+    public DateTimeOffset Time { get; set; }
+    public string Machine { get; set; } = "";
+    public string Name { get; set; } = "";
+    public List<string> Platforms { get; set; } = [];
+}
 
 public sealed class RemoteNodeInfo
 {

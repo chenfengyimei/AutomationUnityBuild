@@ -9,6 +9,7 @@ const state = {
   editingConfigId: null,
   editingConfigPath: "",
   activeTab: "builds",
+  events: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -299,15 +300,7 @@ const CONFIG_FIELD_HELP = {
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  if (response.status === 401) throw new Error(await readErrorMessage(response) || "未登录或登录已过期");
-  if (!response.ok) throw new Error(await readErrorMessage(response));
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+  return AppRuntime.requestJson(path, options);
 }
 
 async function readErrorMessage(response) {
@@ -323,10 +316,7 @@ async function readErrorMessage(response) {
 }
 
 async function fetchText(path) {
-  const response = await fetch(path, { credentials: "include" });
-  if (response.status === 401) throw new Error(await readErrorMessage(response) || "未登录或登录已过期");
-  if (!response.ok) throw new Error(await readErrorMessage(response));
-  return response.text();
+  return AppRuntime.requestText(path);
 }
 
 function showError(error) {
@@ -364,14 +354,7 @@ function clearLoginError() {
 }
 
 function setButtonBusy(id, busy, busyText = "处理中...") {
-  const button = $(id);
-  if (!button) return;
-  if (!button.dataset.defaultText) {
-    button.dataset.defaultText = button.textContent;
-  }
-
-  button.disabled = busy;
-  button.textContent = busy ? busyText : button.dataset.defaultText;
+  AppRuntime.setButtonBusy(id, busy, busyText);
 }
 
 async function init() {
@@ -389,11 +372,10 @@ async function init() {
     state.user = await api("/api/me");
     showMain();
     await refreshAll();
+    startDashboardEvents();
   } catch {
     showLogin();
   }
-
-  setInterval(refreshJobsSoft, 3000);
 }
 
 function bindEvents() {
@@ -523,6 +505,7 @@ async function login(event) {
     });
     showMain();
     await refreshAll();
+    startDashboardEvents();
   } catch (error) {
     showLoginError(error);
   } finally {
@@ -533,6 +516,7 @@ async function login(event) {
 async function logout() {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;
+  stopDashboardEvents();
   closeJobModal();
   showLogin();
 }
@@ -546,6 +530,37 @@ function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
   $("userInfo").textContent = `${state.user.displayName || state.user.userName} / ${state.user.role}`;
+}
+
+function applyDashboard(dashboard) {
+  state.projects = dashboard.projects || [];
+  state.configs = dashboard.configs || [];
+  state.jobs = dashboard.jobs || [];
+  state.settings = dashboard.settings || null;
+  renderProjects();
+  renderConfigsSelects();
+  renderJobs();
+  renderMetrics();
+  renderWorkers(dashboard.workers || []);
+}
+
+function startDashboardEvents() {
+  stopDashboardEvents();
+  state.events = AppRuntime.connectEvents({
+    onDashboard: (dashboard) => applyDashboard(dashboard),
+    onStatus: (message) => {
+      if (state.user && state.activeTab === "builds") showMessage(message);
+    },
+    onFallbackPoll: () => refreshJobsSoft(),
+    fallbackIntervalMs: 5000,
+  });
+}
+
+function stopDashboardEvents() {
+  if (state.events) {
+    state.events.close();
+    state.events = null;
+  }
 }
 
 function setTab(tab) {
@@ -564,22 +579,7 @@ async function refreshAll(options = {}) {
   clearMessage();
   setButtonBusy("refreshBtn", true, "刷新中...");
   try {
-    const [projects, configs, jobs, workers, settings] = await Promise.all([
-      api("/api/projects"),
-      api("/api/configs"),
-      api("/api/builds"),
-      api("/api/workers"),
-      api("/api/settings"),
-    ]);
-    state.projects = projects;
-    state.configs = configs;
-    state.jobs = jobs;
-    state.settings = settings;
-    renderProjects();
-    renderConfigsSelects();
-    renderJobs();
-    renderMetrics();
-    renderWorkers(workers);
+    applyDashboard(await api("/api/dashboard"));
     if (state.activeTab === "audit") await refreshAudit();
     if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
     if (showSuccess) {
@@ -596,11 +596,9 @@ async function refreshAll(options = {}) {
 }
 
 async function refreshJobsSoft() {
-  if (!state.user || state.activeTab !== "builds") return;
+  if (!state.user) return;
   try {
-    state.jobs = await api("/api/builds");
-    renderJobs();
-    renderMetrics();
+    applyDashboard(await api("/api/dashboard"));
     if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
   } catch {
     // 登录过期时下一次手动刷新会提示。
@@ -908,6 +906,7 @@ async function startBuild(event) {
         skipUnity: $("skipUnity").checked,
         skipXcode: $("skipXcode").checked,
         allowNonMac: $("allowNonMac").checked,
+        clientRequestId: AppRuntime.createRequestId("build"),
         notes: $("buildNotes").value,
       }),
     });
@@ -1102,9 +1101,18 @@ function renderConfigRow(config) {
 }
 
 function renderConfigsSelects() {
+  const selectedBuildProject = $("buildProject").value;
+  const selectedBuildConfig = $("buildConfig").value;
+  const selectedConfigProject = $("configProject").value;
   const projectOptions = state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join("");
   $("buildProject").innerHTML = projectOptions;
   $("configProject").innerHTML = projectOptions;
+  if (state.projects.some((project) => project.id === selectedBuildProject)) {
+    $("buildProject").value = selectedBuildProject;
+  }
+  if (state.projects.some((project) => project.id === selectedConfigProject)) {
+    $("configProject").value = selectedConfigProject;
+  }
   if (!state.editingConfigId) {
     const project = state.projects.find((item) => item.id === $("configProject").value);
     if (project?.defaultBuildPlatform) {
@@ -1113,6 +1121,9 @@ function renderConfigsSelects() {
     fillConfigFileDefaults();
   }
   renderBuildConfigs();
+  if (state.configs.some((config) => config.id === selectedBuildConfig && config.projectId === $("buildProject").value)) {
+    $("buildConfig").value = selectedBuildConfig;
+  }
 }
 
 function renderBuildConfigs() {

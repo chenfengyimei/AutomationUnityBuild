@@ -2,7 +2,6 @@ using LinuxGateway;
 using LinuxGateway.Persistence;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 
@@ -27,10 +26,12 @@ LinuxGatewayOptions options = LinuxGatewayOptions.Load(builder.Configuration, bu
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<JsonGatewayDatabase>();
 builder.Services.AddSingleton<GatewayAuthService>();
+builder.Services.AddSingleton<NodeRefreshService>();
 builder.Services.AddHttpClient<NodeGatewayClient>(client =>
 {
-    client.Timeout = TimeSpan.FromMinutes(5);
+    client.Timeout = Timeout.InfiniteTimeSpan;
 });
+builder.Services.AddHostedService(provider => provider.GetRequiredService<NodeRefreshService>());
 
 var app = builder.Build();
 
@@ -41,25 +42,10 @@ await auth.SeedAsync();
 app.Logger.LogInformation("LinuxGateway data root: {DataRoot}", options.DataRoot);
 app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
 
+app.UseApiDiagnostics();
 app.UseExceptionHandler(errorApp =>
 {
-    errorApp.Run(async context =>
-    {
-        Exception? exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        int statusCode = exception switch
-        {
-            UnauthorizedAccessException => StatusCodes.Status403Forbidden,
-            InvalidOperationException => StatusCodes.Status400BadRequest,
-            ArgumentException => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status500InternalServerError
-        };
-
-        context.Response.StatusCode = statusCode;
-        await context.Response.WriteAsJsonAsync(new
-        {
-            error = statusCode == StatusCodes.Status500InternalServerError ? "服务器内部错误。" : exception?.Message
-        });
-    });
+    errorApp.Run(ApiDiagnostics.WriteExceptionAsync);
 });
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -71,8 +57,7 @@ app.Use(async (context, next) =>
 {
     if (IsUnsafeMethod(context.Request.Method) && !IsAllowedOrigin(context, options))
     {
-        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        await context.Response.WriteAsJsonAsync(new { error = "请求来源不允许。" });
+        await ApiDiagnostics.Forbidden(context, "请求来源不允许。").ExecuteAsync(context);
         return;
     }
 

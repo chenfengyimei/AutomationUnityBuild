@@ -28,6 +28,21 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 ValidateMcpAccess(request, project, config, mcpClient);
             }
 
+            string clientRequestId = NormalizeClientRequestId(request.ClientRequestId);
+            if (!string.IsNullOrWhiteSpace(clientRequestId))
+            {
+                BuildJobRecord? existingJob = db.Jobs
+                    .OrderByDescending(job => job.CreatedAt)
+                    .FirstOrDefault(job =>
+                        string.Equals(job.ClientRequestId, clientRequestId, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(job.RequestedByUserId, user.Id, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(job.Source, source, StringComparison.OrdinalIgnoreCase));
+                if (existingJob is not null)
+                {
+                    return existingJob;
+                }
+            }
+
             string branch = string.IsNullOrWhiteSpace(request.Branch)
                 ? project.DefaultBranch
                 : request.Branch.Trim();
@@ -72,6 +87,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 SkipUnity = request.SkipUnity,
                 SkipXcode = request.SkipXcode,
                 AllowNonMac = request.AllowNonMac,
+                ClientRequestId = clientRequestId,
                 Notes = request.Notes ?? "",
                 MaterializedConfigPath = materializedConfigPath,
                 WorkerLogPath = Path.Combine(jobRoot, "worker.log"),
@@ -82,6 +98,27 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
             AuthService.AddAudit(db, user.Id, user.UserName, "build.enqueue", "job", job.Id, $"创建打包任务 {project.Name}/{config.Name} platform={buildPlatform} branch={branch} build={buildNumber} source={source}");
             return job;
         });
+    }
+
+    private static string NormalizeClientRequestId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        string normalized = value.Trim();
+        if (normalized.Length > 128)
+        {
+            throw new InvalidOperationException("Client Request ID 不能超过 128 个字符。");
+        }
+
+        if (normalized.Any(ch => char.IsControl(ch) || char.IsWhiteSpace(ch)))
+        {
+            throw new InvalidOperationException("Client Request ID 不能包含空白或控制字符。");
+        }
+
+        return normalized;
     }
 
     public async Task<bool> CancelQueuedAsync(string jobId, CurrentUser user)

@@ -4,6 +4,7 @@ const state = {
   nodes: [],
   jobs: [],
   selectedJobId: "",
+  events: null,
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -14,6 +15,7 @@ async function init() {
     await api("/api/me");
     showMain();
     await refreshAll();
+    startDashboardEvents();
   } catch {
     showLogin();
   }
@@ -27,6 +29,8 @@ function bindEvents() {
   $("buildForm").addEventListener("submit", startBuild);
   $("buildNode").addEventListener("change", renderProjectOptions);
   $("buildProject").addEventListener("change", renderConfigOptions);
+  $("nodesList").addEventListener("click", handleNodesClick);
+  $("jobsList").addEventListener("click", handleJobsClick);
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
   });
@@ -46,6 +50,7 @@ async function login(event) {
     });
     showMain();
     await refreshAll();
+    startDashboardEvents();
   } catch (error) {
     $("loginError").textContent = error.message;
   } finally {
@@ -55,6 +60,8 @@ async function login(event) {
 
 async function logout() {
   await api("/api/auth/logout", { method: "POST" });
+  stopDashboardEvents();
+  state.selectedJobId = "";
   showLogin();
 }
 
@@ -68,9 +75,38 @@ function showMain() {
   $("mainView").classList.remove("hidden");
 }
 
-async function refreshAll() {
+function applyDashboard(dashboard) {
+  state.nodes = dashboard.nodes || [];
+  state.jobs = dashboard.jobs || [];
+  renderNodes();
+  renderBuildSelectors();
+  renderJobs();
+}
+
+function startDashboardEvents() {
+  stopDashboardEvents();
+  state.events = AppRuntime.connectEvents({
+    onDashboard: (dashboard) => applyDashboard(dashboard),
+    onStatus: (message) => {
+      if (!$("mainView").classList.contains("hidden")) showNotice(message);
+    },
+    onFallbackPoll: () => refreshAll({ silent: true }),
+    fallbackIntervalMs: 5000,
+  });
+}
+
+function stopDashboardEvents() {
+  if (state.events) {
+    state.events.close();
+    state.events = null;
+  }
+}
+
+async function refreshAll(options = {}) {
   clearError();
-  showNotice("正在刷新设备和任务。LinuxGateway 会请求每台 Mac/Windows 节点，离线节点可能需要等待超时。");
+  if (!options.silent) {
+    showNotice("正在刷新设备和任务。离线节点由后台刷新服务标记，不会阻塞整个页面。");
+  }
   setTopStatus("刷新中");
   setButtonBusy("refreshBtn", true, "刷新中...");
   if (state.nodes.length === 0) {
@@ -80,16 +116,10 @@ async function refreshAll() {
     $("jobsList").innerHTML = loadingItem("正在读取任务列表...");
   }
   try {
-    const [nodes, jobs] = await Promise.all([
-      api("/api/nodes"),
-      api("/api/builds"),
-    ]);
-    state.nodes = nodes;
-    state.jobs = jobs;
-    renderNodes();
-    renderBuildSelectors();
-    renderJobs();
-    showNotice("刷新完成。如果设备仍显示 Offline，请先确认 Linux 服务器能 curl 通该设备的 /api/health。");
+    applyDashboard(await api("/api/dashboard"));
+    if (!options.silent) {
+      showNotice("刷新完成。如果设备仍显示 Offline，请先确认 Linux 服务器能 curl 通该设备的 /api/health。");
+    }
   } catch (error) {
     showError(error);
   } finally {
@@ -117,7 +147,7 @@ async function saveNode(event) {
       }),
     });
     $("nodeToken").value = "";
-    await refreshAll();
+    await refreshAll({ silent: true });
   } catch (error) {
     showError(error);
   } finally {
@@ -136,6 +166,12 @@ function selectedNodePlatforms() {
 async function startBuild(event) {
   event.preventDefault();
   clearError();
+  const selectionError = buildSelectionError();
+  if (selectionError) {
+    showError(new Error(selectionError));
+    updateBuildSubmitState();
+    return;
+  }
   $("buildSubmitHint").classList.remove("hidden");
   showNotice("正在提交打包任务到选中节点。返回任务后可以在任务列表里查看日志。");
   setTopStatus("提交任务中");
@@ -154,17 +190,19 @@ async function startBuild(event) {
         skipUnity: $("skipUnity").checked,
         skipXcode: $("skipXcode").checked,
         allowNonMac: $("allowNonMac").checked,
+        clientRequestId: AppRuntime.createRequestId("gwbuild"),
         notes: $("buildNotes").value || null,
       }),
     });
     state.selectedJobId = job.id;
-    await refreshAll();
+    await refreshAll({ silent: true });
     await selectJob(job.id);
   } catch (error) {
     showError(error);
   } finally {
     $("buildSubmitHint").classList.add("hidden");
     setButtonBusy("buildSubmitBtn", false);
+    updateBuildSubmitState();
     setTopStatus("就绪");
   }
 }
@@ -192,39 +230,67 @@ function renderNodes() {
       <div class="item-row">${platforms(node.platforms)}</div>
       <div class="muted">项目 ${projects} / 配置 ${configs} / 最后在线 ${escapeHtml(lastSeen)}</div>
       ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
-      <button class="secondary" type="button" onclick="fillNodeForm('${escapeHtml(node.id)}')">编辑</button>
+      <button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑</button>
     </article>`;
   }).join("");
 }
 
 function renderBuildSelectors() {
+  const selectedNodeId = $("buildNode").value;
   const enabledNodes = state.nodes.filter((node) => node.enabled && node.remote);
   $("buildNode").innerHTML = enabledNodes.length
     ? enabledNodes.map((node) => `<option value="${escapeHtml(node.id)}">${escapeHtml(node.name)} / ${(node.platforms || []).join(",") || "auto"}</option>`).join("")
     : `<option value="">暂无在线设备</option>`;
+  if (enabledNodes.some((node) => node.id === selectedNodeId)) {
+    $("buildNode").value = selectedNodeId;
+  }
   renderProjectOptions();
 }
 
 function renderProjectOptions() {
+  const selectedProjectId = $("buildProject").value;
   const node = selectedNode();
   const projects = node?.remote?.projects || [];
   $("buildProject").innerHTML = projects.length
     ? projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)} / ${escapeHtml(project.defaultBranch || "main")}</option>`).join("")
     : `<option value="">暂无项目</option>`;
+  if (projects.some((project) => project.id === selectedProjectId)) {
+    $("buildProject").value = selectedProjectId;
+  }
   renderConfigOptions();
 }
 
 function renderConfigOptions() {
+  const selectedConfigId = $("buildConfig").value;
   const node = selectedNode();
   const projectId = $("buildProject").value;
   const configs = (node?.remote?.configs || []).filter((config) => config.projectId === projectId);
   $("buildConfig").innerHTML = configs.length
     ? configs.map((config) => `<option value="${escapeHtml(config.id)}">${escapeHtml(config.name)} / ${escapeHtml(config.buildPlatform || "ios")}</option>`).join("")
     : `<option value="">暂无配置</option>`;
+  if (configs.some((config) => config.id === selectedConfigId)) {
+    $("buildConfig").value = selectedConfigId;
+  }
+  updateBuildSubmitState();
 }
 
 function selectedNode() {
   return state.nodes.find((node) => node.id === $("buildNode").value);
+}
+
+function buildSelectionError() {
+  if (!$("buildNode").value) return "暂无在线可用设备，不能提交打包任务。";
+  if (!$("buildProject").value) return "请选择可用项目。";
+  if (!$("buildConfig").value) return "请选择可用配置。";
+  return "";
+}
+
+function updateBuildSubmitState() {
+  const button = $("buildSubmitBtn");
+  if (!button || button.getAttribute("aria-busy") === "true") return;
+  const error = buildSelectionError();
+  button.disabled = Boolean(error);
+  button.title = error;
 }
 
 function renderJobs() {
@@ -241,8 +307,23 @@ function renderJobs() {
     </header>
     <div class="muted">${new Date(job.createdAt).toLocaleString()} / ${platformBadge(job.buildPlatform)} / build ${escapeHtml(job.buildNumber || "-")}</div>
     ${job.error ? `<div class="error">${escapeHtml(job.error)}</div>` : ""}
-    <button class="secondary" type="button" onclick="selectJob('${escapeHtml(job.id)}')">查看</button>
+    <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看</button>
   </article>`).join("");
+}
+
+function handleNodesClick(event) {
+  const button = event.target.closest("[data-edit-node-id]");
+  if (!button) return;
+  fillNodeForm(button.dataset.editNodeId);
+}
+
+function handleJobsClick(event) {
+  const button = event.target.closest("[data-view-job-id]");
+  if (!button) return;
+  AppRuntime.runAction(button, () => selectJob(button.dataset.viewJobId), {
+    busyText: "读取中...",
+    onError: showError,
+  });
 }
 
 async function selectJob(jobId) {
@@ -280,7 +361,7 @@ async function selectJob(jobId) {
         </article>`).join("")
       : `<article class="item muted">暂无产物。</article>`;
     $("jobLog").textContent = log || "暂无日志。";
-    await refreshAll();
+    await refreshAll({ silent: true });
   } catch (error) {
     showError(error);
   } finally {
@@ -313,29 +394,11 @@ function renderSummary() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  if (!response.ok) {
-    let message = response.statusText;
-    try {
-      const error = await response.json();
-      message = error.error || message;
-    } catch {}
-    throw new Error(message);
-  }
-  if (response.status === 204) return null;
-  return await response.json();
+  return AppRuntime.requestJson(path, options);
 }
 
 async function fetchText(path) {
-  const response = await fetch(path, { credentials: "same-origin" });
-  if (!response.ok) {
-    throw new Error(response.statusText);
-  }
-  return await response.text();
+  return AppRuntime.requestText(path);
 }
 
 function platforms(values) {
@@ -370,6 +433,7 @@ function clearError() {
 function showNotice(message) {
   $("globalNotice").textContent = message;
   $("globalNotice").classList.remove("hidden");
+  $("globalError").classList.add("hidden");
 }
 
 function setTopStatus(text) {
@@ -377,14 +441,7 @@ function setTopStatus(text) {
 }
 
 function setButtonBusy(id, busy, busyText = "处理中...") {
-  const button = $(id);
-  if (!button) return;
-  if (!button.dataset.defaultText) {
-    button.dataset.defaultText = button.textContent;
-  }
-
-  button.disabled = busy;
-  button.textContent = busy ? busyText : button.dataset.defaultText;
+  AppRuntime.setButtonBusy(id, busy, busyText);
 }
 
 function loadingItem(text) {

@@ -43,7 +43,7 @@
           </div>
           <button id="refreshBtn">刷新</button>
         </header>
-        <div id="globalMessage" class="toast hidden"></div>
+        <div id="globalMessage" class="toast hidden" role="status" aria-live="polite"></div>
 
         <section id="buildsTab" class="tab">
           <section class="metrics">
@@ -471,6 +471,7 @@
     </div>
   </section>
 
+  <script src="/runtime.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

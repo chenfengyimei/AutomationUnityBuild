@@ -76,6 +76,7 @@ public sealed class BuildJobRecord
     public bool SkipUnity { get; set; }
     public bool SkipXcode { get; set; }
     public bool AllowNonMac { get; set; }
+    public string ClientRequestId { get; set; } = "";
     public string Notes { get; set; } = "";
     public string MaterializedConfigPath { get; set; } = "";
     public string WorkerLogPath { get; set; } = "";
@@ -243,6 +244,7 @@ public sealed record StartBuildRequest(
     bool SkipUnity = false,
     bool SkipXcode = false,
     bool AllowNonMac = false,
+    string? ClientRequestId = null,
     string? Notes = null);
 
 public static class BuildPlatforms

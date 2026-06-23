@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AutomationUnityBuildIOS.csproj" />
+    <ProjectReference Include="..\BuildServer\BuildServer.csproj" />
+    <ProjectReference Include="..\LinuxGateway\LinuxGateway.csproj" />
   </ItemGroup>
 
   <ItemGroup>

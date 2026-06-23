@@ -2,7 +2,6 @@ using BuildServer;
 using BuildServer.Persistence;
 using BuildServer.Security;
 using BuildServer.Services;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 
@@ -45,26 +44,10 @@ app.Logger.LogInformation("BuildServer data root: {DataRoot}", options.DataRoot)
 app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
 app.Logger.LogInformation("Initial gateway token file: {InitialGatewayTokenPath}", Path.Combine(options.DataRoot, "initial-gateway-token.txt"));
 
+app.UseApiDiagnostics();
 app.UseExceptionHandler(errorApp =>
 {
-    errorApp.Run(async context =>
-    {
-        Exception? exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        int statusCode = exception switch
-        {
-            UnauthorizedAccessException => StatusCodes.Status403Forbidden,
-            FileNotFoundException => StatusCodes.Status400BadRequest,
-            InvalidOperationException => StatusCodes.Status400BadRequest,
-            ArgumentException => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status500InternalServerError
-        };
-
-        context.Response.StatusCode = statusCode;
-        await context.Response.WriteAsJsonAsync(new
-        {
-            error = statusCode == StatusCodes.Status500InternalServerError ? "服务器内部错误。" : exception?.Message
-        });
-    });
+    errorApp.Run(ApiDiagnostics.WriteExceptionAsync);
 });
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
