@@ -6,6 +6,7 @@ const state = {
   jobs: [],
   users: [],
   selectedJobId: "",
+  activeTab: "overview",
   events: null,
 };
 
@@ -44,6 +45,9 @@ function bindEvents() {
   $("jobsList").addEventListener("click", handleJobsClick);
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
+  });
+  document.querySelectorAll(".app-sidebar button[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && isUserModalOpen()) closeUserModal();
@@ -90,6 +94,7 @@ function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
   $("userInfo").textContent = `${state.user?.displayName || state.user?.userName || "-"} / ${state.user?.role || "-"}`;
+  setTab(state.activeTab || "overview");
   renderPermissionChrome();
 }
 
@@ -125,6 +130,39 @@ function stopDashboardEvents() {
     state.events.close();
     state.events = null;
   }
+}
+
+function setTab(tab) {
+  if (tab === "users" && !isAdmin()) {
+    showError(new Error("只有 Admin 可以进入用户权限模块。"));
+    tab = "account";
+  }
+
+  state.activeTab = tab;
+  document.querySelectorAll(".app-sidebar button[data-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tab);
+  });
+  document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
+  $(`${tab}Tab`).classList.remove("hidden");
+  const meta = tabMeta(tab);
+  $("pageTitle").textContent = meta.title;
+  $("pageSubTitle").textContent = meta.subtitle;
+  $("activeRouteTag").textContent = meta.title;
+
+  if (tab === "users" && isAdmin()) {
+    refreshUsers().catch(showError);
+  }
+}
+
+function tabMeta(tab) {
+  return {
+    overview: { title: "首页概览", subtitle: "查看节点在线数、配置同步数量和最近任务规模。" },
+    nodes: { title: "设备节点", subtitle: "维护 Mac / Windows BuildServer 节点，观察同步状态和远端错误。" },
+    builds: { title: "发起打包", subtitle: "选择目标设备、项目和配置，提交可追踪的幂等构建任务。" },
+    jobs: { title: "任务队列", subtitle: "查看远程任务状态、日志和构建产物。" },
+    account: { title: "我的账户", subtitle: "查看当前角色并维护自己的登录密码。" },
+    users: { title: "用户权限", subtitle: "集中管理 Gateway 用户、角色和启用状态。" },
+  }[tab] || { title: "首页概览", subtitle: "查看节点在线数、配置同步数量和最近任务规模。" };
 }
 
 async function refreshAll(options = {}) {
@@ -166,6 +204,10 @@ function canBuild() {
 
 function renderPermissionChrome() {
   $("adminPanel").classList.toggle("hidden", !isAdmin());
+  $("usersNav").classList.toggle("hidden", !isAdmin());
+  if (state.activeTab === "users" && !isAdmin()) {
+    setTab("account");
+  }
   $("roleHint").textContent = roleDescription();
   setFormDisabled("nodeForm", !isAdmin(), "只有 Admin 可以新增或更新节点。");
   setFormDisabled("buildForm", !canBuild(), "当前角色不能提交构建任务。");
@@ -280,6 +322,7 @@ async function startBuild(event) {
     });
     state.selectedJobId = job.id;
     await refreshAll({ silent: true });
+    setTab("jobs");
     await selectJob(job.id);
   } catch (error) {
     showError(error);
@@ -453,6 +496,9 @@ function handleJobsClick(event) {
 async function selectJob(jobId) {
   clearError();
   state.selectedJobId = jobId;
+  if (state.activeTab !== "jobs") {
+    setTab("jobs");
+  }
   $("jobDetail").classList.remove("hidden");
   $("jobLoadingHint").classList.remove("hidden");
   $("jobMeta").innerHTML = loadingItem("正在读取任务状态...");
