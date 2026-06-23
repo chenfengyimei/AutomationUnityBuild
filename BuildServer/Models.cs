@@ -174,6 +174,15 @@ public sealed record CurrentUser(string Id, string UserName, string DisplayName,
 
 public sealed record LoginRequest(string UserName, string Password);
 
+public sealed record UserRequest(
+    string UserName,
+    string DisplayName,
+    string Role,
+    string? Password,
+    bool Enabled = true);
+
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
 public sealed record ProjectRequest(
     string Name,
     string RepositoryUrl,

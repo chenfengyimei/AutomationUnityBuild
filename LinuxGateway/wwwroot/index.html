@@ -25,6 +25,7 @@
           <h1>Unity Build Gateway</h1>
           <p>统一入口只负责调度，真正打包仍在 Mac / Windows 节点执行。</p>
         </div>
+        <div id="userInfo" class="top-status">未登录</div>
         <div id="topStatus" class="top-status">就绪</div>
         <button id="logoutBtn" type="button">退出</button>
       </header>
@@ -61,6 +62,41 @@
               <span>最近任务</span>
               <strong id="jobCount">0</strong>
             </article>
+          </section>
+
+          <section class="grid">
+            <form id="passwordForm" class="panel">
+              <h2>我的账户</h2>
+              <p id="roleHint" class="hint">当前角色决定可执行的操作。</p>
+              <label>当前密码<input id="currentPassword" type="password" autocomplete="current-password"></label>
+              <label>新密码<input id="newPassword" type="password" autocomplete="new-password"></label>
+              <button id="passwordSaveBtn" type="submit">更新密码</button>
+            </form>
+
+            <section id="adminPanel" class="panel hidden">
+              <h2>用户权限</h2>
+              <form id="userForm">
+                <input id="userId" type="hidden">
+                <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
+                <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
+                <label>角色
+                  <select id="userRole">
+                    <option value="Admin">Admin</option>
+                    <option value="Builder">Builder</option>
+                    <option value="Viewer">Viewer</option>
+                  </select>
+                </label>
+                <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
+                <div class="checks">
+                  <label><input id="userEnabled" type="checkbox" checked> 启用</label>
+                </div>
+                <div class="form-actions">
+                  <button id="userSaveBtn" type="submit">保存用户</button>
+                  <button id="userCancelBtn" class="secondary" type="button">重置</button>
+                </div>
+              </form>
+              <div id="usersList" class="list"></div>
+            </section>
           </section>
 
           <div class="grid">

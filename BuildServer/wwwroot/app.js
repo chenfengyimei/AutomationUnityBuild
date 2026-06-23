@@ -3,6 +3,7 @@ const state = {
   projects: [],
   configs: [],
   jobs: [],
+  users: [],
   settings: null,
   manualConfigPath: "",
   selectedJobId: null,
@@ -385,6 +386,10 @@ function bindEvents() {
   $("projectForm").addEventListener("submit", createProject);
   $("configForm").addEventListener("submit", createConfig);
   $("buildForm").addEventListener("submit", startBuild);
+  $("userForm").addEventListener("submit", saveUser);
+  $("passwordForm").addEventListener("submit", changeMyPassword);
+  $("userCancelBtn").addEventListener("click", resetUserForm);
+  $("usersList").addEventListener("click", handleUsersListClick);
   $("projectsList").addEventListener("click", handleProjectsListClick);
   $("jobsList").addEventListener("click", handleJobsListClick);
   $("configCancelEditBtn").addEventListener("click", resetConfigForm);
@@ -530,6 +535,7 @@ function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
   $("userInfo").textContent = `${state.user.displayName || state.user.userName} / ${state.user.role}`;
+  renderPermissionChrome();
 }
 
 function applyDashboard(dashboard) {
@@ -542,6 +548,7 @@ function applyDashboard(dashboard) {
   renderJobs();
   renderMetrics();
   renderWorkers(dashboard.workers || []);
+  updatePermissionControls();
 }
 
 function startDashboardEvents() {
@@ -570,7 +577,10 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  $("pageTitle").textContent = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", help: "填写说明" }[tab];
+  $("pageTitle").textContent = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明" }[tab];
+  if (tab === "users" && isAdmin()) {
+    refreshUsers();
+  }
 }
 
 async function refreshAll(options = {}) {
@@ -581,6 +591,7 @@ async function refreshAll(options = {}) {
   try {
     applyDashboard(await api("/api/dashboard"));
     if (state.activeTab === "audit") await refreshAudit();
+    if (state.activeTab === "users" && isAdmin()) await refreshUsers();
     if (state.selectedJobId && isJobModalOpen()) await refreshJobModal(state.selectedJobId);
     if (showSuccess) {
       showMessage("数据已刷新。");
@@ -603,6 +614,55 @@ async function refreshJobsSoft() {
   } catch {
     // 登录过期时下一次手动刷新会提示。
   }
+}
+
+function isAdmin() {
+  return state.user?.role === "Admin";
+}
+
+function canManageProjects() {
+  return state.user?.role === "Admin" || state.user?.role === "ProjectOwner";
+}
+
+function canStartBuild() {
+  return ["Admin", "ProjectOwner", "Builder", "Agent"].includes(state.user?.role || "");
+}
+
+function renderPermissionChrome() {
+  $("usersNav").classList.remove("hidden");
+  $("adminUsersPanel").classList.toggle("hidden", !isAdmin());
+  $("usersPermissionHint").classList.toggle("hidden", isAdmin());
+  updatePermissionControls();
+}
+
+function updatePermissionControls() {
+  const manageReason = canManageProjects() ? "" : "当前角色只能查看，不能维护项目或配置。";
+  const buildReason = canStartBuild() ? "" : "当前角色不能发起构建任务。";
+
+  setFormDisabled("projectForm", Boolean(manageReason), manageReason);
+  setFormDisabled("configForm", Boolean(manageReason), manageReason);
+  setFormDisabled("buildForm", Boolean(buildReason), buildReason);
+}
+
+function setFormDisabled(formId, disabled, reason) {
+  const form = $(formId);
+  if (!form) return;
+  form.querySelectorAll("input, select, textarea, button").forEach((control) => {
+    if (disabled) {
+      if (!control.disabled) {
+        control.dataset.permissionDisabled = "true";
+        control.disabled = true;
+      }
+      control.title = reason;
+      return;
+    }
+
+    if (control.dataset.permissionDisabled === "true") {
+      control.disabled = false;
+      delete control.dataset.permissionDisabled;
+      control.removeAttribute("title");
+    }
+  });
 }
 
 async function createProject(event) {
@@ -1235,6 +1295,137 @@ function renderWorkers(workers) {
     <div>Current Job: ${escapeHtml(worker.currentJobId || "-")}</div>
     <div class="muted">Last Seen: ${new Date(worker.lastSeenAt).toLocaleString()}</div>
   </article>`).join("");
+}
+
+async function refreshUsers() {
+  if (!isAdmin()) return;
+  state.users = await api("/api/users");
+  renderUsers();
+}
+
+function renderUsers() {
+  if (!isAdmin()) return;
+  if (state.users.length === 0) {
+    $("usersList").innerHTML = `<article class="item muted">暂无用户。</article>`;
+    return;
+  }
+
+  $("usersList").innerHTML = state.users.map((user) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(user.displayName || user.userName)}</strong>
+        <div class="muted">${escapeHtml(user.userName)} / ${escapeHtml(user.role)}</div>
+      </div>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+    </header>
+    <div class="muted">Created: ${new Date(user.createdAt).toLocaleString()}</div>
+    <div class="item-actions">
+      <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑</button>
+      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" ${user.enabled ? "" : "disabled"}>禁用</button>
+    </div>
+  </article>`).join("");
+}
+
+async function saveUser(event) {
+  event.preventDefault();
+  clearMessage();
+  const userId = $("userId").value;
+  const path = userId ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
+  const method = userId ? "PUT" : "POST";
+  setButtonBusy("userSaveBtn", true, userId ? "更新中..." : "保存中...");
+  try {
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        userName: $("userName").value,
+        displayName: $("userDisplayName").value,
+        role: $("userRole").value,
+        password: $("userPassword").value || null,
+        enabled: $("userEnabled").checked,
+      }),
+    });
+    resetUserForm();
+    await refreshUsers();
+    showMessage(userId ? "用户已更新。" : "用户已创建。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("userSaveBtn", false);
+  }
+}
+
+function handleUsersListClick(event) {
+  const editButton = event.target.closest("[data-edit-user-id]");
+  if (editButton) {
+    fillUserForm(editButton.dataset.editUserId);
+    return;
+  }
+
+  const disableButton = event.target.closest("[data-disable-user-id]");
+  if (disableButton) {
+    AppRuntime.runAction(disableButton, () => disableUser(disableButton.dataset.disableUserId), {
+      busyText: "禁用中...",
+      onError: showError,
+    });
+  }
+}
+
+async function disableUser(userId) {
+  await api(`/api/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+  if ($("userId").value === userId) {
+    resetUserForm();
+  }
+  await refreshUsers();
+  showMessage("用户已禁用。");
+}
+
+function fillUserForm(userId) {
+  const user = state.users.find((item) => item.id === userId);
+  if (!user) return;
+  $("userId").value = user.id;
+  $("userName").value = user.userName;
+  $("userDisplayName").value = user.displayName || "";
+  $("userRole").value = user.role;
+  $("userPassword").value = "";
+  $("userEnabled").checked = Boolean(user.enabled);
+  $("userFormTitle").textContent = "编辑用户";
+  $("userSaveBtn").textContent = "更新用户";
+  $("userSaveBtn").dataset.defaultText = "更新用户";
+  showMessage("用户已载入。密码留空表示不修改。");
+}
+
+function resetUserForm() {
+  $("userForm").reset();
+  $("userId").value = "";
+  $("userRole").value = "Builder";
+  $("userEnabled").checked = true;
+  $("userFormTitle").textContent = "新增用户";
+  $("userSaveBtn").textContent = "保存用户";
+  $("userSaveBtn").dataset.defaultText = "保存用户";
+}
+
+async function changeMyPassword(event) {
+  event.preventDefault();
+  clearMessage();
+  setButtonBusy("passwordSaveBtn", true, "更新中...");
+  try {
+    await api("/api/me/password", {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: $("currentPassword").value,
+        newPassword: $("newPassword").value,
+      }),
+    });
+    state.user = null;
+    stopDashboardEvents();
+    showLogin();
+    showLoginError(new Error("密码已更新，请使用新密码重新登录。"));
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("passwordSaveBtn", false);
+    $("passwordForm").reset();
+  }
 }
 
 async function refreshAudit() {

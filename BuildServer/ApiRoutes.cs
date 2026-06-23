@@ -18,6 +18,11 @@ public static class ApiRoutes
         app.MapPost("/api/auth/login", LoginAsync);
         app.MapPost("/api/auth/logout", LogoutAsync);
         app.MapGet("/api/me", MeAsync);
+        app.MapPost("/api/me/password", ChangeMyPasswordAsync);
+        app.MapGet("/api/users", ListUsersAsync);
+        app.MapPost("/api/users", CreateUserAsync);
+        app.MapPut("/api/users/{userId}", UpdateUserAsync);
+        app.MapDelete("/api/users/{userId}", DeleteUserAsync);
 
         app.MapGet("/api/projects", ListProjectsAsync);
         app.MapPost("/api/projects", CreateProjectAsync);
@@ -154,6 +159,178 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         return user is null ? Results.Unauthorized() : Results.Ok(user);
+    }
+
+    private static async Task<IResult> ChangeMyPasswordAsync(ChangePasswordRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+
+        try
+        {
+            string newPassword = Required(request.NewPassword, "新密码");
+            ValidatePassword(newPassword);
+            await database.UpdateAsync(db =>
+            {
+                UserRecord user = db.Users.FirstOrDefault(user => user.Id == current.Id && user.Enabled)
+                    ?? throw new UnauthorizedAccessException("当前用户不存在或已禁用。");
+                if (!PasswordHasher.Verify(request.CurrentPassword ?? "", user.PasswordHash))
+                {
+                    throw new UnauthorizedAccessException("当前密码不正确。");
+                }
+
+                user.PasswordHash = PasswordHasher.Hash(newPassword);
+                db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                AuthService.AddAudit(db, user.Id, user.UserName, "user.change-password", "user", user.Id, "用户修改自己的密码。");
+            });
+
+            context.Response.Cookies.Delete(AuthService.CookieName);
+            return Results.Ok(new { ok = true });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return ApiDiagnostics.Forbidden(context, ex.Message);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> ListUsersAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!AuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        return Results.Ok(await database.ReadAsync(db => db.Users
+            .OrderBy(user => user.UserName)
+            .Select(UserView)
+            .ToList()));
+    }
+
+    private static async Task<IResult> CreateUserAsync(UserRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!AuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            string userName = NormalizeUserName(request.UserName);
+            string displayName = Required(request.DisplayName, "显示名称");
+            string role = NormalizeHumanRole(request.Role);
+            string password = Required(request.Password, "密码");
+            ValidatePassword(password);
+
+            UserRecord user = await database.UpdateAsync(db =>
+            {
+                if (db.Users.Any(user => string.Equals(user.UserName, userName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("用户名已存在。");
+                }
+
+                var user = new UserRecord
+                {
+                    Id = Ids.New("usr"),
+                    UserName = userName,
+                    DisplayName = displayName,
+                    Role = role,
+                    PasswordHash = PasswordHasher.Hash(password),
+                    Enabled = request.Enabled,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.Users.Add(user);
+                AuthService.AddAudit(db, current.Id, current.UserName, "user.create", "user", user.Id, $"创建用户 {user.UserName} role={user.Role}");
+                return user;
+            });
+
+            return Results.Ok(UserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateUserAsync(string userId, UserRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!AuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            string userName = NormalizeUserName(request.UserName);
+            string displayName = Required(request.DisplayName, "显示名称");
+            string role = NormalizeHumanRole(request.Role);
+            string? newPassword = string.IsNullOrWhiteSpace(request.Password) ? null : request.Password.Trim();
+            if (newPassword is not null) ValidatePassword(newPassword);
+
+            UserRecord user = await database.UpdateAsync(db =>
+            {
+                UserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
+                    ?? throw new FileNotFoundException("用户不存在。");
+                if (db.Users.Any(other => other.Id != user.Id && string.Equals(other.UserName, userName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("用户名已存在。");
+                }
+
+                EnsureAdminInvariant(db, user, role, request.Enabled);
+                bool disabling = user.Enabled && !request.Enabled;
+                bool passwordChanged = newPassword is not null;
+
+                user.UserName = userName;
+                user.DisplayName = displayName;
+                user.Role = role;
+                user.Enabled = request.Enabled;
+                if (newPassword is not null)
+                {
+                    user.PasswordHash = PasswordHasher.Hash(newPassword);
+                }
+
+                if (disabling || passwordChanged)
+                {
+                    db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                }
+
+                AuthService.AddAudit(db, current.Id, current.UserName, "user.update", "user", user.Id, $"更新用户 {user.UserName} role={user.Role} enabled={user.Enabled}");
+                return user;
+            });
+
+            return Results.Ok(UserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteUserAsync(string userId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!AuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            UserRecord user = await database.UpdateAsync(db =>
+            {
+                UserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
+                    ?? throw new FileNotFoundException("用户不存在。");
+                EnsureAdminInvariant(db, user, user.Role, enabled: false);
+                user.Enabled = false;
+                db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                AuthService.AddAudit(db, current.Id, current.UserName, "user.disable", "user", user.Id, $"禁用用户 {user.UserName}");
+                return user;
+            });
+
+            return Results.Ok(UserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     private static async Task<IResult> ListProjectsAsync(HttpContext context, AuthService auth, JsonDatabase database)
@@ -661,6 +838,79 @@ public static class ApiRoutes
     private static bool IsClientInputError(Exception ex)
     {
         return ex is InvalidOperationException or FileNotFoundException or ArgumentException;
+    }
+
+    private static object UserView(UserRecord user)
+    {
+        return new
+        {
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+            user.Role,
+            user.Enabled,
+            user.CreatedAt
+        };
+    }
+
+    private static string NormalizeUserName(string? value)
+    {
+        string userName = Required(value, "用户名");
+        if (userName.Length is < 3 or > 64)
+        {
+            throw new InvalidOperationException("用户名长度必须在 3 到 64 个字符之间。");
+        }
+
+        if (!userName.All(ch => char.IsLetterOrDigit(ch) || ch is '.' or '_' or '-'))
+        {
+            throw new InvalidOperationException("用户名只能包含字母、数字、点、下划线或短横线。");
+        }
+
+        return userName;
+    }
+
+    private static string NormalizeHumanRole(string? value)
+    {
+        string role = Required(value, "角色");
+        string[] allowed = [Roles.Admin, Roles.ProjectOwner, Roles.Builder, Roles.Viewer];
+        string? normalized = allowed.FirstOrDefault(item => string.Equals(item, role, StringComparison.OrdinalIgnoreCase));
+        if (normalized is null)
+        {
+            throw new InvalidOperationException($"角色只能是 {string.Join(", ", allowed)}。");
+        }
+
+        return normalized;
+    }
+
+    private static void ValidatePassword(string password)
+    {
+        if (password.Length < 8)
+        {
+            throw new InvalidOperationException("密码至少需要 8 个字符。");
+        }
+
+        if (password.Length > 256)
+        {
+            throw new InvalidOperationException("密码不能超过 256 个字符。");
+        }
+    }
+
+    private static void EnsureAdminInvariant(BuildServerDatabase db, UserRecord targetUser, string newRole, bool enabled)
+    {
+        bool targetWillBeEnabledAdmin = enabled && string.Equals(newRole, Roles.Admin, StringComparison.OrdinalIgnoreCase);
+        if (targetWillBeEnabledAdmin)
+        {
+            return;
+        }
+
+        bool hasOtherEnabledAdmin = db.Users.Any(user =>
+            user.Id != targetUser.Id &&
+            user.Enabled &&
+            string.Equals(user.Role, Roles.Admin, StringComparison.OrdinalIgnoreCase));
+        if (!hasOtherEnabledAdmin && targetUser.Enabled && string.Equals(targetUser.Role, Roles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("不能禁用或降级最后一个启用的管理员。");
+        }
     }
 
     private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName, string buildPlatform)
