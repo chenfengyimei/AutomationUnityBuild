@@ -107,9 +107,19 @@ internal sealed record BuildPaths(
             return Path.GetFullPath(PathTools.ExpandHome(config.UnityExecutablePath));
         }
 
-        if (!string.IsNullOrWhiteSpace(config.UnityVersion))
+        if (OperatingSystem.IsWindows())
         {
-            return $"/Applications/Unity/Hub/Editor/{config.UnityVersion}/Unity.app/Contents/MacOS/Unity";
+            return ResolveWindowsUnityExecutable(config.UnityVersion);
+        }
+
+        return ResolveMacUnityExecutable(config.UnityVersion);
+    }
+
+    private static string ResolveMacUnityExecutable(string? unityVersion)
+    {
+        if (!string.IsNullOrWhiteSpace(unityVersion))
+        {
+            return $"/Applications/Unity/Hub/Editor/{unityVersion}/Unity.app/Contents/MacOS/Unity";
         }
 
         string editorRoot = "/Applications/Unity/Hub/Editor";
@@ -123,6 +133,47 @@ internal sealed record BuildPaths(
             if (latest is not null)
             {
                 return Path.Combine(latest.FullName, "Unity.app", "Contents", "MacOS", "Unity");
+            }
+        }
+
+        return "";
+    }
+
+    private static string ResolveWindowsUnityExecutable(string? unityVersion)
+    {
+        string[] searchRoots =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Unity", "Hub", "Editor"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Unity", "Hub", "Editor"),
+        ];
+
+        if (!string.IsNullOrWhiteSpace(unityVersion))
+        {
+            foreach (string root in searchRoots)
+            {
+                string exePath = Path.Combine(root, unityVersion, "Editor", "Unity.exe");
+                if (File.Exists(exePath))
+                {
+                    return exePath;
+                }
+            }
+
+            return Path.Combine(searchRoots[0], unityVersion, "Editor", "Unity.exe");
+        }
+
+        foreach (string root in searchRoots)
+        {
+            if (Directory.Exists(root))
+            {
+                DirectoryInfo? latest = new DirectoryInfo(root)
+                    .EnumerateDirectories()
+                    .OrderByDescending(directory => directory.Name, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+
+                if (latest is not null)
+                {
+                    return Path.Combine(latest.FullName, "Editor", "Unity.exe");
+                }
             }
         }
 
