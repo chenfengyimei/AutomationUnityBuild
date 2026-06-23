@@ -64,13 +64,14 @@ button:active {
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.64;
   box-shadow: none;
 }
 
 button.is-busy {
   position: relative;
+  cursor: progress;
   padding-left: 34px;
 }
 

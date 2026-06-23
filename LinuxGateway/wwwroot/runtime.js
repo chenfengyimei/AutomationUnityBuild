@@ -87,13 +87,18 @@
     }
     if (busy) {
       activeActions.add(button);
+      if (!button.dataset.wasDisabled) {
+        button.dataset.wasDisabled = button.disabled ? "true" : "false";
+      }
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
       button.classList.add("is-busy");
       button.textContent = busyText || button.dataset.defaultText;
     } else {
+      const wasDisabled = button.dataset.wasDisabled === "true";
       activeActions.delete(button);
-      button.disabled = false;
+      button.disabled = wasDisabled;
+      delete button.dataset.wasDisabled;
       button.removeAttribute("aria-busy");
       button.classList.remove("is-busy");
       button.textContent = button.dataset.defaultText;
