@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using BuildServer.Persistence;
 using BuildServer.Security;
 
@@ -190,7 +191,7 @@ public sealed class BuildWorkerService(
         string logPath,
         CancellationToken cancellationToken)
     {
-        using var logWriter = new StreamWriter(logPath, append: false) { AutoFlush = true };
+        using var logWriter = new StreamWriter(logPath, append: false, Encoding.UTF8) { AutoFlush = true };
         object writeLock = new();
         await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] START {fileName} {string.Join(" ", args.Select(Quote))}");
         await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] CWD {workingDirectory}");
@@ -201,6 +202,8 @@ public sealed class BuildWorkerService(
         process.StartInfo.RedirectStandardOutput = true;
         process.StartInfo.RedirectStandardError = true;
         process.StartInfo.UseShellExecute = false;
+        process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
+        process.StartInfo.StandardErrorEncoding = Encoding.UTF8;
 
         foreach (string arg in args)
         {
