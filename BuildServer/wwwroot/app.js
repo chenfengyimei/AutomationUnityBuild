@@ -837,7 +837,9 @@ function collectConfigFilePayload() {
     googlePlayReleaseName: $("configGooglePlayReleaseName").value || null,
     googlePlayUploadArtifact: $("configGooglePlayUploadArtifact").value,
     googlePlayChangesNotSentForReview: $("configGooglePlayChangesNotSentForReview").checked,
-    googlePlayUserFraction: parseOptionalNumber($("configGooglePlayUserFraction").value),
+    googlePlayUserFraction: $("configGooglePlayUploadEnabled").checked
+      ? parseOptionalNumber($("configGooglePlayUserFraction").value)
+      : null,
     overwriteExisting: $("configOverwriteFile").checked,
   };
 }
