@@ -275,7 +275,7 @@ public static class ApiRoutes
                     throw new InvalidOperationException("User name already exists.");
                 }
 
-                EnsureGatewayAdminInvariant(db, user, role, request.Enabled);
+                EnsureGatewayAdminInvariant(db, user, userName, role, request.Enabled);
                 bool disabling = user.Enabled && !request.Enabled;
                 bool passwordChanged = newPassword is not null;
 
@@ -321,7 +321,7 @@ public static class ApiRoutes
             {
                 GatewayUserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
                     ?? throw new FileNotFoundException("User does not exist.");
-                EnsureGatewayAdminInvariant(db, user, user.Role, enabled: false);
+                EnsureGatewayAdminInvariant(db, user, user.UserName, user.Role, enabled: false);
                 user.Enabled = false;
                 db.Sessions.RemoveAll(session => session.UserId == user.Id);
                 GatewayAuthService.AddAudit(db, current.Id, current.UserName, "user.disable", "user", user.Id, $"Disabled user {user.UserName}.");
@@ -671,8 +671,18 @@ public static class ApiRoutes
         }
     }
 
-    private static void EnsureGatewayAdminInvariant(GatewayDatabase db, GatewayUserRecord target, string nextRole, bool enabled)
+    private static void EnsureGatewayAdminInvariant(GatewayDatabase db, GatewayUserRecord target, string nextUserName, string nextRole, bool enabled)
     {
+        if (IsRootAdmin(target))
+        {
+            if (!string.Equals(nextUserName, "admin", StringComparison.OrdinalIgnoreCase) ||
+                !enabled ||
+                !string.Equals(nextRole, GatewayRoles.Admin, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Root admin account cannot be renamed, disabled, or demoted.");
+            }
+        }
+
         bool targetWillRemainAdmin = enabled && string.Equals(nextRole, GatewayRoles.Admin, StringComparison.Ordinal);
         if (targetWillRemainAdmin)
         {
@@ -687,6 +697,11 @@ public static class ApiRoutes
         {
             throw new InvalidOperationException("At least one enabled administrator is required.");
         }
+    }
+
+    private static bool IsRootAdmin(GatewayUserRecord user)
+    {
+        return string.Equals(user.UserName, "admin", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsClientInputError(Exception ex)

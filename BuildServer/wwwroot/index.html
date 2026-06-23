@@ -42,7 +42,10 @@
             <h1 id="pageTitle">打包任务</h1>
             <p id="userInfo"></p>
           </div>
-          <button id="refreshBtn">刷新</button>
+          <div class="header-actions">
+            <span id="eventStatus" class="live-status">实时连接初始化中</span>
+            <button id="refreshBtn">刷新</button>
+          </div>
         </header>
         <div id="globalMessage" class="toast hidden" role="status" aria-live="polite"></div>
 
@@ -84,8 +87,14 @@
               <button id="buildSubmitBtn" type="submit">提交任务</button>
             </form>
 
-            <section class="panel">
-              <h3>任务列表</h3>
+            <section class="panel jobs-panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">Build Operations</p>
+                  <h3>任务列表</h3>
+                  <p class="muted">集中查看队列、运行中和历史打包任务，并可进入详情读取日志和产物。</p>
+                </div>
+              </header>
               <div id="jobsList" class="list"></div>
             </section>
           </div>
@@ -292,55 +301,60 @@
               </div>
             </form>
           </div>
-          <section class="panel">
-            <h3>已有项目和配置</h3>
+          <section class="panel projects-panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">Project Registry</p>
+                <h3>已有项目和配置</h3>
+                <p class="muted">按项目集中查看仓库、路径、平台、配置文件和自动化入口权限。</p>
+              </div>
+            </header>
             <div id="projectsList" class="list"></div>
           </section>
         </section>
 
         <section id="workersTab" class="tab hidden">
-          <section class="panel">
-            <h3>Worker 节点</h3>
+          <section class="panel workers-panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">Worker Fleet</p>
+                <h3>Worker 节点</h3>
+                <p class="muted">查看构建执行器的心跳、主机、版本能力和当前任务。</p>
+              </div>
+            </header>
             <div id="workersList" class="list"></div>
           </section>
         </section>
 
         <section id="auditTab" class="tab hidden">
-          <section class="panel">
-            <h3>审计日志</h3>
+          <section class="panel audit-panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">Governance</p>
+                <h3>审计日志</h3>
+                <p class="muted">追踪用户、配置、Worker 与构建相关的关键操作。</p>
+              </div>
+            </header>
             <div id="auditList" class="list"></div>
           </section>
         </section>
 
         <section id="usersTab" class="tab hidden">
           <p id="usersPermissionHint" class="toast hidden">当前账号不是 Admin，只能修改自己的密码。</p>
-          <div id="adminUsersPanel" class="grid two">
-            <form id="userForm" class="panel">
-              <h3 id="userFormTitle">新增用户</h3>
-              <input id="userId" type="hidden">
-              <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
-              <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
-              <label>角色
-                <select id="userRole">
-                  <option value="Admin">Admin</option>
-                  <option value="ProjectOwner">ProjectOwner</option>
-                  <option value="Builder">Builder</option>
-                  <option value="Viewer">Viewer</option>
-                </select>
-              </label>
-              <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
-              <label><input id="userEnabled" type="checkbox" checked> 启用</label>
-              <div class="form-actions">
-                <button id="userSaveBtn" type="submit">保存用户</button>
-                <button id="userCancelBtn" class="secondary" type="button">重置</button>
+          <section id="adminUsersPanel" class="panel admin-panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">Identity & Access</p>
+                <h3>用户权限</h3>
+                <p class="muted">集中维护控制台账号、角色与启用状态。主账号与最后一个管理员受到保护。</p>
               </div>
-            </form>
-
-            <section class="panel">
-              <h3>用户列表</h3>
+              <button id="userAddBtn" type="button">新增用户</button>
+            </header>
+            <div id="userStats" class="identity-stats"></div>
+            <div class="table-shell">
               <div id="usersList" class="list"></div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           <form id="passwordForm" class="panel">
             <h3>修改我的密码</h3>
@@ -509,6 +523,68 @@
       <div class="modal-body">
         <section id="fieldHelpBody" class="field-help-body"></section>
       </div>
+    </div>
+  </section>
+
+  <section id="configDeleteModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="configDeleteTitle">
+      <header class="modal-header">
+        <div>
+          <h2 id="configDeleteTitle">删除配置</h2>
+          <p id="configDeleteSubTitle" class="muted"></p>
+        </div>
+        <button id="configDeleteClose" class="secondary" type="button">关闭</button>
+      </header>
+      <div class="modal-body">
+        <section id="configDeleteBody" class="confirm-body"></section>
+        <label class="checkbox-card danger-zone">
+          <input id="configDeleteFile" type="checkbox">
+          <span>
+            <strong>同时删除 JSON 配置文件</strong>
+            <small>仅在确认该文件不再被其他流程使用时开启。</small>
+          </span>
+        </label>
+        <p id="configDeleteFilePath" class="muted path-cell"></p>
+      </div>
+      <footer class="modal-footer">
+        <button id="configDeleteCancel" class="secondary" type="button">取消</button>
+        <button id="configDeleteConfirmBtn" class="danger" type="button">确认删除</button>
+      </footer>
+    </div>
+  </section>
+
+  <section id="userModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal user-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+      <form id="userForm">
+        <header class="modal-header">
+          <div>
+            <h2 id="userModalTitle">新增用户</h2>
+            <p id="userModalSubTitle" class="muted">为团队成员分配最小必要权限。</p>
+          </div>
+          <button id="userModalClose" class="secondary" type="button">关闭</button>
+        </header>
+        <div class="modal-body">
+          <input id="userId" type="hidden">
+          <div class="form-grid">
+            <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
+            <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
+            <label>角色
+              <select id="userRole">
+                <option value="Admin">Admin</option>
+                <option value="ProjectOwner">ProjectOwner</option>
+                <option value="Builder">Builder</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </label>
+            <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
+            <label><input id="userEnabled" type="checkbox" checked> 启用</label>
+          </div>
+        </div>
+        <footer class="modal-footer">
+          <button id="userSaveBtn" type="submit">保存用户</button>
+          <button id="userCancelBtn" class="secondary" type="button">取消</button>
+        </footer>
+      </form>
     </div>
   </section>
 

@@ -284,7 +284,7 @@ public static class ApiRoutes
                     throw new InvalidOperationException("用户名已存在。");
                 }
 
-                EnsureAdminInvariant(db, user, role, request.Enabled);
+                EnsureAdminInvariant(db, user, userName, role, request.Enabled);
                 bool disabling = user.Enabled && !request.Enabled;
                 bool passwordChanged = newPassword is not null;
 
@@ -326,7 +326,7 @@ public static class ApiRoutes
             {
                 UserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
                     ?? throw new FileNotFoundException("用户不存在。");
-                EnsureAdminInvariant(db, user, user.Role, enabled: false);
+                EnsureAdminInvariant(db, user, user.UserName, user.Role, enabled: false);
                 user.Enabled = false;
                 db.Sessions.RemoveAll(session => session.UserId == user.Id);
                 AuthService.AddAudit(db, current.Id, current.UserName, "user.disable", "user", user.Id, $"禁用用户 {user.UserName}");
@@ -897,8 +897,18 @@ public static class ApiRoutes
         }
     }
 
-    private static void EnsureAdminInvariant(BuildServerDatabase db, UserRecord targetUser, string newRole, bool enabled)
+    private static void EnsureAdminInvariant(BuildServerDatabase db, UserRecord targetUser, string newUserName, string newRole, bool enabled)
     {
+        if (IsRootAdmin(targetUser))
+        {
+            if (!string.Equals(newUserName, "admin", StringComparison.OrdinalIgnoreCase) ||
+                !enabled ||
+                !string.Equals(newRole, Roles.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Root admin account cannot be renamed, disabled, or demoted.");
+            }
+        }
+
         bool targetWillBeEnabledAdmin = enabled && string.Equals(newRole, Roles.Admin, StringComparison.OrdinalIgnoreCase);
         if (targetWillBeEnabledAdmin)
         {
@@ -913,6 +923,11 @@ public static class ApiRoutes
         {
             throw new InvalidOperationException("不能禁用或降级最后一个启用的管理员。");
         }
+    }
+
+    private static bool IsRootAdmin(UserRecord user)
+    {
+        return string.Equals(user.UserName, "admin", StringComparison.OrdinalIgnoreCase);
     }
 
     private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName, string buildPlatform)

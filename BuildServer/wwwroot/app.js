@@ -7,6 +7,7 @@ const state = {
   settings: null,
   manualConfigPath: "",
   selectedJobId: null,
+  pendingConfigDeleteId: null,
   editingConfigId: null,
   editingConfigPath: "",
   activeTab: "builds",
@@ -328,7 +329,13 @@ function showError(error) {
 function showMessage(message, type = "info") {
   const element = $("globalMessage");
   if (!element) {
-    alert(message);
+    const loginError = $("loginError");
+    if (loginError && type === "error") {
+      loginError.textContent = message;
+      loginError.classList.remove("hidden");
+    } else {
+      console[type === "error" ? "error" : "info"](message);
+    }
     return;
   }
 
@@ -388,13 +395,29 @@ function bindEvents() {
   $("buildForm").addEventListener("submit", startBuild);
   $("userForm").addEventListener("submit", saveUser);
   $("passwordForm").addEventListener("submit", changeMyPassword);
-  $("userCancelBtn").addEventListener("click", resetUserForm);
+  $("userAddBtn").addEventListener("click", () => openUserModal());
+  $("userCancelBtn").addEventListener("click", closeUserModal);
+  $("userModalClose").addEventListener("click", closeUserModal);
+  $("userModal").addEventListener("click", (event) => {
+    if (event.target === $("userModal")) closeUserModal();
+  });
   $("usersList").addEventListener("click", handleUsersListClick);
   $("projectsList").addEventListener("click", handleProjectsListClick);
   $("jobsList").addEventListener("click", handleJobsListClick);
   $("configCancelEditBtn").addEventListener("click", resetConfigForm);
   $("configDeleteBtn").addEventListener("click", () => {
     if (state.editingConfigId) deleteConfig(state.editingConfigId);
+  });
+  $("configDeleteClose").addEventListener("click", closeConfigDeleteModal);
+  $("configDeleteCancel").addEventListener("click", closeConfigDeleteModal);
+  $("configDeleteConfirmBtn").addEventListener("click", () => {
+    AppRuntime.runAction("configDeleteConfirmBtn", confirmDeleteConfig, {
+      busyText: "删除中...",
+      onError: showError,
+    });
+  });
+  $("configDeleteModal").addEventListener("click", (event) => {
+    if (event.target === $("configDeleteModal")) closeConfigDeleteModal();
   });
   $("jobModalClose").addEventListener("click", closeJobModal);
   $("jobModal").addEventListener("click", (event) => {
@@ -405,7 +428,9 @@ function bindEvents() {
     if (event.target === $("fieldHelpModal")) closeFieldHelp();
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && isUserModalOpen()) closeUserModal();
     if (event.key === "Escape" && isFieldHelpOpen()) closeFieldHelp();
+    if (event.key === "Escape" && isConfigDeleteModalOpen()) closeConfigDeleteModal();
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
   });
   $("configCreateFile").addEventListener("change", toggleConfigFileFields);
@@ -522,6 +547,7 @@ async function logout() {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;
   stopDashboardEvents();
+  closeConfigDeleteModal();
   closeJobModal();
   showLogin();
 }
@@ -535,6 +561,7 @@ function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
   $("userInfo").textContent = `${state.user.displayName || state.user.userName} / ${state.user.role}`;
+  setEventStatus("实时连接准备中", "warn");
   renderPermissionChrome();
 }
 
@@ -554,8 +581,12 @@ function applyDashboard(dashboard) {
 function startDashboardEvents() {
   stopDashboardEvents();
   state.events = AppRuntime.connectEvents({
-    onDashboard: (dashboard) => applyDashboard(dashboard),
+    onDashboard: (dashboard) => {
+      applyDashboard(dashboard);
+      setEventStatus("实时连接已同步", "ok");
+    },
     onStatus: (message) => {
+      setEventStatus(message, message.includes("轮询") || message.includes("重连") || message.includes("不可用") ? "warn" : "ok");
       if (state.user && state.activeTab === "builds") showMessage(message);
     },
     onFallbackPoll: () => refreshJobsSoft(),
@@ -568,6 +599,15 @@ function stopDashboardEvents() {
     state.events.close();
     state.events = null;
   }
+  setEventStatus("实时连接已关闭", "warn");
+}
+
+function setEventStatus(message, tone = "") {
+  const element = $("eventStatus");
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("ok", tone === "ok");
+  element.classList.toggle("warn", tone === "warn");
 }
 
 function setTab(tab) {
@@ -581,12 +621,17 @@ function setTab(tab) {
   if (tab === "users" && isAdmin()) {
     refreshUsers();
   }
+  if (tab === "audit") {
+    $("auditList").innerHTML = loadingItem("正在读取审计日志...");
+    refreshAudit().catch(showError);
+  }
 }
 
 async function refreshAll(options = {}) {
   const showSuccess = options.showSuccess ?? true;
   const throwOnError = options.throwOnError ?? false;
   clearMessage();
+  setEventStatus("手动刷新中", "warn");
   setButtonBusy("refreshBtn", true, "刷新中...");
   try {
     applyDashboard(await api("/api/dashboard"));
@@ -596,8 +641,10 @@ async function refreshAll(options = {}) {
     if (showSuccess) {
       showMessage("数据已刷新。");
     }
+    setEventStatus("数据已刷新", "ok");
   } catch (error) {
     showError(error);
+    setEventStatus("刷新失败，等待重连", "warn");
     if (throwOnError) {
       throw error;
     }
@@ -981,7 +1028,7 @@ async function startBuild(event) {
 }
 
 async function cancelJob(jobId) {
-  await api(`/api/builds/${jobId}/cancel`, { method: "POST" });
+  await api(`/api/builds/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
   await refreshAll();
   if (state.selectedJobId === jobId && isJobModalOpen()) {
     await refreshJobModal(jobId);
@@ -1004,12 +1051,20 @@ async function handleJobsListClick(event) {
 async function handleProjectsListClick(event) {
   const editButton = event.target.closest("[data-edit-config-id]");
   if (editButton) {
+    if (!canManageProjects()) {
+      showError(new Error("当前角色不能编辑配置。"));
+      return;
+    }
     await editConfig(editButton.dataset.editConfigId);
     return;
   }
 
   const deleteButton = event.target.closest("[data-delete-config-id]");
   if (deleteButton) {
+    if (!canManageProjects()) {
+      showError(new Error("当前角色不能删除配置。"));
+      return;
+    }
     await deleteConfig(deleteButton.dataset.deleteConfigId);
   }
 }
@@ -1102,62 +1157,126 @@ function fillConfigFormFromJson(content, config) {
   togglePlatformFields();
 }
 
-async function deleteConfig(configId) {
+function deleteConfig(configId) {
+  openConfigDeleteModal(configId);
+}
+
+function openConfigDeleteModal(configId) {
   const config = state.configs.find((item) => item.id === configId);
   if (!config) {
     showError(new Error("配置不存在，可能已经被删除。"));
     return;
   }
 
-  if (!confirm(`确定删除配置「${config.name}」吗？\n\n删除后网页列表和打包选择里不会再出现它。`)) {
+  state.pendingConfigDeleteId = config.id;
+  $("configDeleteTitle").textContent = "删除配置";
+  $("configDeleteSubTitle").textContent = config.name;
+  $("configDeleteBody").innerHTML = [
+    `<p>确认删除配置「<strong>${escapeHtml(config.name)}</strong>」吗？</p>`,
+    "<p>删除后网页列表和打包选择里不会再出现它。已有任务记录不会被删除。</p>",
+  ].join("");
+  $("configDeleteFile").checked = false;
+  $("configDeleteFilePath").textContent = config.configPath || "未登记 JSON 配置文件路径";
+  $("configDeleteModal").classList.remove("hidden");
+  $("configDeleteModal").setAttribute("aria-hidden", "false");
+}
+
+function closeConfigDeleteModal() {
+  const modal = $("configDeleteModal");
+  if (!modal) {
     return;
   }
 
-  const deleteFile = confirm(`是否同时删除这个 JSON 配置文件？\n\n${config.configPath}\n\n确定 = 删除网页记录和 JSON 文件\n取消 = 只删除网页记录，JSON 文件保留`);
-  try {
-    await api(`/api/configs/${encodeURIComponent(config.id)}?deleteFile=${deleteFile ? "true" : "false"}`, {
-      method: "DELETE",
-    });
-    if (state.editingConfigId === config.id) {
-      resetConfigForm();
-    }
-    await refreshAll({ showSuccess: false, throwOnError: true });
-    showMessage(deleteFile ? "配置和 JSON 文件已删除。" : "配置已从网页列表删除，JSON 文件已保留。");
-  } catch (error) {
-    showError(error);
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  state.pendingConfigDeleteId = null;
+}
+
+function isConfigDeleteModalOpen() {
+  return !$("configDeleteModal").classList.contains("hidden");
+}
+
+async function confirmDeleteConfig() {
+  const config = state.configs.find((item) => item.id === state.pendingConfigDeleteId);
+  if (!config) {
+    closeConfigDeleteModal();
+    throw new Error("配置不存在，可能已经被删除。");
   }
+
+  const deleteFile = $("configDeleteFile").checked;
+  await api(`/api/configs/${encodeURIComponent(config.id)}?deleteFile=${deleteFile ? "true" : "false"}`, {
+    method: "DELETE",
+  });
+  if (state.editingConfigId === config.id) {
+    resetConfigForm();
+  }
+  closeConfigDeleteModal();
+  await refreshAll({ showSuccess: false, throwOnError: true });
+  showMessage(deleteFile ? "配置和 JSON 文件已删除。" : "配置已从网页列表删除，JSON 文件已保留。");
 }
 
 function renderProjects() {
   if (state.projects.length === 0) {
-    $("projectsList").innerHTML = `<article class="item muted">暂无项目。请先在左侧表单新增项目。</article>`;
+    $("projectsList").innerHTML = `<div class="empty-state">暂无项目。请先在左侧表单新增项目。</div>`;
     return;
   }
 
-  $("projectsList").innerHTML = state.projects.map((project) => {
-    const configs = state.configs.filter((config) => config.projectId === project.id);
-    return `<article class="item">
-      <header><strong>${escapeHtml(project.name)}</strong><span class="status">${project.enabled ? "Enabled" : "Disabled"}</span></header>
-      <div class="muted">${escapeHtml(project.repositoryUrl)} [${escapeHtml(project.defaultBranch)}] / ${platformBadge(project.defaultBuildPlatform || "ios")}</div>
-      <div>Workspace: ${escapeHtml(project.workspaceRoot)}</div>
-      <div>Artifacts: ${escapeHtml(project.artifactsRoot)}</div>
-      <div class="config-list">${configs.length ? configs.map(renderConfigRow).join("") : `<div class="muted">暂无配置</div>`}</div>
-    </article>`;
-  }).join("");
+  $("projectsList").innerHTML = `<div class="project-stack">${state.projects.map(renderProjectPanel).join("")}</div>`;
+}
+
+function renderProjectPanel(project) {
+  const configs = state.configs.filter((config) => config.projectId === project.id);
+  return `<article class="project-panel">
+    <header class="project-header">
+      <div>
+        <strong>${escapeHtml(project.name)}</strong>
+        <div class="muted small">${escapeHtml(project.repositoryUrl || "-")}</div>
+      </div>
+      <span class="status ${project.enabled ? "Succeeded" : "Canceled"}">${project.enabled ? "Enabled" : "Disabled"}</span>
+    </header>
+    <dl class="project-meta">
+      <div><dt>默认分支</dt><dd>${escapeHtml(project.defaultBranch || "-")}</dd></div>
+      <div><dt>默认平台</dt><dd>${platformBadge(project.defaultBuildPlatform || "ios")}</dd></div>
+      <div><dt>配置数</dt><dd>${configs.length}</dd></div>
+      <div><dt>Workspace</dt><dd>${escapeHtml(project.workspaceRoot || "-")}</dd></div>
+      <div><dt>Artifacts</dt><dd>${escapeHtml(project.artifactsRoot || "-")}</dd></div>
+    </dl>
+    ${configs.length ? `<div class="table-shell project-config-shell">
+      <table class="data-table project-config-table">
+        <thead>
+          <tr>
+            <th>配置</th>
+            <th>平台</th>
+            <th>状态</th>
+            <th>MCP</th>
+            <th>配置路径</th>
+            <th class="table-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${configs.map(renderConfigRow).join("")}
+        </tbody>
+      </table>
+    </div>` : `<div class="empty-state compact">暂无配置。使用上方配置表单新增。</div>`}
+  </article>`;
 }
 
 function renderConfigRow(config) {
-  return `<div class="config-row">
-    <div>
-      <strong>${escapeHtml(config.name)}</strong> ${platformBadge(config.buildPlatform || "ios")}
-      <div class="muted">${escapeHtml(config.configPath)}</div>
-      <div class="muted">MCP: ${config.allowMcpBuild ? "允许" : "不允许"} / ${config.enabled ? "启用" : "禁用"}</div>
-    </div>
-    <div class="item-actions">
-      <button class="secondary" type="button" data-edit-config-id="${escapeHtml(config.id)}">编辑</button>
-      <button class="danger" type="button" data-delete-config-id="${escapeHtml(config.id)}">删除</button>
-    </div>
-  </div>`;
+  const canManage = canManageProjects();
+  const disabled = canManage ? "" : "disabled";
+  const title = canManage ? "" : "当前角色不能维护项目或配置。";
+
+  return `<tr>
+    <td><strong>${escapeHtml(config.name)}</strong></td>
+    <td>${platformBadge(config.buildPlatform || "ios")}</td>
+    <td><span class="status ${config.enabled ? "Succeeded" : "Canceled"}">${config.enabled ? "Enabled" : "Disabled"}</span></td>
+    <td><span class="role-pill">${config.allowMcpBuild ? "允许" : "不允许"}</span></td>
+    <td class="path-cell">${escapeHtml(config.configPath || "-")}</td>
+    <td class="table-actions">
+      <button class="secondary" type="button" data-edit-config-id="${escapeHtml(config.id)}" title="${escapeHtml(title)}" ${disabled}>编辑</button>
+      <button class="danger" type="button" data-delete-config-id="${escapeHtml(config.id)}" title="${escapeHtml(title)}" ${disabled}>删除</button>
+    </td>
+  </tr>`;
 }
 
 function renderConfigsSelects() {
@@ -1194,25 +1313,51 @@ function renderBuildConfigs() {
 
 function renderJobs() {
   if (state.jobs.length === 0) {
-    $("jobsList").innerHTML = `<article class="item muted">暂无任务。选择项目和配置后即可发起打包。</article>`;
+    $("jobsList").innerHTML = `<div class="empty-state">暂无任务。选择项目和配置后即可发起打包。</div>`;
     return;
   }
 
-  $("jobsList").innerHTML = state.jobs.map((job) => {
-    const project = state.projects.find((item) => item.id === job.projectId);
-    const config = state.configs.find((item) => item.id === job.configId);
-    return `<article class="item">
-      <header>
-        <strong>${escapeHtml(project?.name || job.projectId)} / ${escapeHtml(config?.name || job.configId)} / ${platformBadge(job.buildPlatform || config?.buildPlatform || "ios")}</strong>
-        <span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span>
-      </header>
-      <div class="muted">${new Date(job.createdAt).toLocaleString()} | ${escapeHtml(job.branch)} | build ${escapeHtml(job.buildNumber)} | ${escapeHtml(job.source)}</div>
-      <div class="item-actions">
-        <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看</button>
-        ${(job.status === "Queued" || job.status === "Running") ? `<button class="danger" type="button" data-cancel-job-id="${escapeHtml(job.id)}">取消</button>` : ""}
+  $("jobsList").innerHTML = `<div class="table-shell jobs-table-shell">
+    <table class="data-table jobs-table">
+      <thead>
+        <tr>
+          <th>任务</th>
+          <th>状态</th>
+          <th>平台</th>
+          <th>分支</th>
+          <th>Build</th>
+          <th>来源</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.jobs.map(renderJobRow).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderJobRow(job) {
+  const project = state.projects.find((item) => item.id === job.projectId);
+  const config = state.configs.find((item) => item.id === job.configId);
+  const active = job.status === "Queued" || job.status === "Running";
+  return `<tr>
+    <td>
+      <div class="job-title-cell">
+        <strong>${escapeHtml(project?.name || job.projectId)} / ${escapeHtml(config?.name || job.configId)}</strong>
+        <div class="muted small">${new Date(job.createdAt).toLocaleString()}</div>
       </div>
-    </article>`;
-  }).join("");
+    </td>
+    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
+    <td>${platformBadge(job.buildPlatform || config?.buildPlatform || "ios")}</td>
+    <td>${escapeHtml(job.branch || "-")}</td>
+    <td>${escapeHtml(job.buildNumber || "-")}</td>
+    <td>${escapeHtml(job.source || "-")}</td>
+    <td class="table-actions">
+      <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看详情</button>
+      ${active ? `<button class="danger" type="button" data-cancel-job-id="${escapeHtml(job.id)}">取消</button>` : ""}
+    </td>
+  </tr>`;
 }
 
 function renderMetrics() {
@@ -1246,10 +1391,11 @@ function isJobModalOpen() {
 }
 
 async function refreshJobModal(jobId) {
+  const encodedJobId = encodeURIComponent(jobId);
   const [job, log, artifacts] = await Promise.all([
-    api(`/api/builds/${jobId}`),
-    fetchText(`/api/builds/${jobId}/log?full=true`),
-    api(`/api/builds/${jobId}/artifacts`),
+    api(`/api/builds/${encodedJobId}`),
+    fetchText(`/api/builds/${encodedJobId}/log?full=true`),
+    api(`/api/builds/${encodedJobId}/artifacts`),
   ]);
 
   $("jobModalTitle").textContent = "任务详情";
@@ -1267,15 +1413,34 @@ async function refreshJobModal(jobId) {
   ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
 
   $("jobModalLog").textContent = log || "暂无日志";
-  $("jobModalArtifacts").innerHTML = artifacts.length
-    ? artifacts.map((artifact) => `<article class="item artifact-item">
-        <div>
-          <strong>${escapeHtml(artifact.type)}</strong>
-          <div class="muted">${escapeHtml(artifact.path)}</div>
-        </div>
-        <a class="download-link" href="/api/artifacts/${escapeHtml(artifact.id)}/download" target="_blank" rel="noopener">下载</a>
-      </article>`).join("")
-    : `<article class="item muted">暂无可下载产物</article>`;
+  $("jobModalArtifacts").innerHTML = renderArtifactsTable(artifacts);
+}
+
+function renderArtifactsTable(artifacts) {
+  if (!artifacts.length) {
+    return `<div class="empty-state compact">暂无可下载产物</div>`;
+  }
+
+  return `<div class="table-shell artifacts-table-shell">
+    <table class="data-table artifacts-table">
+      <thead>
+        <tr>
+          <th>类型</th>
+          <th>路径</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${artifacts.map((artifact) => `<tr>
+          <td><span class="role-pill">${escapeHtml(artifact.type)}</span></td>
+          <td class="path-cell">${escapeHtml(artifact.path || "-")}</td>
+          <td class="table-actions">
+            <a class="download-link" href="/api/artifacts/${encodeURIComponent(artifact.id)}/download" target="_blank" rel="noopener">下载</a>
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 function platformBadge(platform) {
@@ -1285,16 +1450,55 @@ function platformBadge(platform) {
 
 function renderWorkers(workers) {
   if (workers.length === 0) {
-    $("workersList").innerHTML = `<article class="item muted">暂无 Worker 心跳。</article>`;
+    $("workersList").innerHTML = `<div class="empty-state">暂无 Worker 心跳。Worker 启动后会自动注册并持续上报状态。</div>`;
     return;
   }
 
-  $("workersList").innerHTML = workers.map((worker) => `<article class="item">
-    <header><strong>${escapeHtml(worker.name)}</strong><span class="status ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></header>
-    <div>Host: ${escapeHtml(worker.hostName)}</div>
-    <div>Current Job: ${escapeHtml(worker.currentJobId || "-")}</div>
-    <div class="muted">Last Seen: ${new Date(worker.lastSeenAt).toLocaleString()}</div>
-  </article>`).join("");
+  $("workersList").innerHTML = `<div class="table-shell workers-table-shell">
+    <table class="data-table workers-table">
+      <thead>
+        <tr>
+          <th>Worker</th>
+          <th>状态</th>
+          <th>当前任务</th>
+          <th>Unity</th>
+          <th>Xcode</th>
+          <th>项目</th>
+          <th>最近心跳</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${workers.map(renderWorkerRow).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderWorkerRow(worker) {
+  const status = worker.enabled ? (worker.status || "Unknown") : "Disabled";
+  const unityVersions = listSummary(worker.unityVersions);
+  const xcodeVersions = listSummary(worker.xcodeVersions);
+  const projectCount = (worker.projectIds || []).length;
+  return `<tr>
+    <td>
+      <div class="job-title-cell">
+        <strong>${escapeHtml(worker.name || worker.id)}</strong>
+        <div class="muted small">${escapeHtml(worker.hostName || "-")}</div>
+      </div>
+    </td>
+    <td><span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
+    <td>${escapeHtml(worker.currentJobId || "-")}</td>
+    <td>${escapeHtml(unityVersions)}</td>
+    <td>${escapeHtml(xcodeVersions)}</td>
+    <td>${projectCount}</td>
+    <td class="nowrap">${worker.lastSeenAt ? new Date(worker.lastSeenAt).toLocaleString() : "-"}</td>
+  </tr>`;
+}
+
+function listSummary(values) {
+  if (!Array.isArray(values) || values.length === 0) return "-";
+  if (values.length <= 2) return values.join(", ");
+  return `${values.slice(0, 2).join(", ")} +${values.length - 2}`;
 }
 
 async function refreshUsers() {
@@ -1305,25 +1509,78 @@ async function refreshUsers() {
 
 function renderUsers() {
   if (!isAdmin()) return;
+  renderUserStats();
   if (state.users.length === 0) {
-    $("usersList").innerHTML = `<article class="item muted">暂无用户。</article>`;
+    $("usersList").innerHTML = `<div class="empty-state">暂无用户。点击右上角新增用户。</div>`;
     return;
   }
 
-  $("usersList").innerHTML = state.users.map((user) => `<article class="item">
-    <header>
-      <div>
-        <strong>${escapeHtml(user.displayName || user.userName)}</strong>
-        <div class="muted">${escapeHtml(user.userName)} / ${escapeHtml(user.role)}</div>
+  $("usersList").innerHTML = `<table class="data-table">
+    <thead>
+      <tr>
+        <th>用户</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>创建时间</th>
+        <th class="table-actions">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.users.map(renderUserRow).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderUserStats() {
+  const total = state.users.length;
+  const enabled = state.users.filter((user) => user.enabled).length;
+  const admins = state.users.filter((user) => user.role === "Admin").length;
+  const protectedUsers = state.users.filter(isRootAdminUser).length;
+  $("userStats").innerHTML = [
+    ["用户总数", total],
+    ["启用账号", enabled],
+    ["管理员", admins],
+    ["受保护主账号", protectedUsers],
+  ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+}
+
+function renderUserRow(user) {
+  const protectedReason = protectedUserReason(user);
+  const disabled = protectedReason || !user.enabled ? "disabled" : "";
+  const title = protectedReason || (!user.enabled ? "用户已经禁用。" : "");
+  return `<tr>
+    <td>
+      <div class="user-cell">
+        <span class="avatar">${avatarText(user)}</span>
+        <div>
+          <strong>${escapeHtml(user.displayName || user.userName)}</strong>
+          <div class="muted">${escapeHtml(user.userName)}</div>
+        </div>
       </div>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
-    </header>
-    <div class="muted">Created: ${new Date(user.createdAt).toLocaleString()}</div>
-    <div class="item-actions">
+    </td>
+    <td><span class="role-pill">${escapeHtml(user.role)}</span></td>
+    <td><span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span></td>
+    <td>${new Date(user.createdAt).toLocaleString()}</td>
+    <td class="table-actions">
       <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑</button>
-      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" ${user.enabled ? "" : "disabled"}>禁用</button>
-    </div>
-  </article>`).join("");
+      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" title="${escapeHtml(title)}" ${disabled}>禁用</button>
+    </td>
+  </tr>`;
+}
+
+function avatarText(user) {
+  const source = (user.displayName || user.userName || "U").trim();
+  return escapeHtml(source.slice(0, 1).toUpperCase());
+}
+
+function protectedUserReason(user) {
+  if (isRootAdminUser(user)) return "主账号不可删除或禁用。";
+  if (user.id === state.user?.id) return "不能禁用当前登录账号。";
+  return "";
+}
+
+function isRootAdminUser(user) {
+  return (user.userName || "").toLowerCase() === "admin";
 }
 
 async function saveUser(event) {
@@ -1345,6 +1602,7 @@ async function saveUser(event) {
       }),
     });
     resetUserForm();
+    closeUserModal();
     await refreshUsers();
     showMessage(userId ? "用户已更新。" : "用户已创建。");
   } catch (error) {
@@ -1357,7 +1615,7 @@ async function saveUser(event) {
 function handleUsersListClick(event) {
   const editButton = event.target.closest("[data-edit-user-id]");
   if (editButton) {
-    fillUserForm(editButton.dataset.editUserId);
+    openUserModal(editButton.dataset.editUserId);
     return;
   }
 
@@ -1371,12 +1629,38 @@ function handleUsersListClick(event) {
 }
 
 async function disableUser(userId) {
+  const user = state.users.find((item) => item.id === userId);
+  const reason = user ? protectedUserReason(user) : "";
+  if (reason) {
+    showError(new Error(reason));
+    return;
+  }
+
   await api(`/api/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
   if ($("userId").value === userId) {
     resetUserForm();
   }
   await refreshUsers();
   showMessage("用户已禁用。");
+}
+
+function openUserModal(userId = "") {
+  resetUserForm();
+  if (userId) {
+    fillUserForm(userId);
+  }
+  $("userModal").classList.remove("hidden");
+  $("userModal").setAttribute("aria-hidden", "false");
+  setTimeout(() => $("userName").focus(), 0);
+}
+
+function closeUserModal() {
+  $("userModal").classList.add("hidden");
+  $("userModal").setAttribute("aria-hidden", "true");
+}
+
+function isUserModalOpen() {
+  return !$("userModal").classList.contains("hidden");
 }
 
 function fillUserForm(userId) {
@@ -1388,10 +1672,15 @@ function fillUserForm(userId) {
   $("userRole").value = user.role;
   $("userPassword").value = "";
   $("userEnabled").checked = Boolean(user.enabled);
-  $("userFormTitle").textContent = "编辑用户";
+  const rootAdmin = isRootAdminUser(user);
+  $("userName").disabled = rootAdmin;
+  $("userRole").disabled = rootAdmin;
+  $("userEnabled").disabled = rootAdmin || user.id === state.user?.id;
+  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持 Admin 且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
+  $("userModalTitle").textContent = "编辑用户";
+  $("userModalSubTitle").textContent = "密码留空表示不修改。";
   $("userSaveBtn").textContent = "更新用户";
   $("userSaveBtn").dataset.defaultText = "更新用户";
-  showMessage("用户已载入。密码留空表示不修改。");
 }
 
 function resetUserForm() {
@@ -1399,7 +1688,12 @@ function resetUserForm() {
   $("userId").value = "";
   $("userRole").value = "Builder";
   $("userEnabled").checked = true;
-  $("userFormTitle").textContent = "新增用户";
+  $("userName").disabled = false;
+  $("userRole").disabled = false;
+  $("userEnabled").disabled = false;
+  $("userEnabled").parentElement.title = "";
+  $("userModalTitle").textContent = "新增用户";
+  $("userModalSubTitle").textContent = "为团队成员分配最小必要权限。";
   $("userSaveBtn").textContent = "保存用户";
   $("userSaveBtn").dataset.defaultText = "保存用户";
 }
@@ -1431,15 +1725,45 @@ async function changeMyPassword(event) {
 async function refreshAudit() {
   const audit = await api("/api/audit");
   if (audit.length === 0) {
-    $("auditList").innerHTML = `<article class="item muted">暂无审计记录。</article>`;
+    $("auditList").innerHTML = `<div class="empty-state">暂无审计记录。</div>`;
     return;
   }
 
-  $("auditList").innerHTML = audit.map((item) => `<article class="item">
-    <strong>${escapeHtml(item.action)}</strong>
-    <div>${escapeHtml(item.userName)} | ${escapeHtml(item.targetType)}:${escapeHtml(item.targetId)}</div>
-    <div class="muted">${new Date(item.createdAt).toLocaleString()} | ${escapeHtml(item.details)}</div>
-  </article>`).join("");
+  $("auditList").innerHTML = `<div class="table-shell audit-table-shell">
+    <table class="data-table audit-table">
+      <thead>
+        <tr>
+          <th>动作</th>
+          <th>用户</th>
+          <th>目标</th>
+          <th>详情</th>
+          <th>时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${audit.map(renderAuditRow).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderAuditRow(item) {
+  return `<tr>
+    <td><span class="role-pill">${escapeHtml(item.action)}</span></td>
+    <td>${escapeHtml(item.userName || "-")}</td>
+    <td>
+      <div class="job-title-cell">
+        <strong>${escapeHtml(item.targetType || "-")}</strong>
+        <div class="muted small">${escapeHtml(item.targetId || "-")}</div>
+      </div>
+    </td>
+    <td class="audit-detail">${escapeHtml(item.details || "-")}</td>
+    <td class="nowrap">${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}</td>
+  </tr>`;
+}
+
+function loadingItem(text) {
+  return `<article class="item loading"><span class="spinner"></span><span>${escapeHtml(text)}</span></article>`;
 }
 
 function escapeHtml(value) {
