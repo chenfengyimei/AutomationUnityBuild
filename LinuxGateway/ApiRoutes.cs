@@ -98,10 +98,13 @@ public static class ApiRoutes
     private static readonly object LoginAttemptsLock = new();
     private static readonly TimeSpan LoginAttemptWindow = TimeSpan.FromMinutes(5);
     private const int MaxLoginAttempts = 10;
+    private const int MaxTrackedLoginAttempts = 4096;
+    private const int TrimmedLoginAttempts = 3072;
+    private const int MaxLoginUserNameLength = 128;
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, GatewayAuthService auth)
     {
-        string limiterKey = $"{context.Connection.RemoteIpAddress}|{request.UserName}";
+        string limiterKey = LoginLimiterKey(context, request.UserName);
         if (!IsLoginAllowed(limiterKey))
         {
             return ApiDiagnostics.Problem(
@@ -472,7 +475,7 @@ public static class ApiRoutes
                 }
             }
 
-            GatewayNodeRecord node = await GetNodeAsync(database, request.NodeId);
+            GatewayNodeRecord node = await GetEnabledNodeAsync(database, request.NodeId);
             RemoteNodeInfo remote = await client.GetNodeAsync(node);
             RemoteConfigSummary config = remote.Configs.FirstOrDefault(config => config.Id == request.ConfigId && config.ProjectId == request.ProjectId)
                 ?? throw new InvalidOperationException("节点上不存在这个配置。");
@@ -823,16 +826,30 @@ public static class ApiRoutes
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim('"');
     }
 
+    private static string LoginLimiterKey(HttpContext context, string? userName)
+    {
+        string remoteAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        string normalizedUserName = (userName ?? "").Trim().ToLowerInvariant();
+        if (normalizedUserName.Length > MaxLoginUserNameLength)
+        {
+            normalizedUserName = normalizedUserName[..MaxLoginUserNameLength];
+        }
+
+        return $"{remoteAddress}|{normalizedUserName}";
+    }
+
     private static bool IsLoginAllowed(string key)
     {
         lock (LoginAttemptsLock)
         {
-            if (!LoginAttempts.TryGetValue(key, out LoginAttempt attempt))
+            DateTimeOffset now = DateTimeOffset.Now;
+            PruneLoginAttempts(now);
+            if (!LoginAttempts.TryGetValue(key, out LoginAttempt? attempt))
             {
                 return true;
             }
 
-            if (DateTimeOffset.Now - attempt.WindowStart >= LoginAttemptWindow)
+            if (now - attempt.WindowStart >= LoginAttemptWindow)
             {
                 LoginAttempts.Remove(key);
                 return true;
@@ -846,20 +863,49 @@ public static class ApiRoutes
     {
         lock (LoginAttemptsLock)
         {
-            if (!LoginAttempts.TryGetValue(key, out LoginAttempt attempt) ||
-                DateTimeOffset.Now - attempt.WindowStart >= LoginAttemptWindow)
+            DateTimeOffset now = DateTimeOffset.Now;
+            PruneLoginAttempts(now);
+            if (!LoginAttempts.TryGetValue(key, out LoginAttempt? attempt) ||
+                now - attempt.WindowStart >= LoginAttemptWindow)
             {
-                attempt = new LoginAttempt { WindowStart = DateTimeOffset.Now, Failures = 0 };
+                attempt = new LoginAttempt { WindowStart = now, Failures = 0 };
                 LoginAttempts[key] = attempt;
             }
 
             attempt.Failures++;
+            PruneLoginAttempts(now);
         }
     }
 
     private static void RecordLoginSuccess(string key)
     {
         lock (LoginAttemptsLock)
+        {
+            LoginAttempts.Remove(key);
+        }
+    }
+
+    private static void PruneLoginAttempts(DateTimeOffset now)
+    {
+        foreach (string key in LoginAttempts
+                     .Where(pair => now - pair.Value.WindowStart >= LoginAttemptWindow)
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            LoginAttempts.Remove(key);
+        }
+
+        if (LoginAttempts.Count <= MaxTrackedLoginAttempts)
+        {
+            return;
+        }
+
+        int removeCount = LoginAttempts.Count - TrimmedLoginAttempts;
+        foreach (string key in LoginAttempts
+                     .OrderBy(pair => pair.Value.WindowStart)
+                     .Take(removeCount)
+                     .Select(pair => pair.Key)
+                     .ToList())
         {
             LoginAttempts.Remove(key);
         }
