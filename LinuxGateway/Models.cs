@@ -3,9 +3,22 @@ namespace LinuxGateway;
 public sealed class GatewayDatabase
 {
     public int SchemaVersion { get; set; } = 1;
+    public List<GatewayUserRecord> Users { get; set; } = [];
     public List<GatewayNodeRecord> Nodes { get; set; } = [];
     public List<GatewayJobRecord> Jobs { get; set; } = [];
     public List<GatewaySessionRecord> Sessions { get; set; } = [];
+    public List<GatewayAuditLogRecord> AuditLogs { get; set; } = [];
+}
+
+public sealed class GatewayUserRecord
+{
+    public string Id { get; set; } = "";
+    public string UserName { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string PasswordHash { get; set; } = "";
+    public string Role { get; set; } = GatewayRoles.Viewer;
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed class GatewayNodeRecord
@@ -29,6 +42,8 @@ public sealed class GatewayJobRecord
     public string NodeId { get; set; } = "";
     public string NodeName { get; set; } = "";
     public string RemoteJobId { get; set; } = "";
+    public string RequestedByUserId { get; set; } = "";
+    public string RequestedByUserName { get; set; } = "";
     public string ProjectId { get; set; } = "";
     public string ProjectName { get; set; } = "";
     public string ConfigId { get; set; } = "";
@@ -47,12 +62,41 @@ public sealed class GatewayJobRecord
 public sealed class GatewaySessionRecord
 {
     public string TokenHash { get; set; } = "";
+    public string UserId { get; set; } = "";
     public DateTimeOffset ExpiresAt { get; set; }
+}
+
+public sealed class GatewayAuditLogRecord
+{
+    public string Id { get; set; } = "";
+    public string UserId { get; set; } = "";
+    public string UserName { get; set; } = "";
+    public string Action { get; set; } = "";
+    public string TargetType { get; set; } = "";
+    public string TargetId { get; set; } = "";
+    public string Details { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed record LoginRequest(string UserName, string Password);
 
-public sealed record CurrentGatewayUser(string UserName, string DisplayName);
+public sealed record CurrentGatewayUser(string Id, string UserName, string DisplayName, string Role);
+
+public sealed record GatewayUserRequest(
+    string UserName,
+    string DisplayName,
+    string Role,
+    string? Password,
+    bool Enabled = true);
+
+public sealed record GatewayChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public static class GatewayRoles
+{
+    public const string Admin = "Admin";
+    public const string Builder = "Builder";
+    public const string Viewer = "Viewer";
+}
 
 public sealed record GatewayNodeRequest(
     string? Id,

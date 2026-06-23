@@ -16,6 +16,12 @@ public static class ApiRoutes
         app.MapPost("/api/auth/login", LoginAsync);
         app.MapPost("/api/auth/logout", LogoutAsync);
         app.MapGet("/api/me", MeAsync);
+        app.MapPost("/api/me/password", ChangeMyPasswordAsync);
+        app.MapGet("/api/users", ListUsersAsync);
+        app.MapPost("/api/users", CreateUserAsync);
+        app.MapPut("/api/users/{userId}", UpdateUserAsync);
+        app.MapDelete("/api/users/{userId}", DeleteUserAsync);
+        app.MapGet("/api/audit", ListAuditAsync);
         app.MapGet("/api/nodes", ListNodesAsync);
         app.MapPost("/api/nodes", SaveNodeAsync);
         app.MapPost("/api/nodes/{nodeId}/refresh", RefreshNodeAsync);
@@ -88,12 +94,13 @@ public static class ApiRoutes
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, GatewayAuthService auth)
     {
-        if (!await auth.ValidateLoginAsync(request.UserName, request.Password))
+        GatewayUserRecord? user = await auth.ValidateLoginAsync(request.UserName, request.Password);
+        if (user is null)
         {
-            return ApiDiagnostics.Unauthorized(context, "账号或密码错误。");
+            return ApiDiagnostics.Unauthorized(context, "Invalid user name or password.");
         }
 
-        string token = await auth.CreateSessionAsync();
+        string token = await auth.CreateSessionAsync(user);
         context.Response.Cookies.Append(GatewayAuthService.CookieName, token, new CookieOptions
         {
             HttpOnly = true,
@@ -101,7 +108,7 @@ public static class ApiRoutes
             Secure = context.Request.IsHttps,
             Expires = DateTimeOffset.Now.AddDays(7)
         });
-        return Results.Ok(new CurrentGatewayUser("admin", "管理员"));
+        return Results.Ok(GatewayAuthService.ToCurrentUser(user));
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext context, GatewayAuthService auth)
@@ -115,6 +122,207 @@ public static class ApiRoutes
     {
         CurrentGatewayUser? user = await auth.GetUserAsync(context);
         return user is null ? Results.Unauthorized() : Results.Ok(user);
+    }
+
+    private static async Task<IResult> ChangeMyPasswordAsync(
+        GatewayChangePasswordRequest request,
+        HttpContext context,
+        GatewayAuthService auth,
+        JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+
+        try
+        {
+            string newPassword = Required(request.NewPassword, "newPassword");
+            ValidatePassword(newPassword);
+            await database.UpdateAsync(db =>
+            {
+                GatewayUserRecord user = db.Users.FirstOrDefault(user => user.Id == current.Id && user.Enabled)
+                    ?? throw new UnauthorizedAccessException("Current user no longer exists or is disabled.");
+                if (!PasswordHasher.Verify(request.CurrentPassword ?? "", user.PasswordHash))
+                {
+                    throw new UnauthorizedAccessException("Current password is incorrect.");
+                }
+
+                user.PasswordHash = PasswordHasher.Hash(newPassword);
+                db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                GatewayAuthService.AddAudit(db, user.Id, user.UserName, "user.change-password", "user", user.Id, "User changed own password.");
+            });
+
+            context.Response.Cookies.Delete(GatewayAuthService.CookieName);
+            return Results.Ok(new { ok = true });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return ApiDiagnostics.Forbidden(context, ex.Message);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> ListUsersAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        return Results.Ok(await database.ReadAsync(db => db.Users
+            .OrderBy(user => user.UserName)
+            .Select(GatewayUserView)
+            .ToList()));
+    }
+
+    private static async Task<IResult> CreateUserAsync(
+        GatewayUserRequest request,
+        HttpContext context,
+        GatewayAuthService auth,
+        JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            string userName = NormalizeGatewayUserName(request.UserName);
+            string displayName = Required(request.DisplayName, "displayName");
+            string role = NormalizeGatewayRole(request.Role);
+            string password = Required(request.Password, "password");
+            ValidatePassword(password);
+
+            GatewayUserRecord user = await database.UpdateAsync(db =>
+            {
+                if (db.Users.Any(user => string.Equals(user.UserName, userName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("User name already exists.");
+                }
+
+                var user = new GatewayUserRecord
+                {
+                    Id = Ids.New("gusr"),
+                    UserName = userName,
+                    DisplayName = displayName,
+                    Role = role,
+                    PasswordHash = PasswordHasher.Hash(password),
+                    Enabled = request.Enabled,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.Users.Add(user);
+                GatewayAuthService.AddAudit(db, current.Id, current.UserName, "user.create", "user", user.Id, $"Created user {user.UserName} role={user.Role}.");
+                return user;
+            });
+
+            return Results.Ok(GatewayUserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateUserAsync(
+        string userId,
+        GatewayUserRequest request,
+        HttpContext context,
+        GatewayAuthService auth,
+        JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            string userName = NormalizeGatewayUserName(request.UserName);
+            string displayName = Required(request.DisplayName, "displayName");
+            string role = NormalizeGatewayRole(request.Role);
+            string? newPassword = string.IsNullOrWhiteSpace(request.Password) ? null : request.Password.Trim();
+            if (newPassword is not null) ValidatePassword(newPassword);
+
+            GatewayUserRecord user = await database.UpdateAsync(db =>
+            {
+                GatewayUserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
+                    ?? throw new FileNotFoundException("User does not exist.");
+                if (db.Users.Any(other => other.Id != user.Id && string.Equals(other.UserName, userName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("User name already exists.");
+                }
+
+                EnsureGatewayAdminInvariant(db, user, role, request.Enabled);
+                bool disabling = user.Enabled && !request.Enabled;
+                bool passwordChanged = newPassword is not null;
+
+                user.UserName = userName;
+                user.DisplayName = displayName;
+                user.Role = role;
+                user.Enabled = request.Enabled;
+                if (newPassword is not null)
+                {
+                    user.PasswordHash = PasswordHasher.Hash(newPassword);
+                }
+
+                if (disabling || passwordChanged)
+                {
+                    db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                }
+
+                GatewayAuthService.AddAudit(db, current.Id, current.UserName, "user.update", "user", user.Id, $"Updated user {user.UserName} role={user.Role} enabled={user.Enabled}.");
+                return user;
+            });
+
+            return Results.Ok(GatewayUserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteUserAsync(
+        string userId,
+        HttpContext context,
+        GatewayAuthService auth,
+        JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            GatewayUserRecord user = await database.UpdateAsync(db =>
+            {
+                GatewayUserRecord user = db.Users.FirstOrDefault(user => user.Id == userId)
+                    ?? throw new FileNotFoundException("User does not exist.");
+                EnsureGatewayAdminInvariant(db, user, user.Role, enabled: false);
+                user.Enabled = false;
+                db.Sessions.RemoveAll(session => session.UserId == user.Id);
+                GatewayAuthService.AddAudit(db, current.Id, current.UserName, "user.disable", "user", user.Id, $"Disabled user {user.UserName}.");
+                return user;
+            });
+
+            return Results.Ok(GatewayUserView(user));
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> ListAuditAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        return Results.Ok(await database.ReadAsync(db => db.AuditLogs
+            .OrderByDescending(item => item.CreatedAt)
+            .Take(300)
+            .ToList()));
     }
 
     private static async Task<IResult> ListNodesAsync(
@@ -137,7 +345,9 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeRefreshService refresher)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
 
         try
         {
@@ -172,6 +382,7 @@ public static class ApiRoutes
 
                 existing.Platforms = NormalizePlatforms(request.Platforms);
                 existing.Enabled = request.Enabled;
+                GatewayAuthService.AddAudit(db, current.Id, current.UserName, "node.save", "node", existing.Id, $"Saved node {existing.Name} enabled={existing.Enabled}.");
                 return existing;
             });
 
@@ -192,11 +403,14 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeRefreshService refresher)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
 
         GatewayNodeRecord? node = await database.ReadAsync(db => db.Nodes.FirstOrDefault(node => node.Id == nodeId));
-        if (node is null) return Results.NotFound();
+        if (node is null) return ApiDiagnostics.NotFound(context);
         await refresher.RefreshNodeAsync(node.Id, context.RequestAborted);
+        await database.UpdateAsync(db => GatewayAuthService.AddAudit(db, current.Id, current.UserName, "node.refresh", "node", node.Id, $"Refreshed node {node.Name}."));
         GatewayNodeRecord? refreshed = await database.ReadAsync(db => db.Nodes.FirstOrDefault(item => item.Id == node.Id));
         return Results.Ok(ToStoredNodeView(refreshed ?? node));
     }
@@ -218,7 +432,9 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeGatewayClient client)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.CanBuild(current)) return ApiDiagnostics.Forbidden(context);
 
         try
         {
@@ -265,6 +481,8 @@ public static class ApiRoutes
                     NodeId = node.Id,
                     NodeName = node.Name,
                     RemoteJobId = remoteJob.Id,
+                    RequestedByUserId = current.Id,
+                    RequestedByUserName = current.UserName,
                     ProjectId = project.Id,
                     ProjectName = project.Name,
                     ConfigId = config.Id,
@@ -280,6 +498,7 @@ public static class ApiRoutes
                     UpdatedAt = DateTimeOffset.Now
                 };
                 db.Jobs.Add(job);
+                GatewayAuthService.AddAudit(db, current.Id, current.UserName, "build.start", "build", job.Id, $"Started build {project.Name}/{config.Name} on {node.Name}.");
                 return job;
             });
 
@@ -370,6 +589,71 @@ public static class ApiRoutes
     private static async Task<bool> IsAuthenticatedAsync(HttpContext context, GatewayAuthService auth)
     {
         return await auth.GetUserAsync(context) is not null;
+    }
+
+    private static object GatewayUserView(GatewayUserRecord user)
+    {
+        return new
+        {
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+            user.Role,
+            user.Enabled,
+            user.CreatedAt
+        };
+    }
+
+    private static string NormalizeGatewayUserName(string? value)
+    {
+        string userName = Required(value, "userName").ToLowerInvariant();
+        if (userName.Length is < 3 or > 64 ||
+            userName.Any(ch => !(char.IsLetterOrDigit(ch) || ch is '.' or '_' or '-')))
+        {
+            throw new InvalidOperationException("User name must be 3-64 characters and contain only letters, numbers, dot, underscore, or hyphen.");
+        }
+
+        return userName;
+    }
+
+    private static string NormalizeGatewayRole(string? value)
+    {
+        string role = Required(value, "role");
+        if (string.Equals(role, GatewayRoles.Admin, StringComparison.OrdinalIgnoreCase)) return GatewayRoles.Admin;
+        if (string.Equals(role, GatewayRoles.Builder, StringComparison.OrdinalIgnoreCase)) return GatewayRoles.Builder;
+        if (string.Equals(role, GatewayRoles.Viewer, StringComparison.OrdinalIgnoreCase)) return GatewayRoles.Viewer;
+        throw new InvalidOperationException("Role must be Admin, Builder, or Viewer.");
+    }
+
+    private static void ValidatePassword(string password)
+    {
+        if (password.Length is < 8 or > 256)
+        {
+            throw new InvalidOperationException("Password must be 8-256 characters.");
+        }
+    }
+
+    private static void EnsureGatewayAdminInvariant(GatewayDatabase db, GatewayUserRecord target, string nextRole, bool enabled)
+    {
+        bool targetWillRemainAdmin = enabled && string.Equals(nextRole, GatewayRoles.Admin, StringComparison.Ordinal);
+        if (targetWillRemainAdmin)
+        {
+            return;
+        }
+
+        bool anotherEnabledAdmin = db.Users.Any(user =>
+            user.Id != target.Id &&
+            user.Enabled &&
+            string.Equals(user.Role, GatewayRoles.Admin, StringComparison.Ordinal));
+        if (!anotherEnabledAdmin)
+        {
+            throw new InvalidOperationException("At least one enabled administrator is required.");
+        }
+    }
+
+    private static bool IsClientInputError(Exception ex)
+    {
+        return ex is InvalidOperationException or ArgumentException or FileNotFoundException;
     }
 
     private static async Task<GatewayNodeView> ToNodeViewAsync(

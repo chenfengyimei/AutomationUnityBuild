@@ -82,6 +82,14 @@ button.secondary:hover {
   background: #2b3648;
 }
 
+button.danger {
+  background: var(--danger);
+}
+
+button.danger:hover {
+  background: #8f1d14;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -252,6 +260,12 @@ form {
 
 .checks input {
   width: auto;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
 }
 
 .list {

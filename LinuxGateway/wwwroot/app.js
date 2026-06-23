@@ -1,8 +1,10 @@
 const $ = (id) => document.getElementById(id);
 
 const state = {
+  user: null,
   nodes: [],
   jobs: [],
+  users: [],
   selectedJobId: "",
   events: null,
 };
@@ -12,7 +14,7 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   bindEvents();
   try {
-    await api("/api/me");
+    state.user = await api("/api/me");
     showMain();
     await refreshAll();
     startDashboardEvents();
@@ -27,6 +29,10 @@ function bindEvents() {
   $("refreshBtn").addEventListener("click", refreshAll);
   $("nodeForm").addEventListener("submit", saveNode);
   $("buildForm").addEventListener("submit", startBuild);
+  $("passwordForm").addEventListener("submit", changeMyPassword);
+  $("userForm").addEventListener("submit", saveUser);
+  $("userCancelBtn").addEventListener("click", resetUserForm);
+  $("usersList").addEventListener("click", handleUsersClick);
   $("buildNode").addEventListener("change", renderProjectOptions);
   $("buildProject").addEventListener("change", renderConfigOptions);
   $("nodesList").addEventListener("click", handleNodesClick);
@@ -41,7 +47,7 @@ async function login(event) {
   $("loginError").textContent = "";
   setButtonBusy("loginBtn", true, "登录中...");
   try {
-    await api("/api/auth/login", {
+    state.user = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
         userName: $("loginUser").value,
@@ -60,6 +66,8 @@ async function login(event) {
 
 async function logout() {
   await api("/api/auth/logout", { method: "POST" });
+  state.user = null;
+  state.users = [];
   stopDashboardEvents();
   state.selectedJobId = "";
   showLogin();
@@ -73,6 +81,8 @@ function showLogin() {
 function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
+  $("userInfo").textContent = `${state.user?.displayName || state.user?.userName || "-"} / ${state.user?.role || "-"}`;
+  renderPermissionChrome();
 }
 
 function applyDashboard(dashboard) {
@@ -81,6 +91,7 @@ function applyDashboard(dashboard) {
   renderNodes();
   renderBuildSelectors();
   renderJobs();
+  renderPermissionChrome();
 }
 
 function startDashboardEvents() {
@@ -117,6 +128,9 @@ async function refreshAll(options = {}) {
   }
   try {
     applyDashboard(await api("/api/dashboard"));
+    if (isAdmin()) {
+      await refreshUsers();
+    }
     if (!options.silent) {
       showNotice("刷新完成。如果设备仍显示 Offline，请先确认 Linux 服务器能 curl 通该设备的 /api/health。");
     }
@@ -128,9 +142,60 @@ async function refreshAll(options = {}) {
   }
 }
 
+function isAdmin() {
+  return state.user?.role === "Admin";
+}
+
+function canBuild() {
+  return state.user?.role === "Admin" || state.user?.role === "Builder";
+}
+
+function renderPermissionChrome() {
+  $("adminPanel").classList.toggle("hidden", !isAdmin());
+  $("roleHint").textContent = roleDescription();
+  setFormDisabled("nodeForm", !isAdmin(), "只有 Admin 可以新增或更新节点。");
+  setFormDisabled("buildForm", !canBuild(), "当前角色不能提交构建任务。");
+  if (isAdmin()) {
+    renderUsers();
+  }
+  updateBuildSubmitState();
+}
+
+function roleDescription() {
+  if (!state.user) return "未登录。";
+  if (isAdmin()) return "Admin 可以维护节点、用户并提交构建。";
+  if (canBuild()) return "Builder 可以提交构建并查看任务，不能维护节点或用户。";
+  return "Viewer 可以查看节点、任务、日志和产物，不能修改配置或提交构建。";
+}
+
+function setFormDisabled(formId, disabled, reason) {
+  const form = $(formId);
+  if (!form) return;
+  form.querySelectorAll("input, select, textarea, button").forEach((control) => {
+    if (disabled) {
+      if (!control.disabled) {
+        control.dataset.permissionDisabled = "true";
+        control.disabled = true;
+      }
+      control.title = reason;
+      return;
+    }
+
+    if (control.dataset.permissionDisabled === "true") {
+      control.disabled = false;
+      delete control.dataset.permissionDisabled;
+      control.removeAttribute("title");
+    }
+  });
+}
+
 async function saveNode(event) {
   event.preventDefault();
   clearError();
+  if (!isAdmin()) {
+    showError(new Error("只有 Admin 可以保存节点。"));
+    return;
+  }
   showNotice("正在保存设备并刷新节点状态。保存后会立即请求该 BuildServer，请等待状态返回。");
   setTopStatus("保存设备中");
   setButtonBusy("nodeSaveBtn", true, "保存中...");
@@ -166,6 +231,11 @@ function selectedNodePlatforms() {
 async function startBuild(event) {
   event.preventDefault();
   clearError();
+  if (!canBuild()) {
+    showError(new Error("当前角色不能提交构建任务。"));
+    updateBuildSubmitState();
+    return;
+  }
   const selectionError = buildSelectionError();
   if (selectionError) {
     showError(new Error(selectionError));
@@ -230,7 +300,7 @@ function renderNodes() {
       <div class="item-row">${platforms(node.platforms)}</div>
       <div class="muted">项目 ${projects} / 配置 ${configs} / 最后在线 ${escapeHtml(lastSeen)}</div>
       ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
-      <button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑</button>
+      ${isAdmin() ? `<button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑</button>` : ""}
     </article>`;
   }).join("");
 }
@@ -279,6 +349,7 @@ function selectedNode() {
 }
 
 function buildSelectionError() {
+  if (!canBuild()) return "当前角色不能提交构建任务。";
   if (!$("buildNode").value) return "暂无在线可用设备，不能提交打包任务。";
   if (!$("buildProject").value) return "请选择可用项目。";
   if (!$("buildConfig").value) return "请选择可用配置。";
@@ -314,6 +385,10 @@ function renderJobs() {
 function handleNodesClick(event) {
   const button = event.target.closest("[data-edit-node-id]");
   if (!button) return;
+  if (!isAdmin()) {
+    showError(new Error("只有 Admin 可以编辑节点。"));
+    return;
+  }
   fillNodeForm(button.dataset.editNodeId);
 }
 
@@ -382,6 +457,140 @@ function fillNodeForm(nodeId) {
   $("nodeAndroid").checked = (node.platforms || []).includes("android");
   $("nodeEnabled").checked = node.enabled;
   showNotice("已载入设备信息。Gateway Token 不会回显；不修改 token 时可以留空。");
+}
+
+async function refreshUsers() {
+  if (!isAdmin()) return;
+  state.users = await api("/api/users");
+  renderUsers();
+}
+
+function renderUsers() {
+  if (!isAdmin()) return;
+  if (state.users.length === 0) {
+    $("usersList").innerHTML = `<article class="item muted">暂无用户。</article>`;
+    return;
+  }
+
+  $("usersList").innerHTML = state.users.map((user) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(user.displayName || user.userName)}</strong>
+        <div class="muted small">${escapeHtml(user.userName)} / ${escapeHtml(user.role)}</div>
+      </div>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+    </header>
+    <div class="muted">Created: ${new Date(user.createdAt).toLocaleString()}</div>
+    <div class="item-row">
+      <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑</button>
+      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" ${user.enabled ? "" : "disabled"}>禁用</button>
+    </div>
+  </article>`).join("");
+}
+
+async function saveUser(event) {
+  event.preventDefault();
+  clearError();
+  if (!isAdmin()) {
+    showError(new Error("只有 Admin 可以维护用户。"));
+    return;
+  }
+
+  const userId = $("userId").value;
+  const path = userId ? `/api/users/${encodeURIComponent(userId)}` : "/api/users";
+  const method = userId ? "PUT" : "POST";
+  setButtonBusy("userSaveBtn", true, userId ? "更新中..." : "保存中...");
+  try {
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        userName: $("userName").value,
+        displayName: $("userDisplayName").value,
+        role: $("userRole").value,
+        password: $("userPassword").value || null,
+        enabled: $("userEnabled").checked,
+      }),
+    });
+    resetUserForm();
+    await refreshUsers();
+    showNotice(userId ? "用户已更新。" : "用户已创建。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("userSaveBtn", false);
+  }
+}
+
+function handleUsersClick(event) {
+  const editButton = event.target.closest("[data-edit-user-id]");
+  if (editButton) {
+    fillUserForm(editButton.dataset.editUserId);
+    return;
+  }
+
+  const disableButton = event.target.closest("[data-disable-user-id]");
+  if (disableButton) {
+    AppRuntime.runAction(disableButton, () => disableUser(disableButton.dataset.disableUserId), {
+      busyText: "禁用中...",
+      onError: showError,
+    });
+  }
+}
+
+async function disableUser(userId) {
+  await api(`/api/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+  if ($("userId").value === userId) {
+    resetUserForm();
+  }
+  await refreshUsers();
+  showNotice("用户已禁用。");
+}
+
+function fillUserForm(userId) {
+  const user = state.users.find((item) => item.id === userId);
+  if (!user) return;
+  $("userId").value = user.id;
+  $("userName").value = user.userName;
+  $("userDisplayName").value = user.displayName || "";
+  $("userRole").value = user.role;
+  $("userPassword").value = "";
+  $("userEnabled").checked = Boolean(user.enabled);
+  $("userSaveBtn").textContent = "更新用户";
+  $("userSaveBtn").dataset.defaultText = "更新用户";
+  showNotice("用户已载入。密码留空表示不修改。");
+}
+
+function resetUserForm() {
+  $("userForm").reset();
+  $("userId").value = "";
+  $("userRole").value = "Builder";
+  $("userEnabled").checked = true;
+  $("userSaveBtn").textContent = "保存用户";
+  $("userSaveBtn").dataset.defaultText = "保存用户";
+}
+
+async function changeMyPassword(event) {
+  event.preventDefault();
+  clearError();
+  setButtonBusy("passwordSaveBtn", true, "更新中...");
+  try {
+    await api("/api/me/password", {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: $("currentPassword").value,
+        newPassword: $("newPassword").value,
+      }),
+    });
+    state.user = null;
+    stopDashboardEvents();
+    showLogin();
+    $("loginError").textContent = "密码已更新，请使用新密码重新登录。";
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("passwordSaveBtn", false);
+    $("passwordForm").reset();
+  }
 }
 
 function renderSummary() {

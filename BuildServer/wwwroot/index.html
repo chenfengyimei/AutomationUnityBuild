@@ -31,6 +31,7 @@
         <button data-tab="projects">项目配置</button>
         <button data-tab="workers">Worker</button>
         <button data-tab="audit">审计日志</button>
+        <button id="usersNav" data-tab="users">用户权限</button>
         <button data-tab="help">填写说明</button>
         <button id="logoutBtn">退出</button>
       </aside>
@@ -309,6 +310,46 @@
             <h3>审计日志</h3>
             <div id="auditList" class="list"></div>
           </section>
+        </section>
+
+        <section id="usersTab" class="tab hidden">
+          <p id="usersPermissionHint" class="toast hidden">当前账号不是 Admin，只能修改自己的密码。</p>
+          <div id="adminUsersPanel" class="grid two">
+            <form id="userForm" class="panel">
+              <h3 id="userFormTitle">新增用户</h3>
+              <input id="userId" type="hidden">
+              <label>用户名<input id="userName" autocomplete="off" placeholder="builder01"></label>
+              <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
+              <label>角色
+                <select id="userRole">
+                  <option value="Admin">Admin</option>
+                  <option value="ProjectOwner">ProjectOwner</option>
+                  <option value="Builder">Builder</option>
+                  <option value="Viewer">Viewer</option>
+                </select>
+              </label>
+              <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
+              <label><input id="userEnabled" type="checkbox" checked> 启用</label>
+              <div class="form-actions">
+                <button id="userSaveBtn" type="submit">保存用户</button>
+                <button id="userCancelBtn" class="secondary" type="button">重置</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <h3>用户列表</h3>
+              <div id="usersList" class="list"></div>
+            </section>
+          </div>
+
+          <form id="passwordForm" class="panel">
+            <h3>修改我的密码</h3>
+            <div class="form-grid">
+              <label>当前密码<input id="currentPassword" type="password" autocomplete="current-password"></label>
+              <label>新密码<input id="newPassword" type="password" autocomplete="new-password"></label>
+            </div>
+            <button id="passwordSaveBtn" type="submit">更新密码</button>
+          </form>
         </section>
 
         <section id="helpTab" class="tab hidden">
