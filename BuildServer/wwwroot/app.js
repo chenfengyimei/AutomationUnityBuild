@@ -12,6 +12,7 @@ const state = {
   editingConfigPath: "",
   activeTab: "builds",
   events: null,
+  jobModalTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -1378,6 +1379,7 @@ function renderMetrics() {
 }
 
 async function openJobModal(jobId) {
+  stopJobModalPolling();
   state.selectedJobId = jobId;
   $("jobModal").classList.remove("hidden");
   $("jobModal").setAttribute("aria-hidden", "false");
@@ -1387,9 +1389,11 @@ async function openJobModal(jobId) {
   $("jobModalArtifacts").innerHTML = `<article class="item muted">正在加载产物...</article>`;
   $("jobModalLog").textContent = "正在加载日志...";
   await refreshJobModal(jobId);
+  startJobModalPolling(jobId);
 }
 
 function closeJobModal() {
+  stopJobModalPolling();
   $("jobModal").classList.add("hidden");
   $("jobModal").setAttribute("aria-hidden", "true");
   state.selectedJobId = null;
@@ -1397,6 +1401,27 @@ function closeJobModal() {
 
 function isJobModalOpen() {
   return !$("jobModal").classList.contains("hidden");
+}
+
+function startJobModalPolling(jobId) {
+  stopJobModalPolling();
+  state.jobModalTimer = setTimeout(async function poll() {
+    if (!isJobModalOpen() || state.selectedJobId !== jobId) return;
+    try {
+      await refreshJobModal(jobId);
+    } catch {
+    }
+    if (isJobModalOpen() && state.selectedJobId === jobId) {
+      state.jobModalTimer = setTimeout(poll, 3000);
+    }
+  }, 3000);
+}
+
+function stopJobModalPolling() {
+  if (state.jobModalTimer) {
+    clearTimeout(state.jobModalTimer);
+    state.jobModalTimer = null;
+  }
 }
 
 async function refreshJobModal(jobId) {
@@ -1423,6 +1448,10 @@ async function refreshJobModal(jobId) {
 
   $("jobModalLog").textContent = log || "暂无日志";
   $("jobModalArtifacts").innerHTML = renderArtifactsTable(artifacts);
+
+  if (job.status !== "Queued" && job.status !== "Running") {
+    stopJobModalPolling();
+  }
 }
 
 function renderArtifactsTable(artifacts) {
