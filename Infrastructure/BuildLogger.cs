@@ -24,7 +24,7 @@ internal sealed class BuildLogger : IDisposable
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+            PathTools.EnsureParentDirectory(logPath);
             var writer = new StreamWriter(logPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true))
             {
                 AutoFlush = true
@@ -39,6 +39,11 @@ internal sealed class BuildLogger : IDisposable
             Console.WriteLine($"[WARN] dry-run 日志文件创建失败，只输出到控制台: {ex.Message}");
             return new BuildLogger(null, null, verbose);
         }
+    }
+
+    internal static BuildLogger CreateForConsoleOnly(bool verbose = false)
+    {
+        return new BuildLogger(null, null, verbose);
     }
 
     public void Info(string message)
@@ -196,7 +201,7 @@ internal static class CommandLogWriter
             return null;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+        PathTools.EnsureParentDirectory(logPath);
         var writer = new StreamWriter(logPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true))
         {
             AutoFlush = true

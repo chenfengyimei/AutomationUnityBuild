@@ -24,7 +24,7 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
             return;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_paths.ConfigSnapshotPath)!);
+        PathTools.EnsureParentDirectory(_paths.ConfigSnapshotPath);
         JsonObject snapshot = CreateSnapshot();
         File.WriteAllText(
             _paths.ConfigSnapshotPath,

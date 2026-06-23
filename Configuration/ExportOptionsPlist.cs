@@ -7,7 +7,7 @@ internal static class ExportOptionsPlist
 {
     public static void Write(BuildConfig config, string path, string? destination = null)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        PathTools.EnsureParentDirectory(path);
 
         var builder = new StringBuilder();
         builder.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -37,7 +37,6 @@ internal static class ExportOptionsPlist
         builder.AppendLine("</plist>");
 
         File.WriteAllText(path, builder.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-        Console.WriteLine($"已生成 ExportOptions.plist: {path}");
     }
 
     private static void AppendString(StringBuilder builder, string key, string value)

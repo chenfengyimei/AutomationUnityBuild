@@ -17,6 +17,20 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         {
             _logger.Info($"仓库不存在，准备 clone 到: {_paths.RepositoryRoot}");
             Directory.CreateDirectory(_paths.WorkspaceRoot);
+
+            if (Directory.Exists(_paths.RepositoryRoot) && Directory.EnumerateFileSystemEntries(_paths.RepositoryRoot).Any())
+            {
+                string gitDir = Path.Combine(_paths.RepositoryRoot, ".git");
+                if (!Directory.Exists(gitDir) && !File.Exists(gitDir))
+                {
+                    _logger.Warn($"目标目录已存在且非空，但没有 .git，可能是上次 clone 中途失败: {_paths.RepositoryRoot}");
+                    throw new InvalidOperationException(
+                        $"Git 仓库目录已存在但不是有效的 Git 仓库（缺少 .git），可能是上次 clone 中途失败。{Environment.NewLine}" +
+                        $"目录: {_paths.RepositoryRoot}{Environment.NewLine}" +
+                        "处理方式：删除该目录后重新运行，或手动确认目录内容后删除。");
+                }
+            }
+
             await _processRunner.RunAsync(
                 "git",
                 ["clone", "--branch", _config.Branch, _config.RepositoryUrl, _paths.RepositoryRoot],

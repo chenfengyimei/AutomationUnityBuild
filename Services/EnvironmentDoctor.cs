@@ -16,12 +16,27 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
 
         if (!_options.SkipUnity)
         {
-            if (!_options.DryRun && !File.Exists(_paths.UnityExecutable))
+            if (string.IsNullOrWhiteSpace(_paths.UnityExecutable))
+            {
+                if (!_options.DryRun)
+                {
+                    throw new FileNotFoundException(
+                        "找不到 Unity 可执行文件。请在配置中设置 unityExecutablePath 或 unityVersion。" + Environment.NewLine +
+                        "macOS 默认路径示例: /Applications/Unity/Hub/Editor/2022.3.62f2c1/Unity.app/Contents/MacOS/Unity" + Environment.NewLine +
+                        "Windows 默认路径示例: C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f2c1\\Unity.exe");
+                }
+
+                _logger.Warn("[dry-run] 未配置 Unity 可执行文件，正式打包时会失败。请设置 unityExecutablePath 或 unityVersion。");
+            }
+            else if (!_options.DryRun && !File.Exists(_paths.UnityExecutable))
             {
                 throw new FileNotFoundException($"找不到 Unity 可执行文件: {_paths.UnityExecutable}");
             }
 
-            _logger.Info($"Unity: {_paths.UnityExecutable}");
+            if (!string.IsNullOrWhiteSpace(_paths.UnityExecutable))
+            {
+                _logger.Info($"Unity: {_paths.UnityExecutable}");
+            }
         }
 
         if (_config.IsIos && !_options.SkipXcode)

@@ -10,10 +10,17 @@
   <ItemGroup>
     <Compile Remove="BuildServer\**\*.cs" />
     <Compile Remove="LinuxGateway\**\*.cs" />
+    <Compile Remove="AutomationUnityBuildIOS.Tests\**\*.cs" />
     <Content Remove="BuildServer\**\*" />
     <Content Remove="LinuxGateway\**\*" />
+    <Content Remove="AutomationUnityBuildIOS.Tests\**\*" />
     <None Remove="BuildServer\**\*" />
     <None Remove="LinuxGateway\**\*" />
+    <None Remove="AutomationUnityBuildIOS.Tests\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AutomationUnityBuildIOS.Tests" />
   </ItemGroup>
 
 </Project>

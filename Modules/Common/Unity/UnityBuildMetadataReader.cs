@@ -5,6 +5,11 @@ namespace AutomationUnityBuildIOS;
 
 internal sealed class UnityBuildMetadataReader(BuildRunContext context, string unityEditorScriptName)
 {
+    private static readonly JsonSerializerOptions MetadataJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private BuildConfig _config => context.Config;
     private CliOptions _options => context.Options;
     private BuildPaths _paths => context.Paths;
@@ -29,11 +34,16 @@ internal sealed class UnityBuildMetadataReader(BuildRunContext context, string u
         {
             metadata = JsonSerializer.Deserialize<UnityBuildMetadata>(
                 File.ReadAllText(_paths.UnityBuildMetadataPath),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                MetadataJsonOptions);
         }
-        catch (Exception ex)
+        catch (JsonException ex)
         {
-            _logger.Warn($"读取 Unity 构建元数据失败，跳过 Bundle Version 同步: {ex.Message}");
+            _logger.Warn($"读取 Unity 构建元数据失败（JSON 格式错误），跳过 Bundle Version 同步: {ex.Message}");
+            return;
+        }
+        catch (IOException ex)
+        {
+            _logger.Warn($"读取 Unity 构建元数据失败（文件读取错误），跳过 Bundle Version 同步: {ex.Message}");
             return;
         }
 

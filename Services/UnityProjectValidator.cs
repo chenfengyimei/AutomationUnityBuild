@@ -91,7 +91,11 @@ internal sealed class UnityProjectValidator(BuildRunContext context)
         {
             return Directory.EnumerateDirectories(path).ToArray();
         }
-        catch
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+        catch (DirectoryNotFoundException)
         {
             return [];
         }

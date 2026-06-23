@@ -18,7 +18,8 @@ internal sealed class XcodeBuildService(BuildRunContext context, XcodeProjectLoc
 
         if (_options.DryRun)
         {
-            selectedProjectOrWorkspace = Path.Combine(_paths.XcodeOutputDirectory, "Unity-iPhone.xcodeproj");
+            selectedProjectOrWorkspace = _xcodeProjectLocator.Find()
+                ?? Path.Combine(_paths.XcodeOutputDirectory, "Unity-iPhone.xcodeproj");
         }
         else
         {
@@ -185,13 +186,52 @@ internal sealed class XcodeBuildService(BuildRunContext context, XcodeProjectLoc
         foreach (string filePath in Directory.EnumerateFiles(sourceDirectory))
         {
             string targetFilePath = Path.Combine(targetDirectory, Path.GetFileName(filePath));
-            File.Copy(filePath, targetFilePath, overwrite: false);
+            CopyFileWithSymlinkSupport(filePath, targetFilePath);
         }
 
         foreach (string directoryPath in Directory.EnumerateDirectories(sourceDirectory))
         {
             string targetSubdirectory = Path.Combine(targetDirectory, Path.GetFileName(directoryPath));
-            CopyDirectory(directoryPath, targetSubdirectory);
+            CopyDirectoryWithSymlinkSupport(directoryPath, targetSubdirectory);
+        }
+    }
+
+    private static void CopyFileWithSymlinkSupport(string sourcePath, string targetPath)
+    {
+        string? linkTarget = ResolveSymbolicLinkTarget(sourcePath);
+        if (linkTarget is not null)
+        {
+            File.CreateSymbolicLink(targetPath, linkTarget);
+            return;
+        }
+
+        File.Copy(sourcePath, targetPath, overwrite: false);
+    }
+
+    private static void CopyDirectoryWithSymlinkSupport(string sourcePath, string targetPath)
+    {
+        string? linkTarget = ResolveSymbolicLinkTarget(sourcePath);
+        if (linkTarget is not null)
+        {
+            Directory.CreateSymbolicLink(targetPath, linkTarget);
+            return;
+        }
+
+        CopyDirectory(sourcePath, targetPath);
+    }
+
+    private static string? ResolveSymbolicLinkTarget(string path)
+    {
+        try
+        {
+            FileSystemInfo info = File.Exists(path)
+                ? new FileInfo(path)
+                : new DirectoryInfo(path);
+            return info.LinkTarget;
+        }
+        catch
+        {
+            return null;
         }
     }
 

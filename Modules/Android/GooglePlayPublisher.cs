@@ -26,7 +26,7 @@ internal sealed class GooglePlayPublisher(BuildRunContext context)
         }
 
         GoogleServiceAccount serviceAccount = GoogleServiceAccount.Load(ResolveSecretPath(_config.GooglePlayServiceAccountJsonPath));
-        using var httpClient = new HttpClient();
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
         string accessToken = await GoogleOAuthTokenProvider.GetAccessTokenAsync(httpClient, serviceAccount, AndroidPublisherScope);
         var apiClient = new GooglePlayApiClient(httpClient, accessToken, _logger);
 
@@ -55,11 +55,18 @@ internal sealed class GooglePlayPublisher(BuildRunContext context)
             await apiClient.CommitEditAsync(packageName, editId, _config.GooglePlayChangesNotSentForReview);
             _logger.Info($"Google Play 上传完成: package={packageName}, track={_config.GooglePlayTrack}, versionCodes={string.Join(",", versionCodes)}");
         }
-        catch
+        catch (Exception)
         {
             if (!string.IsNullOrWhiteSpace(editId))
             {
-                await apiClient.TryDeleteEditAsync(packageName, editId);
+                try
+                {
+                    await apiClient.TryDeleteEditAsync(packageName, editId);
+                }
+                catch (Exception cleanupError)
+                {
+                    _logger.Warn($"Google Play edit 回滚失败，可能需要到 Play Console 检查 edit 状态: {cleanupError.Message}");
+                }
             }
 
             throw;

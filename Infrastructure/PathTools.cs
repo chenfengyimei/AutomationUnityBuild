@@ -24,4 +24,13 @@ internal static class PathTools
 
         return path;
     }
+
+    public static void EnsureParentDirectory(string path)
+    {
+        string? parent = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
+    }
 }

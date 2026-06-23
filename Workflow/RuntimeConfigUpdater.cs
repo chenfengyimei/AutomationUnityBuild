@@ -52,7 +52,7 @@ internal sealed class RuntimeConfigUpdater(BuildRunContext context)
             return "1";
         }
 
-        if (!current.All(char.IsDigit) || !ulong.TryParse(current, out ulong numericBuildNumber))
+        if (!CanIncrementBuildNumber(current, out ulong numericBuildNumber))
         {
             throw new InvalidOperationException(
                 $"autoIncrementBuildNumber=true 时 buildNumber 必须是纯数字，当前值是 {currentBuildNumber}。可以改成数字，或在配置里关闭 autoIncrementBuildNumber。");
@@ -67,5 +67,34 @@ internal sealed class RuntimeConfigUpdater(BuildRunContext context)
         return current.Length > next.Length && current.StartsWith('0')
             ? next.PadLeft(current.Length, '0')
             : next;
+    }
+
+    public static bool CanIncrementBuildNumber(string buildNumber, out ulong value)
+    {
+        value = 0;
+        string current = buildNumber.Trim();
+        if (string.IsNullOrWhiteSpace(current))
+        {
+            return true;
+        }
+
+        if (!current.All(char.IsDigit) || !ulong.TryParse(current, out value))
+        {
+            return false;
+        }
+
+        try
+        {
+            checked
+            {
+                ulong incremented = value + 1;
+            }
+
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 }

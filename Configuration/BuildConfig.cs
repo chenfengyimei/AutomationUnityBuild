@@ -251,6 +251,22 @@ internal sealed partial class BuildConfig
             throw new InvalidOperationException("syncBundleVersionFromUnity=false 时必须配置 bundleVersion。");
         }
 
+        if (AutoIncrementBuildNumber && !string.IsNullOrWhiteSpace(BuildNumber))
+        {
+            string trimmed = BuildNumber.Trim();
+            if (!trimmed.All(char.IsDigit) || !ulong.TryParse(trimmed, out _))
+            {
+                throw new InvalidOperationException(
+                    $"autoIncrementBuildNumber=true 时 buildNumber 必须是纯数字，当前值是 {BuildNumber}。");
+            }
+
+            if (ulong.TryParse(trimmed, out ulong current) && current >= ulong.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    $"autoIncrementBuildNumber=true 时 buildNumber 已达最大值，无法继续递增: {BuildNumber}。");
+            }
+        }
+
         if (IsAndroid)
         {
             ValidateAndroid();
@@ -263,6 +279,11 @@ internal sealed partial class BuildConfig
 
     public bool IsIos => string.Equals(BuildPlatform, BuildPlatforms.Ios, StringComparison.OrdinalIgnoreCase);
     public bool IsAndroid => string.Equals(BuildPlatform, BuildPlatforms.Android, StringComparison.OrdinalIgnoreCase);
+
+    internal void EnsureValid()
+    {
+        Validate();
+    }
 
     public bool ShouldBuildApk => AndroidBuildFormats.IncludesApk(AndroidBuildFormat);
     public bool ShouldBuildAab => AndroidBuildFormats.IncludesAab(AndroidBuildFormat);
