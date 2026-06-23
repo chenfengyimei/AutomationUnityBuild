@@ -12,6 +12,8 @@ public static class ApiRoutes
     public static void Map(WebApplication app)
     {
         app.MapGet("/api/health", () => Results.Ok(new { ok = true, time = DateTimeOffset.Now }));
+        app.MapGet("/api/dashboard", DashboardAsync);
+        app.MapGet("/api/events", EventsAsync);
 
         app.MapPost("/api/auth/login", LoginAsync);
         app.MapPost("/api/auth/logout", LogoutAsync);
@@ -41,25 +43,92 @@ public static class ApiRoutes
         app.MapGet("/api/settings", SettingsAsync);
     }
 
+    private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        return Results.Ok(await DashboardSnapshotAsync(database, options));
+    }
+
+    private static async Task EventsAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null)
+        {
+            await ApiDiagnostics.Unauthorized(context).ExecuteAsync(context);
+            return;
+        }
+
+        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.Headers.Connection = "keep-alive";
+        context.Response.ContentType = "text/event-stream; charset=utf-8";
+
+        try
+        {
+            await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
+            using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(context.RequestAborted))
+            {
+                await WriteSseEventAsync(context, "heartbeat", new { time = DateTimeOffset.Now });
+                await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
+            }
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static async Task<object> DashboardSnapshotAsync(JsonDatabase database, BuildServerOptions options)
+    {
+        return await database.ReadAsync(db => new
+        {
+            projects = db.Projects.OrderBy(project => project.Name).ToList(),
+            configs = db.Configs.OrderBy(config => config.Name).ToList(),
+            jobs = db.Jobs.OrderByDescending(job => job.CreatedAt).Take(100).ToList(),
+            workers = db.Workers.OrderBy(worker => worker.Name).ToList(),
+            settings = new
+            {
+                options.DataRoot,
+                options.WorkerName,
+                options.PublicBaseUrl,
+                options.RetentionDays,
+                options.MaxArtifactBytes,
+                ConfigRoot = options.AllowedConfigRoots.FirstOrDefault() ?? ""
+            }
+        });
+    }
+
+    private static async Task WriteSseEventAsync(HttpContext context, string eventName, object data)
+    {
+        string json = JsonSerializer.Serialize(data, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+        await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
+        await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
+        await context.Response.Body.FlushAsync(context.RequestAborted);
+    }
+
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, AuthService auth, LoginRateLimiter limiter)
     {
         string limiterKey = $"{context.Connection.RemoteIpAddress}|{request.UserName}";
         if (!limiter.IsAllowed(limiterKey))
         {
-            return Results.Json(new
-            {
-                error = "登录失败次数过多，请稍后再试。"
-            }, statusCode: StatusCodes.Status429TooManyRequests);
+            return ApiDiagnostics.Problem(
+                context,
+                StatusCodes.Status429TooManyRequests,
+                "请求过于频繁",
+                "登录失败次数过多，请稍后再试。",
+                "rate_limited");
         }
 
         UserRecord? user = await auth.ValidateLoginAsync(request.UserName, request.Password);
         if (user is null)
         {
             limiter.RecordFailure(limiterKey);
-            return Results.Json(new
-            {
-                error = "账号或密码错误。请确认账号是 admin，只复制 initial-admin.txt 里 admin password: 后面的密码，并且这个文件来自当前服务的数据目录。"
-            }, statusCode: StatusCodes.Status401Unauthorized);
+            return ApiDiagnostics.Unauthorized(
+                context,
+                "账号或密码错误。请确认账号是 admin，只复制 initial-admin.txt 里 admin password: 后面的密码，并且这个文件来自当前服务的数据目录。");
         }
 
         limiter.RecordSuccess(limiterKey);
@@ -126,7 +195,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -184,7 +253,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -253,7 +322,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -279,7 +348,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -325,7 +394,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -370,7 +439,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -421,7 +490,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -442,7 +511,7 @@ public static class ApiRoutes
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
-            return ClientInputError(ex);
+            return ApiDiagnostics.ClientError(context, ex);
         }
     }
 
@@ -592,11 +661,6 @@ public static class ApiRoutes
     private static bool IsClientInputError(Exception ex)
     {
         return ex is InvalidOperationException or FileNotFoundException or ArgumentException;
-    }
-
-    private static IResult ClientInputError(Exception ex)
-    {
-        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status400BadRequest);
     }
 
     private static JsonObject BuildConfigJson(ProjectRecord project, BuildConfigFileRequest request, string configName, string buildPlatform)

@@ -283,6 +283,7 @@ public sealed class BuildWorkerService(
             SkipUnity = job.SkipUnity,
             SkipXcode = job.SkipXcode,
             AllowNonMac = job.AllowNonMac,
+            ClientRequestId = job.ClientRequestId,
             Notes = job.Notes,
             MaterializedConfigPath = job.MaterializedConfigPath,
             WorkerLogPath = job.WorkerLogPath,

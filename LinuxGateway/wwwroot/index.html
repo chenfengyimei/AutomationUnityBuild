@@ -29,8 +29,8 @@
         <button id="logoutBtn" type="button">退出</button>
       </header>
 
-      <div id="globalError" class="error banner hidden"></div>
-      <div id="globalNotice" class="notice banner hidden"></div>
+      <div id="globalError" class="error banner hidden" role="alert" aria-live="assertive"></div>
+      <div id="globalNotice" class="notice banner hidden" role="status" aria-live="polite"></div>
 
       <section class="layout">
         <aside class="panel sidebar">
@@ -125,6 +125,7 @@
       </section>
     </section>
   </main>
+  <script src="/runtime.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
