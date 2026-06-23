@@ -114,6 +114,12 @@ internal static class ConfigEditor
         new(13, "Git 和 Unity", "Repository Url", config => Display(config.RepositoryUrl), config =>
         {
             config.RepositoryUrl = AskRepositoryUrl(config.RepositoryUrl);
+            if (!config.AllowedRepositoryUrls.Select(GitRepositoryUrl.CanonicalKey)
+                .Contains(GitRepositoryUrl.CanonicalKey(config.RepositoryUrl), StringComparer.OrdinalIgnoreCase))
+            {
+                config.AllowedRepositoryUrls = [..config.AllowedRepositoryUrls, config.RepositoryUrl];
+            }
+
             return true;
         }),
         new(14, "Git 和 Unity", "Branch", config => Display(config.Branch), config =>
@@ -149,11 +155,21 @@ internal static class ConfigEditor
         new(20, "路径和清理策略", "Workspace Root", config => Display(config.WorkspaceRoot), config =>
         {
             config.WorkspaceRoot = AskRequiredWithDefault("Workspace Root", config.WorkspaceRoot);
+            if (!config.AllowedWorkspaceRoots.Contains(config.WorkspaceRoot, StringComparer.OrdinalIgnoreCase))
+            {
+                config.AllowedWorkspaceRoots = [..config.AllowedWorkspaceRoots, config.WorkspaceRoot];
+            }
+
             return true;
         }),
         new(21, "路径和清理策略", "Artifacts Root", config => Display(config.ArtifactsRoot), config =>
         {
             config.ArtifactsRoot = AskRequiredWithDefault("Artifacts Root", config.ArtifactsRoot);
+            if (!config.AllowedArtifactsRoots.Contains(config.ArtifactsRoot, StringComparer.OrdinalIgnoreCase))
+            {
+                config.AllowedArtifactsRoots = [..config.AllowedArtifactsRoots, config.ArtifactsRoot];
+            }
+
             return true;
         }),
         new(22, "路径和清理策略", "Reset Repository", config => BoolText(config.ResetRepository), config =>
@@ -193,11 +209,26 @@ internal static class ConfigEditor
         }),
         new(28, "配置文件信息", "Build Platform", config => Display(config.BuildPlatform), config =>
         {
+            string previousPlatform = config.BuildPlatform;
             string platform = ConsolePrompts.AskChoice("Build Platform", [BuildPlatforms.Ios, BuildPlatforms.Android], Default(config.BuildPlatform, BuildPlatforms.Ios));
+            if (previousPlatform == platform)
+            {
+                return true;
+            }
+
+            Console.WriteLine($"将从 {previousPlatform} 切换到 {platform}。");
+            Console.WriteLine("切换后另一平台的专有字段会从菜单隐藏，但值仍保留在配置文件中，切回来时会恢复显示。");
+            if (!ConsolePrompts.AskBool("确认切换", false))
+            {
+                Console.WriteLine("已取消切换。");
+                return false;
+            }
+
             config.BuildPlatform = platform;
             config.UnityBuildMethod = platform == BuildPlatforms.Android
                 ? DefaultUnityBuildMethods.Android
                 : DefaultUnityBuildMethods.Ios;
+            Console.WriteLine($"已切换到 {platform}。另一平台的专有字段已隐藏但保留。");
             return true;
         }),
         new(29, "Android 构建", "Android Build Format", config => Display(config.AndroidBuildFormat), config =>
@@ -332,10 +363,12 @@ internal static class ConfigEditor
                 continue;
             }
 
-            Save(config, fullPath);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"已保存: {fullPath}");
-            Console.ResetColor();
+            if (Save(config, fullPath))
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"已保存: {fullPath}");
+                Console.ResetColor();
+            }
         }
     }
 
@@ -397,9 +430,22 @@ internal static class ConfigEditor
         Console.WriteLine($"resetRepository={config.ResetRepository}, preserveLibrary={config.PreserveUnityLibraryOnReset}");
     }
 
-    private static void Save(BuildConfig config, string fullPath)
+    private static bool Save(BuildConfig config, string fullPath)
     {
+        try
+        {
+            config.EnsureValid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"配置校验失败，未保存: {ex.Message}");
+            Console.ResetColor();
+            return false;
+        }
+
         ConfigFileWriter.Save(fullPath, config);
+        return true;
     }
 
     private static IEnumerable<ConfigField> VisibleFields(BuildConfig config)
@@ -558,8 +604,7 @@ internal static class ConfigEditor
 
     private static bool CanAutoIncrementBuildNumber(string buildNumber)
     {
-        string value = buildNumber.Trim();
-        return string.IsNullOrWhiteSpace(value) || value.All(char.IsDigit);
+        return RuntimeConfigUpdater.CanIncrementBuildNumber(buildNumber, out _);
     }
 
     private static string AskOptionalInteger(string label, string currentValue)

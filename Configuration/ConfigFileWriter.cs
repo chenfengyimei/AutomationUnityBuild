@@ -16,7 +16,7 @@ internal static class ConfigFileWriter
 {
     public static void Save(string fullPath, BuildConfig config)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        PathTools.EnsureParentDirectory(fullPath);
         string json = JsonSerializer.Serialize(config, JsonOptions.IndentedCamelCase);
         File.WriteAllText(fullPath, json + Environment.NewLine, TextEncodings.Utf8Bom);
     }

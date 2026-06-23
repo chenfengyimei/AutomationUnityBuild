@@ -33,11 +33,6 @@ internal static class Cli
     {
         try
         {
-            if (ShortcutCommands.IsShortcut(args[0]))
-            {
-                return await ShortcutCommands.ExecuteAsync(args);
-            }
-
             string command = args[0].Trim().ToLowerInvariant();
             CliOptions options = CliOptions.Parse(args.Skip(1));
 
@@ -113,7 +108,7 @@ internal static class Cli
             throw new InvalidOperationException($"{path} 已存在。需要覆盖时加 --force。");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        PathTools.EnsureParentDirectory(path);
         File.WriteAllText(path, template, TextEncodings.Utf8Bom);
         Console.WriteLine($"已生成配置模板: {path}");
         return 0;

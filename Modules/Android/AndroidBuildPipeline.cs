@@ -63,6 +63,13 @@ internal sealed class AndroidBuildPipeline : IPlatformBuildPipeline
             _logger.Warn("跳过 Unity Android 构建。");
         }
 
-        await _stepRunner.RunAsync("Google Play 上传", _googlePlayPublisher.PublishAsync);
+        if (_config.GooglePlayUploadEnabled)
+        {
+            await _stepRunner.RunAsync("Google Play 上传", _googlePlayPublisher.PublishAsync);
+        }
+        else
+        {
+            _logger.Info("Google Play 上传: 关闭");
+        }
     }
 }

@@ -5,6 +5,11 @@ namespace AutomationUnityBuildIOS;
 
 internal sealed class GoogleServiceAccount
 {
+    private static readonly JsonSerializerOptions LoadJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     [JsonPropertyName("client_email")]
     public string ClientEmail { get; set; } = "";
 
@@ -18,7 +23,7 @@ internal sealed class GoogleServiceAccount
     {
         GoogleServiceAccount? serviceAccount = JsonSerializer.Deserialize<GoogleServiceAccount>(
             File.ReadAllText(path),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            LoadJsonOptions);
 
         if (serviceAccount is null ||
             string.IsNullOrWhiteSpace(serviceAccount.ClientEmail) ||

@@ -376,7 +376,7 @@ internal static class IosConfigWizard
             throw new InvalidOperationException($"{fullPath} 已存在。需要覆盖时加 --force，或在向导里换一个文件名。");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        PathTools.EnsureParentDirectory(fullPath);
         ConfigFileWriter.Save(fullPath, config);
 
         Console.ForegroundColor = ConsoleColor.Green;

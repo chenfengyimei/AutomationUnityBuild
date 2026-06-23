@@ -25,11 +25,11 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
 
         if (verbose || string.IsNullOrWhiteSpace(logPath))
         {
-            Console.WriteLine(commandText);
+            logger.Info($"执行命令: {commandText}");
         }
         else
         {
-            Console.WriteLine($"{fileName} {args.FirstOrDefault()} ...");
+            logger.Info($"{fileName} {args.FirstOrDefault()} ...");
         }
 
         logger.CommandStarted(commandText, resolvedWorkingDirectory, logPath);
@@ -96,6 +96,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         }
         catch (Exception ex)
         {
+            ProcessSafety.KillProcessIfRunning(process);
             logger.CommandFailed(commandText, stopwatch.Elapsed, ex);
             throw;
         }
@@ -138,7 +139,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
 
         if (verbose)
         {
-            Console.WriteLine(commandText);
+            logger.Info($"执行命令: {commandText}");
         }
 
         logger.CommandStarted(commandText, resolvedWorkingDirectory, commandLogPath: null);
@@ -170,9 +171,11 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         try
         {
             process.Start();
-            string stdout = await process.StandardOutput.ReadToEndAsync();
-            string stderr = await process.StandardError.ReadToEndAsync();
+            Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
+            string stdout = await stdoutTask;
+            string stderr = await stderrTask;
 
             if (process.ExitCode != 0)
             {
@@ -186,6 +189,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
+            ProcessSafety.KillProcessIfRunning(process);
             logger.CommandFailed(commandText, stopwatch.Elapsed, ex);
             throw;
         }
@@ -213,5 +217,22 @@ internal static class CommandLineFormatter
         }
 
         return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    }
+}
+
+internal static class ProcessSafety
+{
+    public static void KillProcessIfRunning(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
     }
 }

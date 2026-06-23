@@ -26,7 +26,7 @@ internal sealed record BuildPaths(
 {
     public static BuildPaths Create(BuildConfig config)
     {
-        string runId = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
+        string runId = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss-fff");
         string workspaceRoot = PathTools.ExpandHome(config.WorkspaceRoot);
         string repositoryRoot = Path.Combine(workspaceRoot, ProjectDirectoryName(config));
         string unityProjectRoot = Path.GetFullPath(Path.Combine(repositoryRoot, config.UnityProjectRelativePath));
@@ -126,6 +126,6 @@ internal sealed record BuildPaths(
             }
         }
 
-        return "/Applications/Unity/Hub/Editor/<UnityVersion>/Unity.app/Contents/MacOS/Unity";
+        return "";
     }
 }

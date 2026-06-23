@@ -117,9 +117,13 @@ internal static class ConfigFileSelector
                 ReadString(root, "projectDirectoryName"),
                 Path.GetFileNameWithoutExtension(fullPath));
         }
-        catch
+        catch (JsonException)
         {
-            return $"{Path.GetFileNameWithoutExtension(fullPath)} (配置读取失败)";
+            return $"{Path.GetFileNameWithoutExtension(fullPath)} (配置格式错误)";
+        }
+        catch (IOException)
+        {
+            return $"{Path.GetFileNameWithoutExtension(fullPath)} (文件读取失败)";
         }
     }
 

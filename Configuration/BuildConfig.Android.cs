@@ -15,7 +15,7 @@ internal sealed partial class BuildConfig
         }
 
         if (!string.IsNullOrWhiteSpace(BuildNumber) &&
-            (!int.TryParse(BuildNumber, out int versionCode) || versionCode <= 0))
+            (!long.TryParse(BuildNumber, out long versionCode) || versionCode <= 0))
         {
             throw new InvalidOperationException("Android buildNumber/versionCode 必须是大于 0 的整数。");
         }
