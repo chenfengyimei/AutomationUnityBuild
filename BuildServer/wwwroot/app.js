@@ -1295,11 +1295,16 @@ function renderConfigsSelects() {
     $("configProject").value = selectedConfigProject;
   }
   if (!state.editingConfigId) {
-    const project = state.projects.find((item) => item.id === $("configProject").value);
-    if (project?.defaultBuildPlatform) {
-      $("configBuildPlatform").value = project.defaultBuildPlatform;
+    const projectChanged = $("configProject").value !== selectedConfigProject;
+    if (projectChanged) {
+      const project = state.projects.find((item) => item.id === $("configProject").value);
+      if (project?.defaultBuildPlatform) {
+        $("configBuildPlatform").value = project.defaultBuildPlatform;
+      }
+      fillConfigFileDefaults({ forceFileName: true });
+    } else {
+      fillConfigFileDefaults();
     }
-    fillConfigFileDefaults();
   }
   renderBuildConfigs();
   if (state.configs.some((config) => config.id === selectedBuildConfig && config.projectId === $("buildProject").value)) {
