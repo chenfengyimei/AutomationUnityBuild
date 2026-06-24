@@ -12,7 +12,7 @@ public sealed class GatewayAgentService(
     AgentCredentialStore credentialStore,
     JsonDatabase database,
     BuildQueueService queue,
-    BuildWorkerService worker,
+    IServiceProvider serviceProvider,
     ILogger<GatewayAgentService> logger) : BackgroundService, IGatewayPushChannel
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<AgentMessage>> _pendingResponses = new();
@@ -133,8 +133,11 @@ public sealed class GatewayAgentService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
+        logger.LogInformation("Gateway agent service starting. Enabled={Enabled}", options.ReverseGatewayEnabled);
         if (!options.ReverseGatewayEnabled)
         {
+            logger.LogInformation("Gateway agent service disabled.");
             return;
         }
 
@@ -594,6 +597,7 @@ public sealed class GatewayAgentService(
         }
 
         var gatewayUser = new CurrentUser("gateway", "linux-gateway", "Linux Gateway", Roles.Agent);
+        BuildWorkerService worker = serviceProvider.GetRequiredService<BuildWorkerService>();
         bool canceled = await queue.CancelQueuedAsync(payload.JobId, gatewayUser) ||
                         await worker.CancelRunningAsync(payload.JobId, gatewayUser);
 

@@ -61,7 +61,10 @@ public sealed class BuildWorkerService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
+        logger.LogInformation("Build worker service starting.");
         await RegisterWorkerAsync(WorkerStatuses.Idle, "");
+        logger.LogInformation("Build worker service started.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
