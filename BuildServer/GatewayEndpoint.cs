@@ -141,8 +141,8 @@ public static class GatewayEndpoint
         if (!File.Exists(job.WorkerLogPath)) return Results.Ok("");
 
         string log = full
-            ? File.ReadAllText(job.WorkerLogPath)
-            : Tail(job.WorkerLogPath, Math.Clamp(lines ?? 300, 20, 2000));
+            ? LogFileReader.ReadAll(job.WorkerLogPath)
+            : LogFileReader.Tail(job.WorkerLogPath, Math.Clamp(lines ?? 300, 20, 2000));
         return Results.Text(log, "text/plain; charset=utf-8");
     }
 
@@ -238,21 +238,6 @@ public static class GatewayEndpoint
         return OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
-    }
-
-    private static string Tail(string path, int lines)
-    {
-        Queue<string> queue = new();
-        foreach (string line in File.ReadLines(path))
-        {
-            queue.Enqueue(line);
-            while (queue.Count > lines)
-            {
-                queue.Dequeue();
-            }
-        }
-
-        return string.Join(Environment.NewLine, queue);
     }
 
     private static string OperatingSystemName()

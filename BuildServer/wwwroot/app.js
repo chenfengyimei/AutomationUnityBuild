@@ -1391,8 +1391,18 @@ async function openJobModal(jobId) {
   $("jobModalDetail").innerHTML = `<div><strong>状态</strong><br>加载中...</div>`;
   $("jobModalArtifacts").innerHTML = `<article class="item muted">正在加载产物...</article>`;
   $("jobModalLog").textContent = "正在加载日志...";
-  await refreshJobModal(jobId);
-  startJobModalPolling(jobId);
+  try {
+    await refreshJobModal(jobId);
+  } catch (error) {
+    $("jobModalDetail").innerHTML = `<div><strong>状态</strong><br>读取失败</div>`;
+    $("jobModalArtifacts").innerHTML = `<article class="item error">产物暂时不可用。</article>`;
+    $("jobModalLog").textContent = `日志暂时不可用：${error instanceof Error ? error.message : String(error || "")}`;
+    showError(error);
+  } finally {
+    if (isJobModalOpen() && state.selectedJobId === jobId) {
+      startJobModalPolling(jobId);
+    }
+  }
 }
 
 function closeJobModal() {
@@ -1429,11 +1439,7 @@ function stopJobModalPolling() {
 
 async function refreshJobModal(jobId) {
   const encodedJobId = encodeURIComponent(jobId);
-  const [job, log, artifacts] = await Promise.all([
-    api(`/api/builds/${encodedJobId}`),
-    fetchText(`/api/builds/${encodedJobId}/log?full=true`),
-    api(`/api/builds/${encodedJobId}/artifacts`),
-  ]);
+  const job = await api(`/api/builds/${encodedJobId}`);
 
   $("jobModalTitle").textContent = "任务详情";
   $("jobModalSubTitle").textContent = `${job.id} / ${new Date(job.createdAt).toLocaleString()}`;
@@ -1449,12 +1455,30 @@ async function refreshJobModal(jobId) {
     ["错误信息", job.error || "-"],
   ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
 
-  $("jobModalLog").textContent = log || "暂无日志";
-  $("jobModalArtifacts").innerHTML = renderArtifactsTable(artifacts);
+  const [logResult, artifactsResult] = await Promise.allSettled([
+    fetchText(`/api/builds/${encodedJobId}/log?full=true`),
+    api(`/api/builds/${encodedJobId}/artifacts`),
+  ]);
+
+  if (logResult.status === "fulfilled") {
+    $("jobModalLog").textContent = logResult.value || (job.status === "Queued" ? "任务排队中，等待 Worker 写入日志..." : "暂无日志");
+  } else {
+    $("jobModalLog").textContent = `日志暂时不可用，正在重试：${errorMessage(logResult.reason)}`;
+  }
+
+  if (artifactsResult.status === "fulfilled") {
+    $("jobModalArtifacts").innerHTML = renderArtifactsTable(artifactsResult.value);
+  } else {
+    $("jobModalArtifacts").innerHTML = `<article class="item error">产物暂时不可用，正在重试：${escapeHtml(errorMessage(artifactsResult.reason))}</article>`;
+  }
 
   if (job.status !== "Queued" && job.status !== "Running") {
     stopJobModalPolling();
   }
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error || "未知错误");
 }
 
 function renderArtifactsTable(artifacts) {

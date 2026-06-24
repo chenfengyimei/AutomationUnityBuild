@@ -191,7 +191,8 @@ public sealed class BuildWorkerService(
         string logPath,
         CancellationToken cancellationToken)
     {
-        using var logWriter = new StreamWriter(logPath, append: false, Encoding.UTF8) { AutoFlush = true };
+        using var logStream = new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        using var logWriter = new StreamWriter(logStream, Encoding.UTF8) { AutoFlush = true };
         object writeLock = new();
         await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] START {fileName} {string.Join(" ", args.Select(Quote))}");
         await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] CWD {workingDirectory}");
