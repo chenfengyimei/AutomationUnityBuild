@@ -10,6 +10,7 @@ const state = {
   pendingConfigDeleteId: null,
   editingConfigId: null,
   editingConfigPath: "",
+  selectedUserId: "",
   activeTab: "builds",
   events: null,
   jobModalTimer: null,
@@ -403,6 +404,8 @@ function bindEvents() {
     if (event.target === $("userModal")) closeUserModal();
   });
   $("usersList").addEventListener("click", handleUsersListClick);
+  $("usersList").addEventListener("keydown", handleUsersKeydown);
+  $("userDetailPanel").addEventListener("click", handleUsersListClick);
   $("projectsList").addEventListener("click", handleProjectsListClick);
   $("jobsList").addEventListener("click", handleJobsListClick);
   $("configCancelEditBtn").addEventListener("click", resetConfigForm);
@@ -1548,25 +1551,19 @@ async function refreshUsers() {
 function renderUsers() {
   if (!isAdmin()) return;
   renderUserStats();
+  $("userDirectoryCount").textContent = `${state.users.length} 人`;
   if (state.users.length === 0) {
-    $("usersList").innerHTML = `<div class="empty-state">暂无用户。点击右上角新增用户。</div>`;
+    state.selectedUserId = "";
+    $("usersList").innerHTML = `<div class="empty-state compact">暂无用户。点击右上角新增用户。</div>`;
+    renderUserDetail(null);
     return;
   }
 
-  $("usersList").innerHTML = `<table class="data-table">
-    <thead>
-      <tr>
-        <th>用户</th>
-        <th>角色</th>
-        <th>状态</th>
-        <th>创建时间</th>
-        <th class="table-actions">操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${state.users.map(renderUserRow).join("")}
-    </tbody>
-  </table>`;
+  if (!state.users.some((user) => user.id === state.selectedUserId)) {
+    state.selectedUserId = state.users[0].id;
+  }
+  $("usersList").innerHTML = state.users.map(renderUserListItem).join("");
+  renderUserDetail();
 }
 
 function renderUserStats() {
@@ -1582,28 +1579,85 @@ function renderUserStats() {
   ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
 }
 
-function renderUserRow(user) {
+function renderUserListItem(user) {
+  const selected = user.id === state.selectedUserId;
+  const protectedText = isRootAdminUser(user) ? `<span class="protect-note">主账号</span>` : "";
+  return `<article class="user-list-item${selected ? " selected" : ""}" role="option" tabindex="0" aria-selected="${selected ? "true" : "false"}" data-select-user-id="${escapeHtml(user.id)}">
+    <span class="avatar">${avatarText(user)}</span>
+    <span class="user-list-main">
+      <span class="user-list-title">
+        <strong>${escapeHtml(user.displayName || user.userName)}</strong>
+        ${protectedText}
+      </span>
+      <span class="muted small">${escapeHtml(user.userName)}</span>
+    </span>
+    <span class="user-list-badges">
+      <span class="role-pill">${escapeHtml(user.role)}</span>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+    </span>
+  </article>`;
+}
+
+function renderUserDetail(user = state.users.find((item) => item.id === state.selectedUserId)) {
+  if (!user) {
+    $("userDetailPanel").innerHTML = `<div class="user-detail-empty">
+      <p class="eyebrow">User Detail</p>
+      <h4>还没有可查看的账号</h4>
+      <p class="muted">点击右上角“新增用户”为团队成员分配权限。</p>
+    </div>`;
+    return;
+  }
+
   const protectedReason = protectedUserReason(user);
-  const disabled = protectedReason || !user.enabled ? "disabled" : "";
-  const title = protectedReason || (!user.enabled ? "用户已经禁用。" : "");
-  return `<tr>
-    <td>
-      <div class="user-cell">
-        <span class="avatar">${avatarText(user)}</span>
-        <div>
-          <strong>${escapeHtml(user.displayName || user.userName)}</strong>
-          <div class="muted">${escapeHtml(user.userName)}</div>
-        </div>
+  const actionDisabled = protectedReason || !user.enabled ? "disabled" : "";
+  const actionTitle = protectedReason || (!user.enabled ? "用户已经禁用。" : "");
+  $("userDetailPanel").innerHTML = `<div class="user-detail-header">
+      <span class="avatar large">${avatarText(user)}</span>
+      <div>
+        <p class="eyebrow">Selected Account</p>
+        <h4>${escapeHtml(user.displayName || user.userName)}</h4>
+        <p class="muted">${escapeHtml(user.userName)}</p>
       </div>
-    </td>
-    <td><span class="role-pill">${escapeHtml(user.role)}</span></td>
-    <td><span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span></td>
-    <td>${new Date(user.createdAt).toLocaleString()}</td>
-    <td class="table-actions">
-      <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑</button>
-      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" title="${escapeHtml(title)}" ${disabled}>禁用</button>
-    </td>
-  </tr>`;
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+    </div>
+    <dl class="user-detail-grid">
+      <div>
+        <dt>角色</dt>
+        <dd><span class="role-pill">${escapeHtml(user.role)}</span></dd>
+      </div>
+      <div>
+        <dt>账号类型</dt>
+        <dd>${isRootAdminUser(user) ? "受保护主账号" : "普通团队账号"}</dd>
+      </div>
+      <div>
+        <dt>创建时间</dt>
+        <dd>${user.createdAt ? new Date(user.createdAt).toLocaleString() : "-"}</dd>
+      </div>
+      <div>
+        <dt>账号 ID</dt>
+        <dd class="path-cell">${escapeHtml(user.id)}</dd>
+      </div>
+    </dl>
+    <section class="permission-card">
+      <p class="eyebrow">Permission Scope</p>
+      <strong>${escapeHtml(user.role)}</strong>
+      <p>${escapeHtml(roleDescription(user.role))}</p>
+      ${protectedReason ? `<p class="protect-warning">${escapeHtml(protectedReason)}</p>` : ""}
+    </section>
+    <div class="user-detail-actions">
+      <button class="secondary" type="button" data-edit-user-id="${escapeHtml(user.id)}">编辑用户</button>
+      <button class="danger" type="button" data-disable-user-id="${escapeHtml(user.id)}" title="${escapeHtml(actionTitle)}" ${actionDisabled}>停用/删除</button>
+    </div>`;
+}
+
+function roleDescription(role) {
+  return {
+    Admin: "拥有系统配置、用户权限、项目配置、打包任务和审计查看的完整权限。",
+    ProjectOwner: "可以维护项目与配置，也可以发起和管理构建任务。",
+    Builder: "可以发起构建、查看任务详情、日志和产物。",
+    Viewer: "只读查看项目、任务、日志和产物，不能修改配置。",
+    Agent: "自动化 Agent 使用的服务账号，通常不用于人工登录。",
+  }[role] || "自定义角色，按后端授权规则执行。";
 }
 
 function avatarText(user) {
@@ -1629,7 +1683,7 @@ async function saveUser(event) {
   const method = userId ? "PUT" : "POST";
   setButtonBusy("userSaveBtn", true, userId ? "更新中..." : "保存中...");
   try {
-    await api(path, {
+    const savedUser = await api(path, {
       method,
       body: JSON.stringify({
         userName: $("userName").value,
@@ -1639,6 +1693,7 @@ async function saveUser(event) {
         enabled: $("userEnabled").checked,
       }),
     });
+    state.selectedUserId = savedUser?.id || userId || state.selectedUserId;
     resetUserForm();
     closeUserModal();
     await refreshUsers();
@@ -1651,6 +1706,13 @@ async function saveUser(event) {
 }
 
 function handleUsersListClick(event) {
+  if (!event.target.closest) return;
+  const selectButton = event.target.closest("[data-select-user-id]");
+  if (selectButton) {
+    selectUser(selectButton.dataset.selectUserId);
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-user-id]");
   if (editButton) {
     openUserModal(editButton.dataset.editUserId);
@@ -1666,6 +1728,21 @@ function handleUsersListClick(event) {
   }
 }
 
+function handleUsersKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (!event.target.closest) return;
+  const selectItem = event.target.closest("[data-select-user-id]");
+  if (!selectItem) return;
+  event.preventDefault();
+  selectUser(selectItem.dataset.selectUserId);
+}
+
+function selectUser(userId) {
+  if (!state.users.some((user) => user.id === userId)) return;
+  state.selectedUserId = userId;
+  renderUsers();
+}
+
 async function disableUser(userId) {
   const user = state.users.find((item) => item.id === userId);
   const reason = user ? protectedUserReason(user) : "";
@@ -1678,13 +1755,15 @@ async function disableUser(userId) {
   if ($("userId").value === userId) {
     resetUserForm();
   }
+  state.selectedUserId = userId;
   await refreshUsers();
-  showMessage("用户已禁用。");
+  showMessage("用户已停用。系统保留账号审计记录。");
 }
 
 function openUserModal(userId = "") {
   resetUserForm();
   if (userId) {
+    state.selectedUserId = userId;
     fillUserForm(userId);
   }
   $("userModal").classList.remove("hidden");

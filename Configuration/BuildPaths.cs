@@ -122,18 +122,10 @@ internal sealed record BuildPaths(
             return $"/Applications/Unity/Hub/Editor/{unityVersion}/Unity.app/Contents/MacOS/Unity";
         }
 
-        string editorRoot = "/Applications/Unity/Hub/Editor";
-        if (Directory.Exists(editorRoot))
+        DirectoryInfo? latest = FindLatestUnityEditorDirectory("/Applications/Unity/Hub/Editor");
+        if (latest is not null)
         {
-            DirectoryInfo? latest = new DirectoryInfo(editorRoot)
-                .EnumerateDirectories()
-                .OrderByDescending(directory => directory.Name, StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault();
-
-            if (latest is not null)
-            {
-                return Path.Combine(latest.FullName, "Unity.app", "Contents", "MacOS", "Unity");
-            }
+            return Path.Combine(latest.FullName, "Unity.app", "Contents", "MacOS", "Unity");
         }
 
         return "";
@@ -141,11 +133,7 @@ internal sealed record BuildPaths(
 
     private static string ResolveWindowsUnityExecutable(string? unityVersion)
     {
-        string[] searchRoots =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Unity", "Hub", "Editor"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Unity", "Hub", "Editor"),
-        ];
+        string[] searchRoots = GetWindowsUnityEditorSearchRoots();
 
         if (!string.IsNullOrWhiteSpace(unityVersion))
         {
@@ -158,25 +146,120 @@ internal sealed record BuildPaths(
                 }
             }
 
-            return Path.Combine(searchRoots[0], unityVersion, "Editor", "Unity.exe");
+            return searchRoots.Length == 0
+                ? ""
+                : Path.Combine(searchRoots[0], unityVersion, "Editor", "Unity.exe");
         }
 
         foreach (string root in searchRoots)
         {
-            if (Directory.Exists(root))
+            DirectoryInfo? latest = FindLatestUnityEditorDirectory(root);
+            if (latest is not null)
             {
-                DirectoryInfo? latest = new DirectoryInfo(root)
-                    .EnumerateDirectories()
-                    .OrderByDescending(directory => directory.Name, StringComparer.OrdinalIgnoreCase)
-                    .FirstOrDefault();
-
-                if (latest is not null)
-                {
-                    return Path.Combine(latest.FullName, "Editor", "Unity.exe");
-                }
+                return Path.Combine(latest.FullName, "Editor", "Unity.exe");
             }
         }
 
         return "";
+    }
+
+    internal static DirectoryInfo? FindLatestUnityEditorDirectory(string editorRoot)
+    {
+        if (!Directory.Exists(editorRoot))
+        {
+            return null;
+        }
+
+        return new DirectoryInfo(editorRoot)
+            .EnumerateDirectories()
+            .OrderByDescending(directory => directory.Name, Comparer<string>.Create(CompareUnityVersionNames))
+            .FirstOrDefault();
+    }
+
+    internal static int CompareUnityVersionNames(string? left, string? right)
+    {
+        if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        int[] leftNumbers = ExtractVersionNumbers(left);
+        int[] rightNumbers = ExtractVersionNumbers(right);
+        int length = Math.Max(leftNumbers.Length, rightNumbers.Length);
+        for (int index = 0; index < length; index++)
+        {
+            int leftValue = index < leftNumbers.Length ? leftNumbers[index] : 0;
+            int rightValue = index < rightNumbers.Length ? rightNumbers[index] : 0;
+            int comparison = leftValue.CompareTo(rightValue);
+            if (comparison != 0)
+            {
+                return comparison;
+            }
+        }
+
+        return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string[] GetWindowsUnityEditorSearchRoots()
+    {
+        string[] programRoots =
+        [
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetEnvironmentVariable("ProgramW6432") ?? ""
+        ];
+
+        return programRoots
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(root => Path.Combine(root, "Unity", "Hub", "Editor"))
+            .ToArray();
+    }
+
+    private static int[] ExtractVersionNumbers(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        List<int> numbers = [];
+        int current = 0;
+        bool readingNumber = false;
+        bool overflow = false;
+
+        foreach (char character in value)
+        {
+            if (char.IsDigit(character))
+            {
+                int digit = character - '0';
+                readingNumber = true;
+                if (current > (int.MaxValue - digit) / 10)
+                {
+                    overflow = true;
+                    current = int.MaxValue;
+                }
+                else if (!overflow)
+                {
+                    current = (current * 10) + digit;
+                }
+                continue;
+            }
+
+            if (readingNumber)
+            {
+                numbers.Add(current);
+                current = 0;
+                readingNumber = false;
+                overflow = false;
+            }
+        }
+
+        if (readingNumber)
+        {
+            numbers.Add(current);
+        }
+
+        return numbers.ToArray();
     }
 }
