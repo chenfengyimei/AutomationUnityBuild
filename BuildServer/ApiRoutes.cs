@@ -719,6 +719,7 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
+        SetNoStoreHeaders(context);
         if (!File.Exists(job.WorkerLogPath)) return Results.Ok("");
         string log = full
             ? LogFileReader.ReadAll(job.WorkerLogPath)
@@ -1394,4 +1395,10 @@ public static class ApiRoutes
             : StringComparison.Ordinal;
     }
 
+    private static void SetNoStoreHeaders(HttpContext context)
+    {
+        context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers.Expires = "0";
+    }
 }

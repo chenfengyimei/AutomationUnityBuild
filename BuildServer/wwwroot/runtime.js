@@ -26,6 +26,7 @@
     try {
       const response = await fetch(path, {
         credentials: "include",
+        cache: options.cache || "no-store",
         ...options,
         headers,
         signal: options.signal || controller.signal,

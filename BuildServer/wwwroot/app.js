@@ -14,6 +14,7 @@ const state = {
   activeTab: "builds",
   events: null,
   jobModalTimer: null,
+  jobModalPollInFlight: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -1418,23 +1419,25 @@ function isJobModalOpen() {
 
 function startJobModalPolling(jobId) {
   stopJobModalPolling();
-  state.jobModalTimer = setTimeout(async function poll() {
+  state.jobModalTimer = setInterval(async () => {
     if (!isJobModalOpen() || state.selectedJobId !== jobId) return;
+    if (state.jobModalPollInFlight) return;
+    state.jobModalPollInFlight = true;
     try {
       await refreshJobModal(jobId);
     } catch {
+    } finally {
+      state.jobModalPollInFlight = false;
     }
-    if (isJobModalOpen() && state.selectedJobId === jobId) {
-      state.jobModalTimer = setTimeout(poll, 3000);
-    }
-  }, 3000);
+  }, 2000);
 }
 
 function stopJobModalPolling() {
   if (state.jobModalTimer) {
-    clearTimeout(state.jobModalTimer);
+    clearInterval(state.jobModalTimer);
     state.jobModalTimer = null;
   }
+  state.jobModalPollInFlight = false;
 }
 
 async function refreshJobModal(jobId) {
@@ -1456,7 +1459,7 @@ async function refreshJobModal(jobId) {
   ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
 
   const [logResult, artifactsResult] = await Promise.allSettled([
-    fetchText(`/api/builds/${encodedJobId}/log?full=true`),
+    fetchText(`/api/builds/${encodedJobId}/log?full=true&_ts=${Date.now()}`),
     api(`/api/builds/${encodedJobId}/artifacts`),
   ]);
 
@@ -1472,9 +1475,7 @@ async function refreshJobModal(jobId) {
     $("jobModalArtifacts").innerHTML = `<article class="item error">产物暂时不可用，正在重试：${escapeHtml(errorMessage(artifactsResult.reason))}</article>`;
   }
 
-  if (job.status !== "Queued" && job.status !== "Running") {
-    stopJobModalPolling();
-  }
+  $("jobModal").dataset.jobStatus = job.status || "";
 }
 
 function errorMessage(error) {
