@@ -23,6 +23,8 @@ if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) &&
 }
 
 BuildServerOptions options = BuildServerEnvironment.Load(builder.Configuration, builder.Environment);
+string? configuredUrls = builder.Configuration["urls"];
+string? aspNetCoreUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
 
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<JsonDatabase>();
@@ -48,6 +50,11 @@ GatewayTokenInitializer.Ensure(options, app.Logger);
 app.Logger.LogInformation("BuildServer data root: {DataRoot}", options.DataRoot);
 app.Logger.LogInformation("Initial admin file: {InitialAdminPath}", Path.Combine(options.DataRoot, "initial-admin.txt"));
 app.Logger.LogInformation("Initial gateway token file: {InitialGatewayTokenPath}", Path.Combine(options.DataRoot, "initial-gateway-token.txt"));
+app.Logger.LogInformation(
+    "BuildServer URL configuration: urls={ConfiguredUrls}; ASPNETCORE_URLS={AspNetCoreUrls}; appUrls={AppUrls}",
+    string.IsNullOrWhiteSpace(configuredUrls) ? "(empty)" : configuredUrls,
+    string.IsNullOrWhiteSpace(aspNetCoreUrls) ? "(empty)" : aspNetCoreUrls,
+    string.Join(",", app.Urls));
 
 app.UseApiDiagnostics();
 app.UseExceptionHandler(errorApp =>
@@ -60,6 +67,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
 });
 app.UseBuildServerSecurity();
+app.Logger.LogInformation("BuildServer HTTP middleware configured.");
 
 string? webRoot = ResolveWebRoot(app.Environment.ContentRootPath);
 if (webRoot is not null)
@@ -67,16 +75,19 @@ if (webRoot is not null)
     var webFileProvider = new PhysicalFileProvider(webRoot);
     app.MapGet("/", () => Results.File(Path.Combine(webRoot, "index.html"), "text/html; charset=utf-8"));
     app.UseStaticFiles(new StaticFileOptions { FileProvider = webFileProvider });
+    app.Logger.LogInformation("BuildServer static web root: {WebRoot}", webRoot);
 }
 else
 {
     app.MapGet("/", () => Results.Problem("找不到 wwwroot/index.html。请确认发布目录里包含 wwwroot 文件夹，并从完整发布目录启动 BuildServer。"));
+    app.Logger.LogWarning("BuildServer static web root was not found.");
 }
 
 ApiRoutes.Map(app);
 McpEndpoint.Map(app);
 GatewayEndpoint.Map(app);
 GatewayAgentEndpoint.Map(app);
+app.Logger.LogInformation("BuildServer API routes mapped. Starting web host...");
 
 app.Run();
 

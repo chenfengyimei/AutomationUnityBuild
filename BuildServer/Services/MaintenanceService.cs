@@ -9,11 +9,15 @@ public sealed class MaintenanceService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
+        logger.LogInformation("Maintenance service starting.");
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                logger.LogInformation("Maintenance cleanup started.");
                 await CleanupAsync();
+                logger.LogInformation("Maintenance cleanup completed.");
             }
             catch (Exception ex)
             {
