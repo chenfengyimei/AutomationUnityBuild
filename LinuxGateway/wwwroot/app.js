@@ -9,6 +9,7 @@ const state = {
   selectedUserId: "",
   activeTab: "overview",
   events: null,
+  jobDetailTimer: null,
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -85,6 +86,7 @@ async function logout() {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;
   state.users = [];
+  stopJobDetailPolling();
   stopDashboardEvents();
   state.selectedJobId = "";
   showLogin();
@@ -144,6 +146,9 @@ function setTab(tab) {
   }
 
   state.activeTab = tab;
+  if (tab !== "jobs") {
+    stopJobDetailPolling();
+  }
   document.querySelectorAll(".app-sidebar button[data-tab]").forEach((button) => {
     button.classList.toggle("active", button.dataset.tab === tab);
   });
@@ -380,7 +385,7 @@ function renderNodeCard(node) {
 
 function renderBuildSelectors() {
   const selectedNodeId = $("buildNode").value;
-  const enabledNodes = state.nodes.filter((node) => node.enabled && node.remote);
+  const enabledNodes = state.nodes.filter(isBuildableNode);
   $("buildNode").innerHTML = enabledNodes.length
     ? enabledNodes.map((node) => `<option value="${escapeHtml(node.id)}">${escapeHtml(node.name)} / ${(node.platforms || []).join(",") || "auto"}</option>`).join("")
     : `<option value="">暂无在线设备</option>`;
@@ -421,9 +426,14 @@ function selectedNode() {
   return state.nodes.find((node) => node.id === $("buildNode").value);
 }
 
+function isBuildableNode(node) {
+  return Boolean(node?.enabled && node.remote && node.lastStatus !== "Offline" && node.connectionStatus !== "Offline");
+}
+
 function buildSelectionError() {
   if (!canBuild()) return "当前角色不能提交构建任务。";
   if (!$("buildNode").value) return "暂无在线可用设备，不能提交打包任务。";
+  if (!isBuildableNode(selectedNode())) return "所选设备当前不可用，请等待节点同步完成或重新选择设备。";
   if (!$("buildProject").value) return "请选择可用项目。";
   if (!$("buildConfig").value) return "请选择可用配置。";
   return "";
@@ -551,6 +561,7 @@ function handleJobsClick(event) {
 
 async function selectJob(jobId) {
   clearError();
+  stopJobDetailPolling();
   state.selectedJobId = jobId;
   if (state.activeTab !== "jobs") {
     setTab("jobs");
@@ -567,20 +578,8 @@ async function selectJob(jobId) {
     const artifacts = await api(`/api/builds/${encodeURIComponent(jobId)}/artifacts`);
     const log = await fetchText(`/api/builds/${encodeURIComponent(jobId)}/log?lines=600`);
     const job = detail.job;
-    $("jobDetail").classList.remove("hidden");
-    $("jobTitle").textContent = `${job.nodeName} / ${job.projectName} / ${job.configName}`;
-    $("jobMeta").innerHTML = [
-      ["状态", job.status],
-      ["平台", job.buildPlatform],
-      ["远程任务", job.remoteJobId],
-      ["分支", job.branch || "-"],
-      ["Build Number", job.buildNumber || "-"],
-      ["dry-run", job.dryRun ? "true" : "false"],
-      ["更新时间", new Date(job.updatedAt).toLocaleString()],
-      ["错误", job.error || "-"],
-    ].map(([key, value]) => `<div><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`).join("");
-    $("artifactsList").innerHTML = renderArtifactsTable(job, artifacts);
-    $("jobLog").textContent = log || "暂无日志。";
+    renderJobDetail(job, artifacts, log);
+    startJobDetailPolling(job);
     await refreshAll({ silent: true });
   } catch (error) {
     showError(error);
@@ -589,6 +588,62 @@ async function selectJob(jobId) {
     setButtonBusy("refreshJobBtn", false);
     setTopStatus("就绪");
   }
+}
+
+function renderJobDetail(job, artifacts, log) {
+  $("jobDetail").classList.remove("hidden");
+  $("jobTitle").textContent = `${job.nodeName} / ${job.projectName} / ${job.configName}`;
+  $("jobMeta").innerHTML = [
+    ["状态", job.status],
+    ["平台", job.buildPlatform],
+    ["远程任务", job.remoteJobId],
+    ["分支", job.branch || "-"],
+    ["Build Number", job.buildNumber || "-"],
+    ["dry-run", job.dryRun ? "true" : "false"],
+    ["更新时间", new Date(job.updatedAt).toLocaleString()],
+    ["错误", job.error || "-"],
+  ].map(([key, value]) => `<div><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`).join("");
+  $("artifactsList").innerHTML = renderArtifactsTable(job, artifacts);
+  $("jobLog").textContent = log || "暂无日志。";
+}
+
+function startJobDetailPolling(job) {
+  stopJobDetailPolling();
+  if (!job || isTerminalJobStatus(job.status)) return;
+  state.jobDetailTimer = setInterval(() => {
+    refreshSelectedJobDetail(job.id).catch(() => {
+      setTopStatus("任务详情刷新失败");
+    });
+  }, 3000);
+}
+
+function stopJobDetailPolling() {
+  if (!state.jobDetailTimer) return;
+  clearInterval(state.jobDetailTimer);
+  state.jobDetailTimer = null;
+}
+
+async function refreshSelectedJobDetail(jobId) {
+  if (state.selectedJobId !== jobId || state.activeTab !== "jobs" || $("jobDetail").classList.contains("hidden")) {
+    stopJobDetailPolling();
+    return;
+  }
+
+  const [detail, artifacts, log] = await Promise.all([
+    api(`/api/builds/${encodeURIComponent(jobId)}`),
+    api(`/api/builds/${encodeURIComponent(jobId)}/artifacts`),
+    fetchText(`/api/builds/${encodeURIComponent(jobId)}/log?lines=600`),
+  ]);
+
+  const job = detail.job;
+  renderJobDetail(job, artifacts, log);
+  if (isTerminalJobStatus(job.status)) {
+    stopJobDetailPolling();
+  }
+}
+
+function isTerminalJobStatus(status) {
+  return ["Succeeded", "Failed", "Canceled"].includes(status);
 }
 
 function renderArtifactsTable(job, artifacts) {

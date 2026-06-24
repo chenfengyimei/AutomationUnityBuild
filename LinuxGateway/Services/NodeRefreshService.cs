@@ -8,6 +8,7 @@ public sealed class NodeRefreshService(
     JsonGatewayDatabase database,
     NodeGatewayClient client,
     ReverseNodeConnectionManager connectionManager,
+    ReverseNodeTransport reverseTransport,
     ILogger<NodeRefreshService> logger) : BackgroundService
 {
     private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(2);
@@ -104,7 +105,7 @@ public sealed class NodeRefreshService(
 
         if (node.ConnectionMode == ReverseConnectionModes.Reverse)
         {
-            await RefreshReverseNodeAsync(node);
+            await RefreshReverseNodeAsync(node, cancellationToken);
             return;
         }
 
@@ -139,7 +140,7 @@ public sealed class NodeRefreshService(
         }
     }
 
-    private async Task RefreshReverseNodeAsync(GatewayNodeRecord node)
+    private async Task RefreshReverseNodeAsync(GatewayNodeRecord node, CancellationToken cancellationToken)
     {
         ReverseConnection? conn = connectionManager.GetConnection(node.Id);
         DateTimeOffset now = DateTimeOffset.Now;
@@ -147,6 +148,7 @@ public sealed class NodeRefreshService(
         string status;
         string error = "";
         DateTimeOffset? lastHeartbeat = conn?.LastHeartbeatAt ?? node.LastHeartbeatAt;
+        RemoteNodeInfo? remote = null;
 
         if (conn is null || conn.Socket.State is not WebSocketState.Open)
         {
@@ -168,6 +170,22 @@ public sealed class NodeRefreshService(
             status = "Online";
         }
 
+        if (status is "Online" or "Degraded")
+        {
+            try
+            {
+                remote = await reverseTransport.GetNodeAsync(node);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                if (status == "Online")
+                {
+                    status = "Degraded";
+                }
+                error = ex.Message;
+            }
+        }
+
         await database.UpdateAsync(db =>
         {
             GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
@@ -175,14 +193,24 @@ public sealed class NodeRefreshService(
             stored.ConnectionStatus = status;
             stored.LastHeartbeatAt = lastHeartbeat;
             stored.LastError = error;
+            if (remote is not null)
+            {
+                stored.LastRemote = remote;
+                if (stored.Platforms.Count == 0)
+                {
+                    stored.Platforms = remote.Platforms;
+                }
+            }
+
             if (status == "Online" || status == "Degraded")
             {
                 stored.LastSeenAt = now;
-                stored.LastStatus = status;
+                stored.LastStatus = string.IsNullOrWhiteSpace(remote?.Status) ? status : remote.Status;
             }
             else if (status == "Offline")
             {
                 stored.LastStatus = "Offline";
+                stored.LastRemote = null;
             }
         });
     }

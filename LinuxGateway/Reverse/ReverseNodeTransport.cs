@@ -11,7 +11,7 @@ public sealed class ReverseNodeTransport(GatewayCommandDispatcher dispatcher) : 
     public async Task<RemoteNodeInfo> GetNodeAsync(GatewayNodeRecord node)
     {
         ReverseMessage response = await dispatcher.SendCommandAsync(
-            node.Id, ReverseMessageTypes.GetJob, new { }, timeout: DefaultTimeout);
+            node.Id, ReverseMessageTypes.GetNode, new { }, timeout: DefaultTimeout);
         return response.GetPayload<RemoteNodeInfo>() ?? new RemoteNodeInfo();
     }
 
@@ -49,17 +49,33 @@ public sealed class ReverseNodeTransport(GatewayCommandDispatcher dispatcher) : 
 
     public async Task<(Stream Stream, string? FileName)> DownloadArtifactAsync(GatewayNodeRecord node, string artifactId)
     {
-        ReverseMessage response = await dispatcher.SendCommandAsync(
-            node.Id, ReverseMessageTypes.DownloadArtifact, new { artifactId }, timeout: DownloadTimeout);
+        MemoryStream ms = new();
+        string? fileName = null;
 
-        ArtifactChunkPayload? chunk = response.GetPayload<ArtifactChunkPayload>();
-        if (chunk is null || chunk.Data is null || chunk.Data.Length == 0)
+        ReverseMessage lastResponse = await dispatcher.SendCommandAsync(
+            node.Id, ReverseMessageTypes.DownloadArtifact, new { artifactId },
+            timeout: DownloadTimeout,
+            onIntermediateMessage: msg =>
+            {
+                ArtifactChunkPayload? chunk = msg.GetPayload<ArtifactChunkPayload>();
+                if (chunk is null || chunk.Data is null) return;
+                if (fileName is null) fileName = chunk.FileName;
+                ms.Write(chunk.Data, 0, chunk.Data.Length);
+            });
+
+        ArtifactChunkPayload? finalChunk = lastResponse.GetPayload<ArtifactChunkPayload>();
+        if (fileName is null && finalChunk is not null)
+        {
+            fileName = finalChunk.FileName;
+        }
+
+        if (ms.Length == 0)
         {
             throw new FileNotFoundException("产物文件不存在或为空。");
         }
 
-        Stream stream = new MemoryStream(chunk.Data);
-        return (stream, chunk.FileName);
+        ms.Position = 0;
+        return (ms, fileName);
     }
 }
 
@@ -74,4 +90,5 @@ public sealed class ArtifactChunkPayload
     public string? FileName { get; set; }
     public long TotalSize { get; set; }
     public bool IsLast { get; set; } = true;
+    public int ChunkIndex { get; set; }
 }

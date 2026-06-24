@@ -58,6 +58,7 @@ public static class AgentMessageTypes
     public const string Ack = "ack";
     public const string Error = "error";
     public const string NodeSnapshot = "nodeSnapshot";
+    public const string GetNode = "getNode";
     public const string StartBuild = "startBuild";
     public const string CancelBuild = "cancelBuild";
     public const string JobUpdated = "jobUpdated";

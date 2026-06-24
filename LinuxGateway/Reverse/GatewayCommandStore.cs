@@ -5,6 +5,8 @@ namespace LinuxGateway.Reverse;
 
 public sealed class GatewayCommandStore(JsonGatewayDatabase database)
 {
+    private static readonly TimeSpan SentRecoveryDelay = TimeSpan.FromSeconds(10);
+
     public async Task<GatewayCommandRecord> CreateAsync(string nodeId, string type, string clientRequestId, string correlationId, object payload)
     {
         return await database.UpdateAsync(db =>
@@ -71,8 +73,11 @@ public sealed class GatewayCommandStore(JsonGatewayDatabase database)
 
     public async Task<List<GatewayCommandRecord>> GetPendingForNodeAsync(string nodeId)
     {
+        DateTimeOffset recoverSentBefore = DateTimeOffset.Now.Subtract(SentRecoveryDelay);
         return await database.ReadAsync(db => db.Commands
-            .Where(c => c.NodeId == nodeId && c.Status == ReverseCommandStatus.Pending)
+            .Where(c => c.NodeId == nodeId &&
+                (c.Status == ReverseCommandStatus.Pending ||
+                 (c.Status == ReverseCommandStatus.Sent && (!c.SentAt.HasValue || c.SentAt < recoverSentBefore))))
             .OrderBy(c => c.CreatedAt)
             .ToList());
     }
