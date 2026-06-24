@@ -223,6 +223,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         json["buildNumber"] = buildNumber;
         json["autoIncrementBuildNumber"] = false;
         json["saveConfigSnapshot"] = true;
+        NormalizeUnityExecutableForCurrentHost(json);
 
         if (Path.GetDirectoryName(targetPath) is string targetDir && targetDir.Length > 0)
         {
@@ -231,6 +232,190 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         File.WriteAllText(
             targetPath,
             json.ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
+    }
+
+    private static void NormalizeUnityExecutableForCurrentHost(JsonObject json)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string configuredPath = JsonString(json, "unityExecutablePath");
+        if (!string.IsNullOrWhiteSpace(configuredPath) && !LooksLikeMacUnityExecutablePath(configuredPath))
+        {
+            return;
+        }
+
+        string unityVersion = JsonString(json, "unityVersion");
+        if (string.IsNullOrWhiteSpace(unityVersion) && !string.IsNullOrWhiteSpace(configuredPath))
+        {
+            unityVersion = ExtractUnityVersionFromMacPath(configuredPath);
+        }
+
+        string resolvedPath = ResolveWindowsUnityExecutable(unityVersion);
+        if (!string.IsNullOrWhiteSpace(resolvedPath))
+        {
+            json["unityExecutablePath"] = resolvedPath;
+        }
+    }
+
+    private static bool LooksLikeMacUnityExecutablePath(string path)
+    {
+        string normalized = path.Replace('\\', '/');
+        return normalized.StartsWith("/Applications/Unity/Hub/Editor/", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("/Unity.app/Contents/MacOS/Unity", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractUnityVersionFromMacPath(string path)
+    {
+        string normalized = path.Replace('\\', '/');
+        const string marker = "/Editor/";
+        int markerIndex = normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0)
+        {
+            return "";
+        }
+
+        string afterMarker = normalized[(markerIndex + marker.Length)..];
+        int separatorIndex = afterMarker.IndexOf('/');
+        return separatorIndex <= 0 ? "" : afterMarker[..separatorIndex].Trim();
+    }
+
+    private static string ResolveWindowsUnityExecutable(string unityVersion)
+    {
+        string[] searchRoots = WindowsUnityEditorSearchRoots();
+        if (!string.IsNullOrWhiteSpace(unityVersion))
+        {
+            foreach (string root in searchRoots)
+            {
+                string candidate = Path.Combine(root, unityVersion.Trim(), "Editor", "Unity.exe");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return searchRoots.Length == 0
+                ? ""
+                : Path.Combine(searchRoots[0], unityVersion.Trim(), "Editor", "Unity.exe");
+        }
+
+        foreach (string root in searchRoots)
+        {
+            DirectoryInfo? latest = LatestUnityEditorDirectory(root);
+            if (latest is not null)
+            {
+                return Path.Combine(latest.FullName, "Editor", "Unity.exe");
+            }
+        }
+
+        return "";
+    }
+
+    private static string[] WindowsUnityEditorSearchRoots()
+    {
+        string[] programRoots =
+        [
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetEnvironmentVariable("ProgramW6432") ?? ""
+        ];
+
+        return programRoots
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(root => Path.Combine(root, "Unity", "Hub", "Editor"))
+            .ToArray();
+    }
+
+    private static DirectoryInfo? LatestUnityEditorDirectory(string editorRoot)
+    {
+        if (!Directory.Exists(editorRoot))
+        {
+            return null;
+        }
+
+        return new DirectoryInfo(editorRoot)
+            .EnumerateDirectories()
+            .OrderByDescending(directory => directory.Name, Comparer<string>.Create(CompareUnityVersionNames))
+            .FirstOrDefault();
+    }
+
+    private static int CompareUnityVersionNames(string? left, string? right)
+    {
+        if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        int[] leftNumbers = ExtractVersionNumbers(left);
+        int[] rightNumbers = ExtractVersionNumbers(right);
+        int length = Math.Max(leftNumbers.Length, rightNumbers.Length);
+        for (int index = 0; index < length; index++)
+        {
+            int leftValue = index < leftNumbers.Length ? leftNumbers[index] : 0;
+            int rightValue = index < rightNumbers.Length ? rightNumbers[index] : 0;
+            int comparison = leftValue.CompareTo(rightValue);
+            if (comparison != 0)
+            {
+                return comparison;
+            }
+        }
+
+        return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int[] ExtractVersionNumbers(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        List<int> numbers = [];
+        int current = 0;
+        bool readingNumber = false;
+        bool overflow = false;
+
+        foreach (char character in value)
+        {
+            if (char.IsDigit(character))
+            {
+                int digit = character - '0';
+                readingNumber = true;
+                if (current > (int.MaxValue - digit) / 10)
+                {
+                    overflow = true;
+                    current = int.MaxValue;
+                }
+                else if (!overflow)
+                {
+                    current = (current * 10) + digit;
+                }
+                continue;
+            }
+
+            if (readingNumber)
+            {
+                numbers.Add(current);
+                current = 0;
+                readingNumber = false;
+                overflow = false;
+            }
+        }
+
+        if (readingNumber)
+        {
+            numbers.Add(current);
+        }
+
+        return numbers.ToArray();
+    }
+
+    private static string JsonString(JsonObject json, string propertyName)
+    {
+        return json[propertyName]?.GetValue<string>()?.Trim() ?? "";
     }
 
     public static string ExpandPath(string path)
