@@ -13,7 +13,6 @@ public sealed class GatewayAgentService(
     JsonDatabase database,
     BuildQueueService queue,
     BuildWorkerService worker,
-    ArtifactScanner artifactScanner,
     ILogger<GatewayAgentService> logger) : BackgroundService, IGatewayPushChannel
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<AgentMessage>> _pendingResponses = new();
@@ -24,6 +23,7 @@ public sealed class GatewayAgentService(
     private int _reconnectAttempts;
     private volatile bool _disposed;
     private volatile bool _manualDisconnect;
+    private volatile bool _loopStarted;
 
     public string ConnectionStatus { get; private set; } = "Disconnected";
     public DateTimeOffset? LastHeartbeatAt { get; private set; }
@@ -33,6 +33,13 @@ public sealed class GatewayAgentService(
     public bool IsConnected => _webSocket?.State is WebSocketState.Open;
 
     public async Task<ConnectResult> ConnectAsync(string gatewayUrl, string enrollmentToken, bool autoConnect)
+    {
+        ConnectResult result = await EnrollAsync(gatewayUrl, enrollmentToken, autoConnect);
+        StartConnectionLoop(CancellationToken.None, requireAutoConnect: false);
+        return result;
+    }
+
+    private async Task<ConnectResult> EnrollAsync(string gatewayUrl, string enrollmentToken, bool autoConnect)
     {
         if (string.IsNullOrWhiteSpace(gatewayUrl))
         {
@@ -88,10 +95,10 @@ public sealed class GatewayAgentService(
         await credentialStore.SaveAsync(_credential);
         _nodeId = _credential.NodeId;
         _gatewayUrl = _credential.GatewayUrl;
+        _manualDisconnect = false;
+        _reconnectAttempts = 0;
 
         logger.LogInformation("Enrolled successfully, nodeId={NodeId}", _nodeId);
-
-        _ = ConnectWebSocketAsync();
 
         return new ConnectResult(enrollResult.NodeId, enrollResult.NodeName);
     }
@@ -146,56 +153,89 @@ public sealed class GatewayAgentService(
             {
                 try
                 {
-                    await ConnectAsync(options.ReverseGatewayUrl, options.ReverseEnrollmentToken, true);
+                    await EnrollAsync(options.ReverseGatewayUrl, options.ReverseEnrollmentToken, true);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Auto-enrollment failed");
+                    return;
                 }
             }
+            else
+            {
+                return;
+            }
+        }
+
+        await RunConnectionLoopAsync(stoppingToken, requireAutoConnect: true);
+    }
+
+    private void StartConnectionLoop(CancellationToken stoppingToken, bool requireAutoConnect)
+    {
+        if (_loopStarted || _disposed)
+        {
             return;
         }
 
-        _nodeId = _credential.NodeId;
+        _ = Task.Run(() => RunConnectionLoopAsync(stoppingToken, requireAutoConnect), CancellationToken.None);
+    }
+
+    private async Task RunConnectionLoopAsync(CancellationToken stoppingToken, bool requireAutoConnect)
+    {
+        if (_loopStarted || _disposed)
+        {
+            return;
+        }
+
+        _loopStarted = true;
+        _nodeId = _credential!.NodeId;
         _gatewayUrl = _credential.GatewayUrl;
 
-        if (!_credential.AutoConnect)
+        if (requireAutoConnect && !_credential.AutoConnect)
         {
             ConnectionStatus = "Disconnected";
+            _loopStarted = false;
             return;
         }
 
-        while (!stoppingToken.IsCancellationRequested && !_manualDisconnect)
+        try
         {
-            try
+            while (!stoppingToken.IsCancellationRequested && !_manualDisconnect && !_disposed)
             {
-                await ConnectWebSocketAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "WebSocket connection error");
-            }
+                try
+                {
+                    await ConnectWebSocketAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "WebSocket connection error");
+                }
 
-            if (_manualDisconnect || stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
+                if (_manualDisconnect || stoppingToken.IsCancellationRequested || _disposed)
+                {
+                    break;
+                }
 
-            ConnectionStatus = "Reconnecting";
-            _reconnectAttempts++;
-            int delay = CalculateReconnectDelay(_reconnectAttempts);
-            try
-            {
-                await Task.Delay(delay, stoppingToken);
+                ConnectionStatus = "Reconnecting";
+                _reconnectAttempts++;
+                int delay = CalculateReconnectDelay(_reconnectAttempts);
+                try
+                {
+                    await Task.Delay(delay, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
+        }
+        finally
+        {
+            _loopStarted = false;
         }
     }
 
@@ -210,13 +250,14 @@ public sealed class GatewayAgentService(
         _manualDisconnect = false;
 
         string wsUrl = _gatewayUrl.Replace("https://", "wss://").Replace("http://", "ws://");
-        wsUrl = $"{wsUrl}/api/reverse-nodes/connect?nodeId={Uri.EscapeDataString(_credential.NodeId)}&credential={Uri.EscapeDataString(_credential.Credential)}";
+        wsUrl = $"{wsUrl}/api/reverse-nodes/connect?nodeId={Uri.EscapeDataString(_credential.NodeId)}";
 
         _webSocket?.Dispose();
         _webSocket = new ClientWebSocket();
         _webSocket.Options.SetRequestHeader("X-Node-Credential", _credential.Credential);
+        _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {_credential.Credential}");
 
-        logger.LogInformation("Connecting WebSocket to {Url}", wsUrl.Replace(_credential.Credential, "***"));
+        logger.LogInformation("Connecting WebSocket to {Url} (nodeId={NodeId})", wsUrl, _credential.NodeId);
 
         await _webSocket.ConnectAsync(new Uri(wsUrl), stoppingToken);
 
@@ -225,6 +266,7 @@ public sealed class GatewayAgentService(
         LastHeartbeatAt = DateTimeOffset.Now;
         logger.LogInformation("WebSocket connected, nodeId={NodeId}", _nodeId);
 
+        await SendHelloAsync(stoppingToken);
         _ = HeartbeatLoopAsync(stoppingToken);
 
         await ReceiveLoopAsync(stoppingToken);
@@ -328,6 +370,7 @@ public sealed class GatewayAgentService(
         {
             AgentMessage? response = message.Type switch
             {
+                AgentMessageTypes.GetNode => await HandleGetNodeAsync(message),
                 AgentMessageTypes.StartBuild => await HandleStartBuildAsync(message),
                 AgentMessageTypes.CancelBuild => await HandleCancelBuildAsync(message),
                 AgentMessageTypes.GetJob => await HandleGetJobAsync(message),
@@ -360,6 +403,23 @@ public sealed class GatewayAgentService(
         string json = JsonSerializer.Serialize(message, AgentProtocol.JsonOptions);
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(json);
         await _webSocket.SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken);
+    }
+
+    private async Task SendHelloAsync(CancellationToken cancellationToken)
+    {
+        AgentMessage hello = AgentMessageBuilder.Create(
+            AgentMessageTypes.Hello,
+            _nodeId,
+            null,
+            new
+            {
+                agentVersion = "1.0.0",
+                protocolVersion = AgentProtocol.Version,
+                platforms = options.NodePlatforms.ToArray(),
+                nodeSnapshot = await BuildNodeSnapshotAsync()
+            });
+
+        await SendMessageAsync(hello, cancellationToken);
     }
 
     private static int CalculateReconnectDelay(int attempt)
@@ -425,6 +485,61 @@ public sealed class GatewayAgentService(
         }
     }
 
+    private async Task<AgentMessage> HandleGetNodeAsync(AgentMessage command)
+    {
+        return AgentMessageBuilder.Create(AgentMessageTypes.NodeSnapshot, _nodeId, command.CorrelationId, await BuildNodeSnapshotAsync());
+    }
+
+    private async Task<object> BuildNodeSnapshotAsync()
+    {
+        List<ProjectRecord> projects = await database.ReadAsync(db => db.Projects.Where(p => p.Enabled).OrderBy(p => p.Name).ToList());
+        List<BuildConfigRecord> configs = await database.ReadAsync(db => db.Configs.Where(c => c.Enabled).OrderBy(c => c.Name).ToList());
+        List<BuildJobRecord> jobs = await database.ReadAsync(db => db.Jobs.OrderByDescending(j => j.CreatedAt).Take(50).ToList());
+        bool anyRunning = jobs.Any(j => j.Status is BuildStatuses.Queued or BuildStatuses.Running);
+
+        return new
+        {
+            id = _nodeId,
+            name = string.IsNullOrWhiteSpace(options.ReverseNodeName) ? options.WorkerName : options.ReverseNodeName,
+            hostName = Environment.MachineName,
+            operatingSystem = Environment.OSVersion.ToString(),
+            platforms = options.NodePlatforms,
+            publicBaseUrl = options.PublicBaseUrl,
+            status = anyRunning ? "Running" : "Idle",
+            projects = projects.Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.DefaultBranch,
+                p.AllowedBranches,
+                p.DefaultBuildPlatform
+            }),
+            configs = configs.Select(c => new
+            {
+                c.Id,
+                c.ProjectId,
+                c.Name,
+                c.BuildPlatform,
+                c.AllowMcpBuild
+            }),
+            jobs = jobs.Select(j => new
+            {
+                j.Id,
+                j.ProjectId,
+                j.ConfigId,
+                j.Status,
+                j.BuildPlatform,
+                j.Branch,
+                j.BuildNumber,
+                j.DryRun,
+                j.Error,
+                j.CreatedAt,
+                j.StartedAt,
+                j.FinishedAt
+            })
+        };
+    }
+
     private async Task<AgentMessage> HandleStartBuildAsync(AgentMessage command)
     {
         StartBuildPayload? payload = command.GetPayload<StartBuildPayload>();
@@ -452,22 +567,21 @@ public sealed class GatewayAgentService(
         _ = PushJobUpdatedAsync(job.Id);
 
         return AgentMessageBuilder.Create(
-            AgentMessageTypes.JobUpdated, _nodeId, command.CorrelationId,
+            AgentMessageTypes.Ack, _nodeId, command.CorrelationId,
             new
             {
-                job = new
-                {
-                    job.Id,
-                    job.Status,
-                    job.BuildPlatform,
-                    job.Branch,
-                    job.BuildNumber,
-                    job.DryRun,
-                    job.Error,
-                    job.CreatedAt,
-                    job.StartedAt,
-                    job.FinishedAt
-                }
+                job.Id,
+                job.ProjectId,
+                job.ConfigId,
+                job.Status,
+                job.BuildPlatform,
+                job.Branch,
+                job.BuildNumber,
+                job.DryRun,
+                job.Error,
+                job.CreatedAt,
+                job.StartedAt,
+                job.FinishedAt
             });
     }
 
@@ -578,7 +692,7 @@ public sealed class GatewayAgentService(
             }));
     }
 
-    private async Task<AgentMessage> HandleDownloadArtifactAsync(AgentMessage command)
+    private async Task<AgentMessage?> HandleDownloadArtifactAsync(AgentMessage command)
     {
         DownloadArtifactPayload? payload = command.GetPayload<DownloadArtifactPayload>();
         if (payload is null)
@@ -592,11 +706,29 @@ public sealed class GatewayAgentService(
             return AgentMessageBuilder.CreateError(_nodeId, command.CorrelationId, "产物文件不存在");
         }
 
-        byte[] data = await File.ReadAllBytesAsync(artifact.Path);
         string fileName = Path.GetFileName(artifact.Path);
+        long totalSize = new FileInfo(artifact.Path).Length;
+        const int chunkSize = 64 * 1024;
 
-        return AgentMessageBuilder.Create(AgentMessageTypes.ArtifactChunk, _nodeId, command.CorrelationId,
-            new { data, fileName, totalSize = (long)data.Length, isLast = true });
+        await using FileStream fs = File.OpenRead(artifact.Path);
+        byte[] buffer = new byte[chunkSize];
+        int bytesRead;
+        int chunkIndex = 0;
+
+        while ((bytesRead = await fs.ReadAsync(buffer, 0, chunkSize)) > 0)
+        {
+            byte[] chunkData = bytesRead == chunkSize ? buffer : buffer[..bytesRead];
+            bool isLast = fs.Position >= totalSize;
+
+            AgentMessage chunkMsg = AgentMessageBuilder.Create(
+                AgentMessageTypes.ArtifactChunk, _nodeId, command.CorrelationId,
+                new { data = chunkData, fileName, totalSize, isLast, chunkIndex });
+
+            await SendMessageAsync(chunkMsg);
+            chunkIndex++;
+        }
+
+        return null;
     }
 
     private static async Task<string> TailLogAsync(string path, int lines)

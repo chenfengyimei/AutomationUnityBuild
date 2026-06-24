@@ -9,13 +9,15 @@ public sealed class GatewayCommandDispatcher(
     ILogger<GatewayCommandDispatcher> logger)
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ReverseMessage>> _pending = new();
+    private readonly ConcurrentDictionary<string, Action<ReverseMessage>> _intermediateHandlers = new();
 
     public async Task<ReverseMessage> SendCommandAsync(
         string nodeId,
         string type,
         object payload,
         string? clientRequestId = null,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null,
+        Action<ReverseMessage>? onIntermediateMessage = null)
     {
         if (!connectionManager.IsOnline(nodeId))
         {
@@ -35,6 +37,7 @@ public sealed class GatewayCommandDispatcher(
         {
             if (_pending.TryRemove(correlationId, out _))
             {
+                _intermediateHandlers.TryRemove(correlationId, out _);
                 tcs.TrySetException(new TimeoutException($"命令 {type} 超时（{effectiveTimeout.TotalSeconds:F0}秒）。"));
             }
         });
@@ -51,6 +54,11 @@ public sealed class GatewayCommandDispatcher(
             }
 
             await commandStore.MarkSentAsync(correlationId);
+
+            if (onIntermediateMessage is not null)
+            {
+                _intermediateHandlers[correlationId] = onIntermediateMessage;
+            }
 
             ReverseMessage response = await tcs.Task.WaitAsync(cts.Token);
 
@@ -70,9 +78,17 @@ public sealed class GatewayCommandDispatcher(
 
             return response;
         }
+        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException && cts.IsCancellationRequested)
+        {
+            _pending.TryRemove(correlationId, out _);
+            _intermediateHandlers.TryRemove(correlationId, out _);
+            logger.LogWarning(ex, "Command {Type} timed out for node {NodeId}; keeping command {CorrelationId} recoverable.", type, nodeId, correlationId);
+            throw;
+        }
         catch (Exception ex) when (ex is not TimeoutException)
         {
             _pending.TryRemove(correlationId, out _);
+            _intermediateHandlers.TryRemove(correlationId, out _);
             await commandStore.MarkCompletedAsync(correlationId, null, ex.Message);
             throw;
         }
@@ -85,9 +101,28 @@ public sealed class GatewayCommandDispatcher(
             return;
         }
 
-        if (_pending.TryRemove(message.CorrelationId, out TaskCompletionSource<ReverseMessage>? tcs))
+        if (message.Type == ReverseMessageTypes.ArtifactChunk)
         {
-            tcs.TrySetResult(message);
+            if (_intermediateHandlers.TryGetValue(message.CorrelationId, out Action<ReverseMessage>? handler))
+            {
+                ArtifactChunkPayload? chunk = message.GetPayload<ArtifactChunkPayload>();
+                handler(message);
+                if (chunk is not null && chunk.IsLast)
+                {
+                    _intermediateHandlers.TryRemove(message.CorrelationId, out _);
+                    if (_pending.TryRemove(message.CorrelationId, out TaskCompletionSource<ReverseMessage>? tcs))
+                    {
+                        tcs.TrySetResult(message);
+                    }
+                }
+                return;
+            }
+        }
+
+        _intermediateHandlers.TryRemove(message.CorrelationId, out _);
+        if (_pending.TryRemove(message.CorrelationId, out TaskCompletionSource<ReverseMessage>? pendingTcs))
+        {
+            pendingTcs.TrySetResult(message);
         }
     }
 

@@ -31,13 +31,13 @@ public static class ReverseNodeEndpoint
         }
 
         string? nodeId = context.Request.Query["nodeId"].FirstOrDefault();
-        string? credential = context.Request.Query["credential"].FirstOrDefault();
+        string? credential = null;
 
         if (context.Request.Headers.TryGetValue("X-Node-Credential", out var headerCred))
         {
             credential = headerCred;
         }
-        if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+        if (string.IsNullOrEmpty(credential) && context.Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
             string auth = authHeader.ToString();
             if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
@@ -163,19 +163,40 @@ public static class ReverseNodeEndpoint
                 break;
 
             case ReverseMessageTypes.Ack:
+                dispatcher.HandleResponse(message);
                 break;
 
             case ReverseMessageTypes.Error:
-            case ReverseMessageTypes.JobUpdated:
-            case ReverseMessageTypes.ArtifactChunk:
-            case ReverseMessageTypes.NodeSnapshot:
-            case ReverseMessageTypes.LogChunk:
                 dispatcher.HandleResponse(message);
                 break;
 
             case ReverseMessageTypes.Hello:
                 connectionManager.UpdateHeartbeat(nodeId);
                 await HandleHelloAsync(message, nodeId, database);
+                break;
+
+            case ReverseMessageTypes.NodeSnapshot:
+                if (!string.IsNullOrEmpty(message.CorrelationId))
+                {
+                    dispatcher.HandleResponse(message);
+                }
+                await HandleNodeSnapshotAsync(message, nodeId, database);
+                break;
+
+            case ReverseMessageTypes.JobUpdated:
+                if (!string.IsNullOrEmpty(message.CorrelationId))
+                {
+                    dispatcher.HandleResponse(message);
+                }
+                await HandleJobUpdatedPushAsync(message, nodeId, database, logger);
+                break;
+
+            case ReverseMessageTypes.LogChunk:
+                await HandleLogChunkPushAsync(message, nodeId, database, logger);
+                break;
+
+            case ReverseMessageTypes.ArtifactChunk:
+                dispatcher.HandleResponse(message);
                 break;
 
             default:
@@ -216,6 +237,62 @@ public static class ReverseNodeEndpoint
                 }
             }
         });
+    }
+
+    private static async Task HandleNodeSnapshotAsync(ReverseMessage message, string nodeId, JsonGatewayDatabase database)
+    {
+        RemoteNodeInfo? snapshot = message.GetPayload<RemoteNodeInfo>();
+        if (snapshot is null) return;
+
+        await database.UpdateAsync(db =>
+        {
+            GatewayNodeRecord? node = db.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (node is not null)
+            {
+                node.LastRemote = snapshot;
+                node.LastStatus = snapshot.Status ?? "Idle";
+                node.LastSeenAt = DateTimeOffset.Now;
+                node.LastError = "";
+            }
+        });
+    }
+
+    private static async Task HandleJobUpdatedPushAsync(ReverseMessage message, string nodeId, JsonGatewayDatabase database, ILogger logger)
+    {
+        JobUpdatedPush? push = message.GetPayload<JobUpdatedPush>();
+        if (push?.Job is null) return;
+
+        await database.UpdateAsync(db =>
+        {
+            List<GatewayJobRecord> jobs = db.Jobs.Where(j => j.NodeId == nodeId && j.RemoteJobId == push.Job.Id).ToList();
+            foreach (GatewayJobRecord job in jobs)
+            {
+                job.Status = push.Job.Status;
+                job.Error = push.Job.Error ?? "";
+                job.Branch = push.Job.Branch ?? job.Branch;
+                job.BuildNumber = push.Job.BuildNumber ?? job.BuildNumber;
+                job.UpdatedAt = DateTimeOffset.Now;
+            }
+        });
+
+        logger.LogDebug("Job updated push from node {NodeId}: jobId={JobId}, status={Status}", nodeId, push.Job.Id, push.Job.Status);
+    }
+
+    private static async Task HandleLogChunkPushAsync(ReverseMessage message, string nodeId, JsonGatewayDatabase database, ILogger logger)
+    {
+        LogChunkPush? push = message.GetPayload<LogChunkPush>();
+        if (push is null) return;
+
+        await database.UpdateAsync(db =>
+        {
+            List<GatewayJobRecord> jobs = db.Jobs.Where(j => j.NodeId == nodeId && j.RemoteJobId == push.JobId).ToList();
+            foreach (GatewayJobRecord job in jobs)
+            {
+                job.LastLogOffset += push.Line.Length + 1;
+            }
+        });
+
+        logger.LogDebug("Log chunk from node {NodeId}: jobId={JobId}, len={Length}", nodeId, push.JobId, push.Line?.Length ?? 0);
     }
 
     private static async Task UpdateNodeConnectedAsync(JsonGatewayDatabase database, string nodeId, string remoteIp)
@@ -350,4 +427,16 @@ public sealed class HelloPayload
     public int ProtocolVersion { get; set; }
     public string[]? Platforms { get; set; }
     public RemoteNodeInfo? NodeSnapshot { get; set; }
+}
+
+public sealed class JobUpdatedPush
+{
+    public RemoteBuildJobRecord? Job { get; set; }
+}
+
+public sealed class LogChunkPush
+{
+    public string JobId { get; set; } = "";
+    public string Line { get; set; } = "";
+    public long Offset { get; set; }
 }
