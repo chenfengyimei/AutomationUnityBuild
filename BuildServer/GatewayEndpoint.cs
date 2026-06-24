@@ -138,6 +138,7 @@ public static class GatewayEndpoint
 
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
+        SetNoStoreHeaders(context);
         if (!File.Exists(job.WorkerLogPath)) return Results.Ok("");
 
         string log = full
@@ -246,5 +247,12 @@ public static class GatewayEndpoint
         if (OperatingSystem.IsWindows()) return "Windows";
         if (OperatingSystem.IsLinux()) return "Linux";
         return "Unknown";
+    }
+
+    private static void SetNoStoreHeaders(HttpContext context)
+    {
+        context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers.Expires = "0";
     }
 }
