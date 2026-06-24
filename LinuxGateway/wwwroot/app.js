@@ -46,6 +46,8 @@ function bindEvents() {
   $("buildProject").addEventListener("change", renderConfigOptions);
   $("nodesList").addEventListener("click", handleNodesClick);
   $("jobsList").addEventListener("click", handleJobsClick);
+  $("generateTokenBtn").addEventListener("click", generateEnrollmentToken);
+  $("copyEnrollBtn").addEventListener("click", copyEnrollConfig);
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
   });
@@ -351,24 +353,28 @@ function renderNodeCard(node) {
   const remote = node.remote;
   const projects = remote?.projects?.length || 0;
   const configs = remote?.configs?.length || 0;
+  const isReverse = node.connectionMode === "Reverse";
   const status = node.enabled ? (node.lastStatus || "Unknown") : "Disabled";
   const lastSeen = node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : "-";
+  const modeBadge = isReverse
+    ? `<span class="mode-badge reverse">反向连接</span>`
+    : `<span class="mode-badge direct">直连</span>`;
   return `<article class="node-card">
     <header>
       <div class="node-main">
         <strong>${escapeHtml(node.name)}</strong>
-        <span class="node-url">${escapeHtml(node.baseUrl)}</span>
+        <span class="node-url">${escapeHtml(node.baseUrl || node.connectionStatus || "-")}</span>
       </div>
       <span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span>
     </header>
-    <div class="item-row">${platforms(node.platforms)}</div>
+    <div class="item-row">${modeBadge} ${platforms(node.platforms)}</div>
     <dl class="node-metrics">
       <div><dt>项目</dt><dd>${projects}</dd></div>
       <div><dt>配置</dt><dd>${configs}</dd></div>
       <div><dt>最后在线</dt><dd>${escapeHtml(lastSeen)}</dd></div>
     </dl>
     ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
-    ${isAdmin() ? `<div class="node-actions"><button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑节点</button></div>` : ""}
+    ${isAdmin() ? `<div class="node-actions"><button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑节点</button>${isReverse ? `<button class="danger" type="button" data-revoke-node-id="${escapeHtml(node.id)}">吊销凭据</button>` : ""}</div>` : ""}
   </article>`;
 }
 
@@ -478,13 +484,60 @@ function renderJobRow(job) {
 }
 
 function handleNodesClick(event) {
-  const button = event.target.closest("[data-edit-node-id]");
-  if (!button) return;
-  if (!isAdmin()) {
-    showError(new Error("只有 Admin 可以编辑节点。"));
+  const editButton = event.target.closest("[data-edit-node-id]");
+  if (editButton) {
+    if (!isAdmin()) {
+      showError(new Error("只有 Admin 可以编辑节点。"));
+      return;
+    }
+    fillNodeForm(editButton.dataset.editNodeId);
     return;
   }
-  fillNodeForm(button.dataset.editNodeId);
+
+  const revokeButton = event.target.closest("[data-revoke-node-id]");
+  if (revokeButton) {
+    revokeNodeCredential(revokeButton.dataset.revokeNodeId);
+  }
+}
+
+async function generateEnrollmentToken() {
+  setButtonBusy("generateTokenBtn", true, "生成中...");
+  try {
+    const result = await api("/api/reverse-nodes/enrollment-tokens", {
+      method: "POST",
+      body: JSON.stringify({ nodeNameHint: $("enrollNodeNameHint").value || "" }),
+    });
+    $("enrollGatewayUrl").value = window.location.origin;
+    $("enrollTokenValue").value = result.token;
+    $("enrollResult").classList.remove("hidden");
+    showNotice("Token 已生成，24 小时内有效。将地址和 Token 填入 BuildServer 的 Gateway 连接页面。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("generateTokenBtn", false);
+  }
+}
+
+function copyEnrollConfig() {
+  const url = $("enrollGatewayUrl").value;
+  const token = $("enrollTokenValue").value;
+  const text = `Gateway 地址: ${url}\nEnrollment Token: ${token}`;
+  navigator.clipboard?.writeText(text).then(() => {
+    showNotice("配置已复制到剪贴板。");
+  }).catch(() => {
+    showNotice("请手动复制地址和 Token。");
+  });
+}
+
+async function revokeNodeCredential(nodeId) {
+  if (!confirm("确认吊销该节点的凭据？吊销后节点需要重新注册才能连接。")) return;
+  try {
+    await api(`/api/reverse-nodes/${encodeURIComponent(nodeId)}/revoke`, { method: "POST" });
+    await refreshAll({ silent: true });
+    showNotice("节点凭据已吊销。");
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function handleJobsClick(event) {

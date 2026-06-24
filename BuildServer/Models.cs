@@ -87,6 +87,9 @@ public sealed class BuildJobRecord
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? FinishedAt { get; set; }
+
+    public long LogPushOffset { get; set; }
+    public string GatewayCommandId { get; set; } = "";
 }
 
 public sealed class BuildArtifactRecord

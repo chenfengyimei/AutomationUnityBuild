@@ -1,14 +1,19 @@
+using System.Net.WebSockets;
 using LinuxGateway.Persistence;
+using LinuxGateway.Reverse;
 
 namespace LinuxGateway.Services;
 
 public sealed class NodeRefreshService(
     JsonGatewayDatabase database,
     NodeGatewayClient client,
+    ReverseNodeConnectionManager connectionManager,
     ILogger<NodeRefreshService> logger) : BackgroundService
 {
     private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DegradedTimeout = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan OfflineTimeout = TimeSpan.FromSeconds(90);
 
     public async Task RefreshNodeAsync(string nodeId, CancellationToken cancellationToken = default)
     {
@@ -97,6 +102,12 @@ public sealed class NodeRefreshService(
             return;
         }
 
+        if (node.ConnectionMode == ReverseConnectionModes.Reverse)
+        {
+            await RefreshReverseNodeAsync(node);
+            return;
+        }
+
         try
         {
             await client.GetHealthAsync(node, cancellationToken);
@@ -126,5 +137,53 @@ public sealed class NodeRefreshService(
                 stored.LastRemote = null;
             });
         }
+    }
+
+    private async Task RefreshReverseNodeAsync(GatewayNodeRecord node)
+    {
+        ReverseConnection? conn = connectionManager.GetConnection(node.Id);
+        DateTimeOffset now = DateTimeOffset.Now;
+
+        string status;
+        string error = "";
+        DateTimeOffset? lastHeartbeat = conn?.LastHeartbeatAt ?? node.LastHeartbeatAt;
+
+        if (conn is null || conn.Socket.State is not WebSocketState.Open)
+        {
+            status = "Offline";
+            error = "WebSocket 连接已断开。";
+        }
+        else if (now - lastHeartbeat > OfflineTimeout)
+        {
+            status = "Offline";
+            error = "心跳超时（90秒无心跳）。";
+        }
+        else if (now - lastHeartbeat > DegradedTimeout)
+        {
+            status = "Degraded";
+            error = "心跳延迟（45秒无心跳）。";
+        }
+        else
+        {
+            status = "Online";
+        }
+
+        await database.UpdateAsync(db =>
+        {
+            GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
+            if (stored is null) return;
+            stored.ConnectionStatus = status;
+            stored.LastHeartbeatAt = lastHeartbeat;
+            stored.LastError = error;
+            if (status == "Online" || status == "Degraded")
+            {
+                stored.LastSeenAt = now;
+                stored.LastStatus = status;
+            }
+            else if (status == "Offline")
+            {
+                stored.LastStatus = "Offline";
+            }
+        });
     }
 }

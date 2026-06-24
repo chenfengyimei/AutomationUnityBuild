@@ -8,6 +8,9 @@ public sealed class GatewayDatabase
     public List<GatewayJobRecord> Jobs { get; set; } = [];
     public List<GatewaySessionRecord> Sessions { get; set; } = [];
     public List<GatewayAuditLogRecord> AuditLogs { get; set; } = [];
+    public List<EnrollmentTokenRecord> EnrollmentTokens { get; set; } = [];
+    public List<ReverseNodeCredentialRecord> ReverseCredentials { get; set; } = [];
+    public List<GatewayCommandRecord> Commands { get; set; } = [];
 }
 
 public sealed class GatewayUserRecord
@@ -34,6 +37,13 @@ public sealed class GatewayNodeRecord
     public string LastStatus { get; set; } = "Unknown";
     public string LastError { get; set; } = "";
     public RemoteNodeInfo? LastRemote { get; set; }
+
+    public string ConnectionMode { get; set; } = "Direct";
+    public string AgentVersion { get; set; } = "";
+    public int ProtocolVersion { get; set; }
+    public DateTimeOffset? LastHeartbeatAt { get; set; }
+    public string ConnectionStatus { get; set; } = "";
+    public DateTimeOffset? CredentialRevokedAt { get; set; }
 }
 
 public sealed class GatewayJobRecord
@@ -57,6 +67,50 @@ public sealed class GatewayJobRecord
     public string Error { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
+
+    public string RemoteCommandId { get; set; } = "";
+    public string RemoteConnectionMode { get; set; } = "Direct";
+    public long LastLogOffset { get; set; }
+}
+
+public sealed class EnrollmentTokenRecord
+{
+    public string Id { get; set; } = "";
+    public string TokenHash { get; set; } = "";
+    public string CreatedByUserId { get; set; } = "";
+    public string CreatedByUserName { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+    public DateTimeOffset ExpiresAt { get; set; } = DateTimeOffset.Now.AddHours(24);
+    public DateTimeOffset? UsedAt { get; set; }
+    public string UsedByNodeId { get; set; } = "";
+    public string NodeNameHint { get; set; } = "";
+    public bool Revoked { get; set; }
+}
+
+public sealed class ReverseNodeCredentialRecord
+{
+    public string NodeId { get; set; } = "";
+    public string CredentialHash { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+    public DateTimeOffset? RevokedAt { get; set; }
+    public DateTimeOffset? LastRotatedAt { get; set; }
+}
+
+public sealed class GatewayCommandRecord
+{
+    public string Id { get; set; } = "";
+    public string NodeId { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string Status { get; set; } = "Pending";
+    public string ClientRequestId { get; set; } = "";
+    public string CorrelationId { get; set; } = "";
+    public string PayloadJson { get; set; } = "";
+    public string ResultJson { get; set; } = "";
+    public string Error { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+    public DateTimeOffset? SentAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public int AttemptCount { get; set; }
 }
 
 public sealed class GatewaySessionRecord
@@ -218,4 +272,11 @@ public sealed class GatewayNodeView
     public string LastStatus { get; set; } = "Unknown";
     public string LastError { get; set; } = "";
     public RemoteNodeInfo? Remote { get; set; }
+
+    public string ConnectionMode { get; set; } = "Direct";
+    public string AgentVersion { get; set; } = "";
+    public int ProtocolVersion { get; set; }
+    public DateTimeOffset? LastHeartbeatAt { get; set; }
+    public string ConnectionStatus { get; set; } = "";
+    public DateTimeOffset? CredentialRevokedAt { get; set; }
 }

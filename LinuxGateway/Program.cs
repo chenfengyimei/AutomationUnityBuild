@@ -1,5 +1,6 @@
 using LinuxGateway;
 using LinuxGateway.Persistence;
+using LinuxGateway.Reverse;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -32,6 +33,13 @@ builder.Services.AddHttpClient<NodeGatewayClient>(client =>
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddHostedService(provider => provider.GetRequiredService<NodeRefreshService>());
+builder.Services.AddSingleton<ReverseNodeConnectionManager>();
+builder.Services.AddSingleton<GatewayCommandStore>();
+builder.Services.AddSingleton<GatewayCommandDispatcher>();
+builder.Services.AddSingleton<EnrollmentService>();
+builder.Services.AddSingleton<DirectNodeTransport>();
+builder.Services.AddSingleton<ReverseNodeTransport>();
+builder.Services.AddSingleton<NodeTransportFactory>();
 
 var app = builder.Build();
 
@@ -51,6 +59,11 @@ app.UseExceptionHandler(errorApp =>
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+});
+
+app.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(15)
 });
 
 app.Use(async (context, next) =>
@@ -77,6 +90,7 @@ else
 }
 
 ApiRoutes.Map(app);
+ReverseNodeEndpoint.Map(app);
 app.Run();
 
 static bool IsUnsafeMethod(string method)

@@ -14,7 +14,7 @@ const state = {
   activeTab: "builds",
   events: null,
   jobModalTimer: null,
-  jobModalPollInFlight: false,
+  gatewayAgentTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -384,6 +384,7 @@ async function init() {
     showMain();
     await refreshAll();
     startDashboardEvents();
+    startGatewayAgentPolling();
   } catch {
     showLogin();
   }
@@ -463,6 +464,9 @@ function bindEvents() {
     button.addEventListener("click", () => setTab(button.dataset.tab));
   });
   $("buildProject").addEventListener("change", renderBuildConfigs);
+  $("gatewayConnectForm").addEventListener("submit", connectGateway);
+  $("gwDisconnectBtn").addEventListener("click", disconnectGateway);
+  $("gwTestBtn").addEventListener("click", () => refreshGatewayAgentStatus().catch(showError));
 }
 
 function installConfigFieldHelp() {
@@ -622,7 +626,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -631,6 +635,9 @@ function setTab(tab) {
   if (tab === "audit") {
     $("auditList").innerHTML = loadingItem("正在读取审计日志...");
     refreshAudit().catch(showError);
+  }
+  if (tab === "gateway") {
+    refreshGatewayAgentStatus().catch(() => {});
   }
 }
 
@@ -1916,6 +1923,89 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   }[char]));
+}
+
+function startGatewayAgentPolling() {
+  refreshGatewayAgentStatus().catch(() => {});
+  state.gatewayAgentTimer = setInterval(() => {
+    refreshGatewayAgentStatus().catch(() => {});
+  }, 5000);
+}
+
+async function refreshGatewayAgentStatus() {
+  try {
+    const status = await api("/api/gateway-agent/status");
+    updateGatewayAgentPill(status);
+    if (state.activeTab === "gateway") {
+      updateGatewayStatusDetail(status);
+    }
+  } catch {
+  }
+}
+
+function updateGatewayAgentPill(status) {
+  const pill = $("gatewayAgentPill");
+  if (!pill) return;
+  const statusMap = {
+    Connected: { text: "Gateway 已连接", cls: "connected" },
+    Connecting: { text: "Gateway 连接中", cls: "connecting" },
+    Reconnecting: { text: "Gateway 重连中", cls: "connecting" },
+    Disconnected: { text: "Gateway 未连接", cls: "disconnected" },
+    Failed: { text: "Gateway 连接失败", cls: "failed" },
+  };
+  const info = statusMap[status.status] || statusMap.Disconnected;
+  pill.textContent = info.text;
+  pill.className = `live-status gateway-pill ${info.cls}`;
+  if (status.isConnected && status.nodeId) {
+    pill.textContent += ` · ${status.nodeId.slice(-8)}`;
+  }
+}
+
+function updateGatewayStatusDetail(status) {
+  $("gwStatus").textContent = status.status || "未知";
+  $("gwNodeId").textContent = status.nodeId || "-";
+  $("gwUrl").textContent = status.gatewayUrl || "-";
+  $("gwHeartbeat").textContent = status.lastHeartbeatAt ? new Date(status.lastHeartbeatAt).toLocaleString() : "-";
+  $("gwReconnect").textContent = String(status.reconnectAttempts || 0);
+}
+
+async function connectGateway(event) {
+  event.preventDefault();
+  clearMessage();
+  const errorEl = $("gwConnectError");
+  errorEl.classList.add("hidden");
+  setButtonBusy("gwConnectBtn", true, "连接中...");
+  try {
+    const result = await api("/api/gateway-agent/connect", {
+      method: "POST",
+      body: JSON.stringify({
+        gatewayUrl: $("gwGatewayUrl").value,
+        enrollmentToken: $("gwEnrollmentToken").value,
+        autoConnect: $("gwAutoConnect").checked,
+      }),
+    });
+    showMessage(`已连接到 Gateway，节点 ID: ${result.nodeId}`);
+    $("gwEnrollmentToken").value = "";
+    await refreshGatewayAgentStatus();
+  } catch (error) {
+    errorEl.textContent = error.message || String(error);
+    errorEl.classList.remove("hidden");
+  } finally {
+    setButtonBusy("gwConnectBtn", false);
+  }
+}
+
+async function disconnectGateway() {
+  setButtonBusy("gwDisconnectBtn", true, "断开中...");
+  try {
+    await api("/api/gateway-agent/disconnect", { method: "POST" });
+    showMessage("已断开 Gateway 连接。");
+    await refreshGatewayAgentStatus();
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("gwDisconnectBtn", false);
+  }
 }
 
 init();
