@@ -1,5 +1,6 @@
 using BuildServer;
 using BuildServer.Persistence;
+using BuildServer.Reverse;
 using BuildServer.Security;
 using BuildServer.Services;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -32,6 +33,10 @@ builder.Services.AddSingleton<ArtifactScanner>();
 builder.Services.AddSingleton<BuildWorkerService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<BuildWorkerService>());
 builder.Services.AddHostedService<MaintenanceService>();
+builder.Services.AddSingleton<AgentCredentialStore>();
+builder.Services.AddSingleton<GatewayAgentService>();
+builder.Services.AddSingleton<IGatewayPushChannel>(provider => provider.GetRequiredService<GatewayAgentService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<GatewayAgentService>());
 
 var app = builder.Build();
 
@@ -71,6 +76,7 @@ else
 ApiRoutes.Map(app);
 McpEndpoint.Map(app);
 GatewayEndpoint.Map(app);
+GatewayAgentEndpoint.Map(app);
 
 app.Run();
 

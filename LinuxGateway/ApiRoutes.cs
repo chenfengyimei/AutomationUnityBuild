@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using LinuxGateway.Persistence;
+using LinuxGateway.Reverse;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
 
@@ -453,7 +454,7 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeTransportFactory transportFactory)
     {
         CurrentGatewayUser? current = await auth.GetUserAsync(context);
         if (current is null) return ApiDiagnostics.Unauthorized(context);
@@ -476,7 +477,8 @@ public static class ApiRoutes
             }
 
             GatewayNodeRecord node = await GetEnabledNodeAsync(database, request.NodeId);
-            RemoteNodeInfo remote = await client.GetNodeAsync(node);
+            INodeTransport transport = transportFactory.Create(node);
+            RemoteNodeInfo remote = await transport.GetNodeAsync(node);
             RemoteConfigSummary config = remote.Configs.FirstOrDefault(config => config.Id == request.ConfigId && config.ProjectId == request.ProjectId)
                 ?? throw new InvalidOperationException("节点上不存在这个配置。");
             RemoteProjectSummary project = remote.Projects.FirstOrDefault(project => project.Id == request.ProjectId)
@@ -496,7 +498,7 @@ public static class ApiRoutes
                 request.AllowNonMac,
                 clientRequestId,
                 request.Notes);
-            RemoteBuildJobRecord remoteJob = await client.StartBuildAsync(node, remoteRequest);
+            RemoteBuildJobRecord remoteJob = await transport.StartBuildAsync(node, remoteRequest);
 
             GatewayJobRecord gatewayJob = await database.UpdateAsync(db =>
             {
@@ -553,14 +555,14 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeTransportFactory transportFactory)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
 
-        RemoteJobDetails? remote = await TryRefreshJobAsync(database, client, job);
+        RemoteJobDetails? remote = await TryRefreshJobAsync(database, transportFactory, job);
         return Results.Ok(new { job, remote });
     }
 
@@ -569,14 +571,15 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client,
+        NodeTransportFactory transportFactory,
         int? lines)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
-        string log = await client.GetJobLogAsync(node, job.RemoteJobId, Math.Clamp(lines ?? 300, 20, 2000));
+        INodeTransport transport = transportFactory.Create(node);
+        string log = await transport.GetJobLogAsync(node, job.RemoteJobId, Math.Clamp(lines ?? 300, 20, 2000));
         return Results.Text(log, "text/plain; charset=utf-8");
     }
 
@@ -585,13 +588,14 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeTransportFactory transportFactory)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
-        return Results.Ok(await client.ListArtifactsAsync(node, job.RemoteJobId));
+        INodeTransport transport = transportFactory.Create(node);
+        return Results.Ok(await transport.ListArtifactsAsync(node, job.RemoteJobId));
     }
 
     private static async Task<IResult> DownloadArtifactAsync(
@@ -600,17 +604,15 @@ public static class ApiRoutes
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeTransportFactory transportFactory)
     {
         if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
-        HttpResponseMessage response = await client.DownloadArtifactAsync(node, artifactId);
-        Stream stream = await response.Content.ReadAsStreamAsync();
-        string fileName = FileNameFromContentDisposition(response.Content.Headers.ContentDisposition) ?? artifactId;
-        string contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
-        return Results.Stream(new DisposingStream(stream, response), contentType, fileName);
+        INodeTransport transport = transportFactory.Create(node);
+        (Stream stream, string? fileName) = await transport.DownloadArtifactAsync(node, artifactId);
+        return Results.File(stream, "application/octet-stream", fileName ?? artifactId);
     }
 
     private static async Task<IResult> SettingsAsync(HttpContext context, GatewayAuthService auth, LinuxGatewayOptions options)
@@ -722,16 +724,23 @@ public static class ApiRoutes
             LastSeenAt = node.LastSeenAt,
             LastStatus = node.LastStatus,
             LastError = node.LastError,
-            Remote = node.LastRemote
+            Remote = node.LastRemote,
+            ConnectionMode = node.ConnectionMode,
+            AgentVersion = node.AgentVersion,
+            ProtocolVersion = node.ProtocolVersion,
+            LastHeartbeatAt = node.LastHeartbeatAt,
+            ConnectionStatus = node.ConnectionStatus,
+            CredentialRevokedAt = node.CredentialRevokedAt
         };
     }
 
-    private static async Task<RemoteJobDetails?> TryRefreshJobAsync(JsonGatewayDatabase database, NodeGatewayClient client, GatewayJobRecord job)
+    private static async Task<RemoteJobDetails?> TryRefreshJobAsync(JsonGatewayDatabase database, NodeTransportFactory transportFactory, GatewayJobRecord job)
     {
         try
         {
             GatewayNodeRecord node = await GetEnabledNodeAsync(database, job.NodeId);
-            RemoteJobDetails details = await client.GetJobAsync(node, job.RemoteJobId);
+            INodeTransport transport = transportFactory.Create(node);
+            RemoteJobDetails details = await transport.GetJobAsync(node, job.RemoteJobId);
             if (details.Job is not null)
             {
                 await database.UpdateAsync(db =>

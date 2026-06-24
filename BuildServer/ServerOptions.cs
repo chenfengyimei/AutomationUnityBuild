@@ -17,6 +17,12 @@ public sealed class BuildServerOptions
     public string WorkerName { get; set; } = "";
     public int RetentionDays { get; set; } = 30;
     public long MaxArtifactBytes { get; set; } = 200L * 1024 * 1024 * 1024;
+
+    public bool ReverseGatewayEnabled { get; set; }
+    public string ReverseGatewayUrl { get; set; } = "";
+    public string ReverseEnrollmentToken { get; set; } = "";
+    public string ReverseNodeName { get; set; } = "";
+    public string ReverseCredentialPath { get; set; } = "";
 }
 
 public static class BuildServerEnvironment
@@ -39,6 +45,12 @@ public static class BuildServerEnvironment
         OverrideListFromEnv(options.AllowedRepositoryHosts, "BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS");
         OverrideListFromEnv(options.NodePlatforms, "BUILD_SERVER_NODE_PLATFORMS");
         options.WorkerName = Env("BUILD_SERVER_WORKER_NAME", options.WorkerName);
+
+        options.ReverseGatewayEnabled = EnvBool("BUILD_SERVER_REVERSE_GATEWAY_ENABLED", options.ReverseGatewayEnabled);
+        options.ReverseGatewayUrl = Env("BUILD_SERVER_REVERSE_GATEWAY_URL", options.ReverseGatewayUrl);
+        options.ReverseEnrollmentToken = Env("BUILD_SERVER_REVERSE_GATEWAY_ENROLLMENT_TOKEN", options.ReverseEnrollmentToken);
+        options.ReverseNodeName = Env("BUILD_SERVER_REVERSE_NODE_NAME", options.ReverseNodeName);
+        options.ReverseCredentialPath = Env("BUILD_SERVER_REVERSE_CREDENTIAL_PATH", options.ReverseCredentialPath);
 
         if (string.IsNullOrWhiteSpace(options.DataRoot))
         {
@@ -107,6 +119,18 @@ public static class BuildServerEnvironment
     {
         string? value = Environment.GetEnvironmentVariable(name);
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static bool EnvBool(string name, bool fallback)
+    {
+        string? value = Environment.GetEnvironmentVariable(name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+        return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("yes", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void OverrideListFromEnv(List<string> target, string name)

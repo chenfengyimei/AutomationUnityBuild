@@ -322,6 +322,47 @@ button.danger:hover {
   background: var(--warn);
 }
 
+.gateway-pill.connected {
+  border-color: #b4e4c4;
+  background: #ecfdf5;
+  color: var(--ok);
+}
+.gateway-pill.connected::before {
+  background: var(--ok);
+}
+.gateway-pill.connecting {
+  border-color: #f5d89c;
+  background: #fff8ea;
+  color: var(--warn);
+}
+.gateway-pill.connecting::before {
+  background: var(--warn);
+  animation: spin 1s linear infinite;
+}
+.gateway-pill.disconnected {
+  border-color: #d4dce8;
+  background: #f1f5fa;
+  color: var(--muted);
+}
+.gateway-pill.disconnected::before {
+  background: var(--muted);
+}
+.gateway-pill.failed {
+  border-color: #f5b8b4;
+  background: #fef2f2;
+  color: var(--danger);
+}
+.gateway-pill.failed::before {
+  background: var(--danger);
+}
+
+.gateway-status-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 h1,
 h2,
 h3 {

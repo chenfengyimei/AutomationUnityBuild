@@ -1,6 +1,7 @@
 using System.Reflection;
 using LinuxGateway;
 using LinuxGateway.Persistence;
+using LinuxGateway.Reverse;
 using LinuxGateway.Security;
 using LinuxGateway.Services;
 using Microsoft.AspNetCore.Http;
@@ -93,6 +94,7 @@ public sealed class GatewayApiRoutesTests
 
             var handler = new CountingHandler();
             var client = new NodeGatewayClient(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan });
+            var transportFactory = new NodeTransportFactory(new DirectNodeTransport(client), null!);
             var request = new GatewayStartBuildRequest(
                 "node-1",
                 "project-1",
@@ -102,7 +104,7 @@ public sealed class GatewayApiRoutesTests
                 DryRun: true,
                 ClientRequestId: "req-disabled-node");
 
-            IResult result = await InvokeStartBuildAsync(request, ContextWithBearer(token), auth, database, client);
+            IResult result = await InvokeStartBuildAsync(request, ContextWithBearer(token), auth, database, transportFactory);
 
             Assert.Equal(0, handler.Count);
             Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
@@ -118,11 +120,11 @@ public sealed class GatewayApiRoutesTests
         HttpContext context,
         GatewayAuthService auth,
         JsonGatewayDatabase database,
-        NodeGatewayClient client)
+        NodeTransportFactory transportFactory)
     {
         MethodInfo method = typeof(ApiRoutes).GetMethod("StartBuildAsync", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("StartBuildAsync route handler was not found.");
-        var task = (Task<IResult>?)method.Invoke(null, [request, context, auth, database, client])
+        var task = (Task<IResult>?)method.Invoke(null, [request, context, auth, database, transportFactory])
             ?? throw new InvalidOperationException("StartBuildAsync route handler did not return a task.");
         return await task;
     }

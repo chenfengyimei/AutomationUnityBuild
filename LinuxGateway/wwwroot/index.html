@@ -126,6 +126,21 @@
               </div>
               <button id="nodeSaveBtn" type="submit">保存设备</button>
             </form>
+
+            <article class="panel">
+              <p class="eyebrow">Reverse Agent</p>
+              <h2>生成反向连接 Token</h2>
+              <p class="hint">生成一次性 Enrollment Token，让 BuildServer 主动连接 Gateway（无需公网端口或内网穿透）。</p>
+              <label>节点名称提示<input id="enrollNodeNameHint" placeholder="Mac Build / Windows Android"></label>
+              <button id="generateTokenBtn" type="button">生成 Token</button>
+              <div id="enrollResult" class="enroll-result hidden">
+                <p class="hint">将以下地址和 Token 填入 BuildServer 的 Gateway 连接页面：</p>
+                <label>Gateway 地址<input id="enrollGatewayUrl" readonly></label>
+                <label>Enrollment Token<input id="enrollTokenValue" readonly></label>
+                <p class="field-help">Token 24 小时内有效，仅可使用一次。连接成功后 BuildServer 会获得长期凭据。</p>
+                <button id="copyEnrollBtn" class="secondary" type="button">复制配置</button>
+              </div>
+            </article>
           </section>
         </section>
 

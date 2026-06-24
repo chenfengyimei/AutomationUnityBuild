@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using BuildServer.Persistence;
+using BuildServer.Reverse;
 using BuildServer.Security;
 
 namespace BuildServer.Services;
@@ -10,6 +11,7 @@ public sealed class BuildWorkerService(
     BuildServerOptions options,
     ArtifactScanner artifactScanner,
     IWebHostEnvironment environment,
+    IGatewayPushChannel gatewayPushChannel,
     ILogger<BuildWorkerService> logger) : BackgroundService
 {
     private readonly object _processLock = new();
@@ -154,6 +156,11 @@ public sealed class BuildWorkerService(
             {
                 await artifactScanner.ScanAsync(completedJob);
             }
+
+            if (gatewayPushChannel.IsConnected)
+            {
+                _ = gatewayPushChannel.PushJobUpdatedAsync(job.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -219,6 +226,10 @@ public sealed class BuildWorkerService(
                 {
                     logWriter.WriteLine(eventArgs.Data);
                 }
+                if (gatewayPushChannel.IsConnected)
+                {
+                    _ = gatewayPushChannel.PushLogChunkAsync(jobId, eventArgs.Data);
+                }
             }
         };
         process.ErrorDataReceived += (_, eventArgs) =>
@@ -228,6 +239,10 @@ public sealed class BuildWorkerService(
                 lock (writeLock)
                 {
                     logWriter.WriteLine(eventArgs.Data);
+                }
+                if (gatewayPushChannel.IsConnected)
+                {
+                    _ = gatewayPushChannel.PushLogChunkAsync(jobId, eventArgs.Data);
                 }
             }
         };
