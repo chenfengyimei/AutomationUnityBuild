@@ -161,6 +161,35 @@ public class BuildPathsTests
     }
 
     [Fact]
+    public void FindLatestUnityEditorDirectory_OrdersUnityVersionsNumerically()
+    {
+        string editorRoot = TestHelpers.CreateTempDir();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(editorRoot, "2022.3.9f1"));
+            Directory.CreateDirectory(Path.Combine(editorRoot, "2022.3.10f1"));
+            Directory.CreateDirectory(Path.Combine(editorRoot, "2021.3.40f1"));
+
+            DirectoryInfo? latest = BuildPaths.FindLatestUnityEditorDirectory(editorRoot);
+
+            Assert.NotNull(latest);
+            Assert.Equal("2022.3.10f1", latest.Name);
+        }
+        finally
+        {
+            TestHelpers.CleanupTempDir(editorRoot);
+        }
+    }
+
+    [Fact]
+    public void CompareUnityVersionNames_HandlesUnityMajorVersionFamilies()
+    {
+        Assert.True(BuildPaths.CompareUnityVersionNames("6000.0.1f1", "2023.3.50f1") > 0);
+        Assert.True(BuildPaths.CompareUnityVersionNames("2022.3.10f1", "2022.3.9f1") > 0);
+        Assert.True(BuildPaths.CompareUnityVersionNames("2022.3.10f2", "2022.3.10f1") > 0);
+    }
+
+    [Fact]
     public void Create_ApkOutputPath_HasApkExtension()
     {
         BuildConfig config = new()

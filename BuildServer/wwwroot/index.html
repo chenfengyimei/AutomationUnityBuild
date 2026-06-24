@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20260624-identity-click">
 </head>
 <body>
   <main id="app">
@@ -354,8 +354,18 @@
               <button id="userAddBtn" type="button">新增用户</button>
             </header>
             <div id="userStats" class="identity-stats"></div>
-            <div class="table-shell">
-              <div id="usersList" class="list"></div>
+            <div class="identity-layout">
+              <section class="user-directory-card" aria-label="账号列表">
+                <header class="directory-heading">
+                  <div>
+                    <p class="eyebrow">Account Directory</p>
+                    <h4>账号列表</h4>
+                  </div>
+                  <span id="userDirectoryCount" class="count-badge">0 人</span>
+                </header>
+                <div id="usersList" class="user-list" role="listbox" aria-label="用户账号"></div>
+              </section>
+              <aside id="userDetailPanel" class="user-detail-card" aria-live="polite"></aside>
             </div>
           </section>
 
@@ -591,7 +601,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js"></script>
-  <script src="/app.js"></script>
+  <script src="/runtime.js?v=20260624-identity-click"></script>
+  <script src="/app.js?v=20260624-identity-click"></script>
 </body>
 </html>
