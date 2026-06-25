@@ -31,6 +31,10 @@ public sealed class GatewayCommandDispatcher(
 
         var tcs = new TaskCompletionSource<ReverseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[correlationId] = tcs;
+        if (onIntermediateMessage is not null)
+        {
+            _intermediateHandlers[correlationId] = onIntermediateMessage;
+        }
 
         using CancellationTokenSource cts = new(effectiveTimeout);
         cts.Token.Register(() =>
@@ -54,11 +58,6 @@ public sealed class GatewayCommandDispatcher(
             }
 
             await commandStore.MarkSentAsync(correlationId);
-
-            if (onIntermediateMessage is not null)
-            {
-                _intermediateHandlers[correlationId] = onIntermediateMessage;
-            }
 
             ReverseMessage response = await tcs.Task.WaitAsync(cts.Token);
 
@@ -123,7 +122,10 @@ public sealed class GatewayCommandDispatcher(
         if (_pending.TryRemove(message.CorrelationId, out TaskCompletionSource<ReverseMessage>? pendingTcs))
         {
             pendingTcs.TrySetResult(message);
+            return;
         }
+
+        _ = MarkRecoveredResponseCompletedAsync(message);
     }
 
     public async Task<int> ResendPendingCommandsAsync(string nodeId)
@@ -177,6 +179,24 @@ public sealed class GatewayCommandDispatcher(
     public bool HasPending(string correlationId)
     {
         return _pending.ContainsKey(correlationId);
+    }
+
+    private async Task MarkRecoveredResponseCompletedAsync(ReverseMessage message)
+    {
+        try
+        {
+            string? resultJson = message.Type == ReverseMessageTypes.Error
+                ? null
+                : (message.Payload.HasValue ? message.Payload.Value.GetRawText() : null);
+            string? error = message.Type == ReverseMessageTypes.Error
+                ? message.GetPayload<ErrorResponse>()?.Error ?? "Unknown error"
+                : null;
+            await commandStore.MarkCompletedAsync(message.CorrelationId!, resultJson, error);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to mark recovered command response {CorrelationId} completed.", message.CorrelationId);
+        }
     }
 }
 

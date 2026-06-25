@@ -1,4 +1,6 @@
+using System.Net;
 using System.Reflection;
+using System.Text;
 using LinuxGateway;
 using LinuxGateway.Persistence;
 using LinuxGateway.Reverse;
@@ -108,6 +110,66 @@ public sealed class GatewayApiRoutesTests
 
             Assert.Equal(0, handler.Count);
             Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        }
+        finally
+        {
+            TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public async Task StartBuildAsync_DoesNotCallRemoteStartTwice_ForSameClientRequestId()
+    {
+        string root = TestRoot();
+        try
+        {
+            LinuxGatewayOptions options = Options(root);
+            JsonGatewayDatabase database = await DatabaseAsync(options);
+            var auth = new GatewayAuthService(database, options);
+            await auth.SeedAsync();
+
+            GatewayUserRecord? admin = await auth.ValidateLoginAsync("admin", "Passw0rd!one");
+            Assert.NotNull(admin);
+            string token = await auth.CreateSessionAsync(admin);
+
+            await database.UpdateAsync(db =>
+            {
+                db.Nodes.Add(new GatewayNodeRecord
+                {
+                    Id = "node-1",
+                    Name = "Enabled Node",
+                    BaseUrl = "http://node.local",
+                    GatewayToken = "gateway-token",
+                    Platforms = ["android"],
+                    Enabled = true,
+                    CreatedAt = DateTimeOffset.Now
+                });
+            });
+
+            var handler = new StartBuildHandler();
+            var client = new NodeGatewayClient(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan });
+            var transportFactory = new NodeTransportFactory(new DirectNodeTransport(client), null!);
+            var request = new GatewayStartBuildRequest(
+                "node-1",
+                "project-1",
+                "config-1",
+                Branch: "main",
+                BuildNumber: "42",
+                DryRun: true,
+                ClientRequestId: "req-same");
+
+            IResult first = await InvokeStartBuildAsync(request, ContextWithBearer(token), auth, database, transportFactory);
+            IResult second = await InvokeStartBuildAsync(request, ContextWithBearer(token), auth, database, transportFactory);
+
+            Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(first).StatusCode);
+            Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(second).StatusCode);
+            Assert.Equal(1, handler.StartBuildCount);
+
+            List<GatewayJobRecord> jobs = await database.ReadAsync(db => db.Jobs.ToList());
+            GatewayJobRecord job = Assert.Single(jobs);
+            Assert.Equal("req-same", job.ClientRequestId);
+            Assert.Equal("remote-job-1", job.RemoteJobId);
+            Assert.Equal(GatewayBuildStatuses.Queued, job.Status);
         }
         finally
         {
@@ -227,6 +289,67 @@ public sealed class GatewayApiRoutesTests
         {
             Count++;
             throw new InvalidOperationException("Remote node should not be called for a disabled node.");
+        }
+    }
+
+    private sealed class StartBuildHandler : HttpMessageHandler
+    {
+        public int StartBuildCount { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string path = request.RequestUri?.AbsolutePath ?? "";
+            if (path.EndsWith("/api/gateway/node", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(
+                    """
+                    {
+                      "id": "node-1",
+                      "name": "Enabled Node",
+                      "platforms": ["android"],
+                      "projects": [
+                        { "id": "project-1", "name": "Project One", "defaultBranch": "main", "defaultBuildPlatform": "android" }
+                      ],
+                      "configs": [
+                        { "id": "config-1", "projectId": "project-1", "name": "Android Release", "buildPlatform": "android" }
+                      ]
+                    }
+                    """);
+            }
+
+            if (path.EndsWith("/api/gateway/builds", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBuildCount++;
+                _ = request.Content is null
+                    ? ""
+                    : await request.Content.ReadAsStringAsync(cancellationToken);
+                return Json(
+                    """
+                    {
+                      "id": "remote-job-1",
+                      "projectId": "project-1",
+                      "configId": "config-1",
+                      "status": "Queued",
+                      "buildPlatform": "android",
+                      "branch": "main",
+                      "buildNumber": "42",
+                      "dryRun": true
+                    }
+                    """);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent("not found", Encoding.UTF8, "text/plain")
+            };
+        }
+
+        private static HttpResponseMessage Json(string body)
+        {
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
         }
     }
 }

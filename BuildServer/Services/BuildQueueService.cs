@@ -23,6 +23,11 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         {
             ProjectRecord project = db.Projects.FirstOrDefault(project => project.Id == request.ProjectId && project.Enabled)
                 ?? throw new InvalidOperationException("项目不存在或已禁用。");
+            if (!IsProjectAllowed(user, project.Id))
+            {
+                throw new UnauthorizedAccessException("当前用户没有操作这个项目的权限。");
+            }
+
             BuildConfigRecord config = db.Configs.FirstOrDefault(config =>
                     config.Id == request.ConfigId &&
                     config.ProjectId == request.ProjectId &&
@@ -229,9 +234,45 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         {
             Directory.CreateDirectory(targetDir);
         }
-        File.WriteAllText(
+        WriteTextAtomically(
             targetPath,
             json.ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
+    }
+
+    private static void WriteTextAtomically(string targetPath, string content)
+    {
+        string? targetDir = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(targetDir))
+        {
+            Directory.CreateDirectory(targetDir);
+        }
+
+        string tempPath = $"{targetPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(tempPath, content);
+            File.Move(tempPath, targetPath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static bool IsProjectAllowed(CurrentUser user, string projectId)
+    {
+        return user.AllowedProjectIds is null ||
+               user.AllowedProjectIds.Count == 0 ||
+               user.AllowedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
     }
 
     private static void NormalizeUnityExecutableForCurrentHost(JsonObject json)

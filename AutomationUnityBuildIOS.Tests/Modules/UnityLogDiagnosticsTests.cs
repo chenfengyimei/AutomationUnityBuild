@@ -65,4 +65,23 @@ public class UnityLogDiagnosticsTests
         Assert.Contains("激活", message);
         Assert.Contains("No valid Unity Editor license found", message);
     }
+
+    [Fact]
+    public void TryGetKnownFailureMessage_WhenLicenseUpdatedButAndroidSigningFails_ReturnsSigningMessage()
+    {
+        string[] lines =
+        [
+            "[Licensing::Client] Error: HandshakeResponse reported an error:",
+            "[Licensing::Client] Successfully updated license",
+            "UnityException: Can not sign the application",
+            "Unable to sign the application; please provide passwords!"
+        ];
+
+        string? message = UnityLogDiagnostics.TryGetKnownFailureMessage(lines);
+
+        Assert.NotNull(message);
+        Assert.Contains("androidKeystoreName", message);
+        Assert.Contains("Can not sign the application", message);
+        Assert.DoesNotContain("Unity Editor License", message);
+    }
 }

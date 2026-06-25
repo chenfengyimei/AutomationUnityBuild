@@ -142,7 +142,7 @@ public sealed class GatewayAuthService(JsonGatewayDatabase database, LinuxGatewa
 
     public static CurrentGatewayUser ToCurrentUser(GatewayUserRecord user)
     {
-        return new CurrentGatewayUser(user.Id, user.UserName, user.DisplayName, user.Role);
+        return new CurrentGatewayUser(user.Id, user.UserName, user.DisplayName, user.Role, user.AllowedProjectIds);
     }
 
     public static void AddAudit(GatewayDatabase db, string userId, string userName, string action, string targetType, string targetId, string details)

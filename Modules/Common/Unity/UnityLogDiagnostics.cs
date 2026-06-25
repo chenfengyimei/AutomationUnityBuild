@@ -28,8 +28,17 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToArray();
 
+        string? androidSigningEvidence = normalizedLines.FirstOrDefault(IsAndroidSigningFailureLine);
+        if (androidSigningEvidence is not null)
+        {
+            return
+                "Android 签名配置不完整或密码不可用。请检查 androidKeystoreName、androidKeystorePass、androidKeyaliasName、androidKeyaliasPass；如果 Key Alias 密码和 keystore 密码一致，可以填同一个值。" +
+                $" 日志线索: {androidSigningEvidence.Trim()}";
+        }
+
+        bool licenseWasAccepted = normalizedLines.Any(IsUnityLicenseSuccessLine);
         string? licenseEvidence = normalizedLines.LastOrDefault(IsUnityLicenseFailureLine);
-        if (licenseEvidence is not null)
+        if (licenseEvidence is not null && !licenseWasAccepted)
         {
             return
                 "Unity Editor License 未激活或不可用。请在这台打包机上使用运行 BuildServer 的同一个 Windows/macOS 用户打开 Unity Hub，登录并激活 Unity Editor 许可证，或安装有效的 .ulf 离线许可证；确认 Unity Hub 和 Unity Editor 的 Licensing Client 正常后重新打包。" +
@@ -180,6 +189,27 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
             "Failed to handshake to channel",
             "Unsupported protocol version",
             "LicensingClient has failed validation");
+    }
+
+    private static bool IsUnityLicenseSuccessLine(string line)
+    {
+        return ContainsAny(
+            line,
+            "Successfully updated license",
+            "Serial number assigned",
+            "Successfully resolved entitlement details");
+    }
+
+    private static bool IsAndroidSigningFailureLine(string line)
+    {
+        return ContainsAny(
+            line,
+            "Can not sign the application",
+            "Unable to sign the application; please provide passwords",
+            "Android signing",
+            "签名缺少",
+            "缺少 Key Alias",
+            "缺少 keystore");
     }
 
     private static bool ContainsAny(string line, params string[] needles)

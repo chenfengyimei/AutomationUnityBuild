@@ -821,9 +821,12 @@ public sealed class GatewayAgentService(
         }
 
         BuildArtifactRecord? artifact = await database.ReadAsync(db => db.Artifacts.FirstOrDefault(a => a.Id == payload.ArtifactId));
-        if (artifact is null || !File.Exists(artifact.Path))
+        BuildJobRecord? job = artifact is null
+            ? null
+            : await database.ReadAsync(db => db.Jobs.FirstOrDefault(j => j.Id == artifact.JobId));
+        if (artifact is null || job is null || !IsAllowedArtifactPath(artifact.Path, job) || !File.Exists(artifact.Path))
         {
-            return AgentMessageBuilder.CreateError(_nodeId, command.CorrelationId, "产物文件不存在");
+            return AgentMessageBuilder.CreateError(_nodeId, command.CorrelationId, "产物文件不存在。");
         }
 
         string fileName = Path.GetFileName(artifact.Path);
@@ -849,6 +852,37 @@ public sealed class GatewayAgentService(
         }
 
         return null;
+    }
+
+    private bool IsAllowedArtifactPath(string path, BuildJobRecord job)
+    {
+        if (string.IsNullOrWhiteSpace(job.ArtifactRoot))
+        {
+            return false;
+        }
+
+        bool underJobRoot = IsSameOrChild(path, job.ArtifactRoot);
+        bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
+                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(path, root));
+        return underJobRoot && underAllowedRoot;
+    }
+
+    private static bool IsSameOrChild(string path, string root)
+    {
+        string normalizedPath = NormalizeDirectory(path);
+        string normalizedRoot = NormalizeDirectory(root);
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return normalizedPath.Equals(normalizedRoot, comparison) ||
+               normalizedPath.StartsWith(normalizedRoot, comparison);
+    }
+
+    private static string NormalizeDirectory(string path)
+    {
+        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(path))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
     }
 
     private static async Task<string> TailLogAsync(string path, int lines)

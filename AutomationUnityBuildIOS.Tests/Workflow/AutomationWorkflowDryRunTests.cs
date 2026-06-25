@@ -1,4 +1,5 @@
 using Xunit;
+using System.Text.Json.Nodes;
 
 namespace AutomationUnityBuildIOS.Tests;
 
@@ -25,7 +26,9 @@ public class AutomationWorkflowDryRunTests
                 AndroidBuildFormat = AndroidBuildFormats.Aab,
                 ProductName = "MyGame",
                 BundleIdentifier = "com.company.game",
-                BuildNumber = "1"
+                BuildNumber = "1",
+                AndroidKeystorePass = "secret-keystore-password",
+                AndroidKeyaliasPass = ""
             };
             CliOptions options = CliOptions.Parse(["--dry-run", "--skip-git", "--allow-non-mac"]);
 
@@ -41,6 +44,10 @@ public class AutomationWorkflowDryRunTests
             Assert.True(File.Exists(Path.Combine(logsDirectory, "build-config-snapshot.json")));
             Assert.True(File.Exists(Path.Combine(logsDirectory, "unity-process.log")));
             Assert.Contains("[dry-run] Command was not executed.", File.ReadAllText(Path.Combine(logsDirectory, "unity-process.log")));
+
+            JsonNode snapshot = JsonNode.Parse(File.ReadAllText(Path.Combine(logsDirectory, "build-config-snapshot.json")))!;
+            Assert.Equal("***", snapshot["config"]!["androidKeystorePass"]!.GetValue<string>());
+            Assert.Equal("", snapshot["config"]!["androidKeyaliasPass"]!.GetValue<string>());
         }
         finally
         {

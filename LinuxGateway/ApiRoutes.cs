@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using LinuxGateway.Persistence;
@@ -9,6 +10,8 @@ namespace LinuxGateway;
 
 public static class ApiRoutes
 {
+    private static readonly ConcurrentDictionary<string, int> SseConnectionsByUser = new(StringComparer.Ordinal);
+
     private static readonly JsonSerializerOptions CamelizeOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -54,12 +57,23 @@ public static class ApiRoutes
             return;
         }
 
+        CurrentGatewayUser user = (await auth.GetUserAsync(context))!;
+        if (!TryAcquireSseConnection(user.Id, options.MaxSseConnectionsPerUser, out int currentConnections))
+        {
+            context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            await context.Response.WriteAsync(
+                $"Too many event connections for this user. Current limit is {options.MaxSseConnectionsPerUser}.",
+                context.RequestAborted);
+            return;
+        }
+
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
         context.Response.ContentType = "text/event-stream; charset=utf-8";
 
         try
         {
+            context.Response.Headers["X-Sse-Connection-Count"] = currentConnections.ToString();
             await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
             using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
             while (await timer.WaitForNextTickAsync(context.RequestAborted))
@@ -70,6 +84,10 @@ public static class ApiRoutes
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            ReleaseSseConnection(user.Id);
         }
     }
 
@@ -93,6 +111,23 @@ public static class ApiRoutes
         await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
         await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
+    }
+
+    private static bool TryAcquireSseConnection(string userId, int maxConnections, out int currentConnections)
+    {
+        currentConnections = SseConnectionsByUser.AddOrUpdate(userId, 1, (_, count) => count + 1);
+        if (currentConnections <= maxConnections)
+        {
+            return true;
+        }
+
+        ReleaseSseConnection(userId);
+        return false;
+    }
+
+    private static void ReleaseSseConnection(string userId)
+    {
+        SseConnectionsByUser.AddOrUpdate(userId, 0, (_, count) => Math.Max(0, count - 1));
     }
 
     private static readonly Dictionary<string, LoginAttempt> LoginAttempts = new(StringComparer.Ordinal);
@@ -231,6 +266,7 @@ public static class ApiRoutes
                     UserName = userName,
                     DisplayName = displayName,
                     Role = role,
+                    AllowedProjectIds = NormalizeAllowedProjectIds(request.AllowedProjectIds),
                     PasswordHash = PasswordHasher.Hash(password),
                     Enabled = request.Enabled,
                     CreatedAt = DateTimeOffset.Now
@@ -283,6 +319,9 @@ public static class ApiRoutes
                 user.UserName = userName;
                 user.DisplayName = displayName;
                 user.Role = role;
+                user.AllowedProjectIds = IsRootAdmin(user)
+                    ? []
+                    : NormalizeAllowedProjectIds(request.AllowedProjectIds);
                 user.Enabled = request.Enabled;
                 if (newPassword is not null)
                 {
@@ -441,9 +480,11 @@ public static class ApiRoutes
 
     private static async Task<IResult> ListBuildsAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
 
         return Results.Ok(await database.ReadAsync(db => db.Jobs
+            .Where(job => CanAccessProject(user, job.ProjectId))
             .OrderByDescending(job => job.CreatedAt)
             .Take(100)
             .ToList()));
@@ -459,6 +500,7 @@ public static class ApiRoutes
         CurrentGatewayUser? current = await auth.GetUserAsync(context);
         if (current is null) return ApiDiagnostics.Unauthorized(context);
         if (!GatewayAuthService.CanBuild(current)) return ApiDiagnostics.Forbidden(context);
+        if (!CanAccessProject(current, request.ProjectId)) return ApiDiagnostics.Forbidden(context);
 
         try
         {
@@ -486,21 +528,7 @@ public static class ApiRoutes
 
             EnsurePlatformAllowed(node, remote, config.BuildPlatform);
 
-            var remoteRequest = new RemoteStartBuildRequest(
-                request.ProjectId,
-                request.ConfigId,
-                request.Branch,
-                request.BuildNumber,
-                request.DryRun,
-                request.SkipGit,
-                request.SkipUnity,
-                request.SkipXcode,
-                request.AllowNonMac,
-                clientRequestId,
-                request.Notes);
-            RemoteBuildJobRecord remoteJob = await transport.StartBuildAsync(node, remoteRequest);
-
-            GatewayJobRecord gatewayJob = await database.UpdateAsync(db =>
+            (GatewayJobRecord gatewayJob, bool created) = await database.UpdateAsync(db =>
             {
                 if (!string.IsNullOrWhiteSpace(clientRequestId))
                 {
@@ -511,7 +539,7 @@ public static class ApiRoutes
                             string.Equals(job.RequestedByUserId, current.Id, StringComparison.OrdinalIgnoreCase));
                     if (existing is not null)
                     {
-                        return existing;
+                        return (existing, false);
                     }
                 }
 
@@ -520,7 +548,6 @@ public static class ApiRoutes
                     Id = Ids.New("gwjob"),
                     NodeId = node.Id,
                     NodeName = node.Name,
-                    RemoteJobId = remoteJob.Id,
                     RequestedByUserId = current.Id,
                     RequestedByUserName = current.UserName,
                     ProjectId = project.Id,
@@ -528,23 +555,78 @@ public static class ApiRoutes
                     ConfigId = config.Id,
                     ConfigName = config.Name,
                     BuildPlatform = config.BuildPlatform,
-                    Branch = remoteJob.Branch,
-                    BuildNumber = remoteJob.BuildNumber,
-                    DryRun = remoteJob.DryRun,
+                    Branch = request.Branch ?? project.DefaultBranch,
+                    BuildNumber = request.BuildNumber ?? "",
+                    DryRun = request.DryRun,
                     ClientRequestId = clientRequestId,
-                    Status = remoteJob.Status,
-                    Error = remoteJob.Error,
+                    Status = GatewayBuildStatuses.Creating,
+                    RemoteConnectionMode = node.ConnectionMode,
                     CreatedAt = DateTimeOffset.Now,
                     UpdatedAt = DateTimeOffset.Now
                 };
                 db.Jobs.Add(job);
                 GatewayAuthService.AddAudit(db, current.Id, current.UserName, "build.start", "build", job.Id, $"Started build {project.Name}/{config.Name} on {node.Name}.");
-                return job;
+                return (job, true);
+            });
+
+            if (!created)
+            {
+                return Results.Ok(gatewayJob);
+            }
+
+            string remoteClientRequestId = string.IsNullOrWhiteSpace(clientRequestId) ? gatewayJob.Id : clientRequestId;
+            var remoteRequest = new RemoteStartBuildRequest(
+                request.ProjectId,
+                request.ConfigId,
+                request.Branch,
+                request.BuildNumber,
+                request.DryRun,
+                request.SkipGit,
+                request.SkipUnity,
+                request.SkipXcode,
+                request.AllowNonMac,
+                remoteClientRequestId,
+                request.Notes);
+
+            RemoteBuildJobRecord remoteJob;
+            try
+            {
+                remoteJob = await transport.StartBuildAsync(node, remoteRequest);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or TimeoutException or OperationCanceledException)
+            {
+                await database.UpdateAsync(db =>
+                {
+                    GatewayJobRecord? stored = db.Jobs.FirstOrDefault(job => job.Id == gatewayJob.Id);
+                    if (stored is null) return;
+                    stored.Error = ex.Message;
+                    stored.Status = GatewayBuildStatuses.Failed;
+                    stored.UpdatedAt = DateTimeOffset.Now;
+                });
+                return ApiDiagnostics.ClientError(context, ex);
+            }
+
+            gatewayJob = await database.UpdateAsync(db =>
+            {
+                GatewayJobRecord? stored = db.Jobs.FirstOrDefault(job => job.Id == gatewayJob.Id);
+                if (stored is null)
+                {
+                    return gatewayJob;
+                }
+
+                stored.RemoteJobId = remoteJob.Id;
+                stored.Status = string.IsNullOrWhiteSpace(remoteJob.Status) ? GatewayBuildStatuses.Queued : remoteJob.Status;
+                stored.Error = remoteJob.Error;
+                stored.Branch = remoteJob.Branch;
+                stored.BuildNumber = remoteJob.BuildNumber;
+                stored.DryRun = remoteJob.DryRun;
+                stored.UpdatedAt = DateTimeOffset.Now;
+                return stored;
             });
 
             return Results.Ok(gatewayJob);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or TimeoutException or OperationCanceledException)
         {
             return ApiDiagnostics.ClientError(context, ex);
         }
@@ -557,10 +639,12 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeTransportFactory transportFactory)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
 
         GatewayJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
 
         RemoteJobDetails? remote = await TryRefreshJobAsync(database, transportFactory, job);
         return Results.Ok(new { job, remote });
@@ -574,9 +658,11 @@ public static class ApiRoutes
         NodeTransportFactory transportFactory,
         int? lines)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         INodeTransport transport = transportFactory.Create(node);
         string log = await transport.GetJobLogAsync(node, job.RemoteJobId, Math.Clamp(lines ?? 300, 20, 2000));
@@ -590,9 +676,11 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeTransportFactory transportFactory)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         INodeTransport transport = transportFactory.Create(node);
         return Results.Ok(await transport.ListArtifactsAsync(node, job.RemoteJobId));
@@ -606,9 +694,11 @@ public static class ApiRoutes
         JsonGatewayDatabase database,
         NodeTransportFactory transportFactory)
     {
-        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
 
         GatewayJobRecord job = await GetJobAsync(database, jobId);
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
         GatewayNodeRecord node = await GetNodeAsync(database, job.NodeId);
         INodeTransport transport = transportFactory.Create(node);
         (Stream stream, string? fileName) = await transport.DownloadArtifactAsync(node, artifactId);
@@ -639,9 +729,26 @@ public static class ApiRoutes
             user.UserName,
             user.DisplayName,
             user.Role,
+            user.AllowedProjectIds,
             user.Enabled,
             user.CreatedAt
         };
+    }
+
+    private static bool CanAccessProject(CurrentGatewayUser user, string projectId)
+    {
+        return user.AllowedProjectIds is null ||
+               user.AllowedProjectIds.Count == 0 ||
+               user.AllowedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static List<string> NormalizeAllowedProjectIds(IEnumerable<string>? values)
+    {
+        return values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
     }
 
     private static string NormalizeGatewayUserName(string? value)

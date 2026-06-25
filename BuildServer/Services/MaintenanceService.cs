@@ -1,10 +1,12 @@
 using BuildServer.Persistence;
+using BuildServer.Security;
 
 namespace BuildServer.Services;
 
 public sealed class MaintenanceService(
     JsonDatabase database,
     BuildServerOptions options,
+    AuthService auth,
     ILogger<MaintenanceService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -24,12 +26,18 @@ public sealed class MaintenanceService(
                 logger.LogWarning(ex, "维护清理失败");
             }
 
-            await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(options.SessionCleanupIntervalMinutes), stoppingToken);
         }
     }
 
     private async Task CleanupAsync()
     {
+        int expiredSessions = await auth.CleanupExpiredSessionsAsync();
+        if (expiredSessions > 0)
+        {
+            logger.LogInformation("Removed {Count} expired sessions.", expiredSessions);
+        }
+
         if (options.RetentionDays <= 0)
         {
             return;

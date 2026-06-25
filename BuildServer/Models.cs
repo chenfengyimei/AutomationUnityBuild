@@ -21,6 +21,7 @@ public sealed class UserRecord
     public string DisplayName { get; set; } = "";
     public string PasswordHash { get; set; } = "";
     public string Role { get; set; } = Roles.Viewer;
+    public List<string> AllowedProjectIds { get; set; } = [];
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
@@ -173,7 +174,12 @@ public static class WorkerStatuses
     public const string Offline = "Offline";
 }
 
-public sealed record CurrentUser(string Id, string UserName, string DisplayName, string Role);
+public sealed record CurrentUser(
+    string Id,
+    string UserName,
+    string DisplayName,
+    string Role,
+    IReadOnlyList<string>? AllowedProjectIds = null);
 
 public sealed record LoginRequest(string UserName, string Password);
 
@@ -182,7 +188,8 @@ public sealed record UserRequest(
     string DisplayName,
     string Role,
     string? Password,
-    bool Enabled = true);
+    bool Enabled = true,
+    string[]? AllowedProjectIds = null);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 

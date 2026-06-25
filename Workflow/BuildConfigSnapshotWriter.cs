@@ -95,7 +95,17 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
                     JsonNode? child = jsonObject[key];
                     if (IsSensitiveKey(key))
                     {
-                        jsonObject[key] = "***";
+                        if (child is JsonValue secretValue &&
+                            secretValue.TryGetValue(out string? secretString) &&
+                            string.IsNullOrEmpty(secretString))
+                        {
+                            jsonObject[key] = "";
+                        }
+                        else
+                        {
+                            jsonObject[key] = "***";
+                        }
+
                         continue;
                     }
 

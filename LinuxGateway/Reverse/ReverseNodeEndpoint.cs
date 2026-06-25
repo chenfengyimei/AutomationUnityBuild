@@ -64,6 +64,7 @@ public static class ReverseNodeEndpoint
         WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
 
         ReverseConnection conn = connectionManager.AddOrReplace(nodeId!, socket, remoteIp);
+        string connectionId = conn.ConnectionId;
 
         await UpdateNodeConnectedAsync(database, nodeId!, remoteIp);
 
@@ -85,8 +86,10 @@ public static class ReverseNodeEndpoint
         }
         finally
         {
-            connectionManager.Remove(nodeId!);
-            await UpdateNodeDisconnectedAsync(database, nodeId!);
+            if (connectionManager.Remove(nodeId!, connectionId))
+            {
+                await UpdateNodeDisconnectedAsync(database, nodeId!);
+            }
         }
     }
 
@@ -145,7 +148,14 @@ public static class ReverseNodeEndpoint
                 continue;
             }
 
-            await HandleIncomingMessageAsync(message, nodeId, connectionManager, dispatcher, database, logger);
+            try
+            {
+                await HandleIncomingMessageAsync(message, nodeId, connectionManager, dispatcher, database, logger);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to handle message type {Type} from node {NodeId}", message.Type, nodeId);
+            }
         }
     }
 

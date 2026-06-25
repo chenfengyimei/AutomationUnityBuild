@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using BuildServer.Persistence;
@@ -8,6 +9,8 @@ namespace BuildServer;
 
 public static class GatewayEndpoint
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(StringComparer.OrdinalIgnoreCase);
+
     public static void Map(WebApplication app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/gateway");
@@ -168,7 +171,7 @@ public static class GatewayEndpoint
         if (artifact is null) return Results.NotFound();
 
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == artifact.JobId));
-        if (job is null || !IsAllowedArtifactPath(artifact.Path, job))
+        if (job is null || !IsAllowedArtifactPath(artifact.Path, job, options))
         {
             return Results.Forbid();
         }
@@ -183,8 +186,7 @@ public static class GatewayEndpoint
             string zipRoot = Path.Combine(options.DataRoot, "gateway-downloads");
             Directory.CreateDirectory(zipRoot);
             string zipPath = Path.Combine(zipRoot, $"{Path.GetFileName(artifact.Path)}-{artifact.Id}.zip");
-            if (File.Exists(zipPath)) File.Delete(zipPath);
-            ZipFile.CreateFromDirectory(artifact.Path, zipPath);
+            await EnsureZipAsync(artifact.Path, zipPath);
             return Results.File(zipPath, "application/zip", Path.GetFileName(zipPath));
         }
 
@@ -220,7 +222,7 @@ public static class GatewayEndpoint
         return leftBytes.Length == rightBytes.Length && CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
     }
 
-    private static bool IsAllowedArtifactPath(string path, BuildJobRecord job)
+    private static bool IsAllowedArtifactPath(string path, BuildJobRecord job, BuildServerOptions options)
     {
         if (string.IsNullOrWhiteSpace(job.ArtifactRoot))
         {
@@ -229,9 +231,64 @@ public static class GatewayEndpoint
 
         string fullPath = Path.GetFullPath(path);
         string fullRoot = Path.GetFullPath(job.ArtifactRoot);
+        bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
+                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(fullPath, root));
         StringComparison comparison = PathComparison();
-        return fullPath.Equals(fullRoot, comparison) ||
-               fullPath.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison);
+        return underAllowedRoot &&
+               (fullPath.Equals(fullRoot, comparison) ||
+                fullPath.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison));
+    }
+
+    private static bool IsSameOrChild(string path, string root)
+    {
+        string normalizedPath = NormalizeDirectory(path);
+        string normalizedRoot = NormalizeDirectory(root);
+        StringComparison comparison = PathComparison();
+        return normalizedPath.Equals(normalizedRoot, comparison) ||
+               normalizedPath.StartsWith(normalizedRoot, comparison);
+    }
+
+    private static string NormalizeDirectory(string path)
+    {
+        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(path))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
+    }
+
+    private static async Task EnsureZipAsync(string sourceDirectory, string zipPath)
+    {
+        string lockKey = Path.GetFullPath(zipPath);
+        SemaphoreSlim semaphore = ZipLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        try
+        {
+            if (!File.Exists(zipPath))
+            {
+                string tempPath = $"{zipPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+                try
+                {
+                    ZipFile.CreateFromDirectory(sourceDirectory, tempPath);
+                    File.Move(tempPath, zipPath, overwrite: true);
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(tempPath))
+                        {
+                            File.Delete(tempPath);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+        finally
+        {
+            semaphore.Release();
+        }
     }
 
     private static StringComparison PathComparison()
