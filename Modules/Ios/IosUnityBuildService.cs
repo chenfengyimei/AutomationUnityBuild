@@ -43,9 +43,14 @@ internal sealed class IosUnityBuildService(BuildRunContext context, XcodeProject
             ValidateCocoaPodsInstallation();
             _metadataReader.SyncBundleVersionFromUnityMetadata();
         }
-        catch
+        catch (Exception ex)
         {
             LogUnityFailureDetails();
+            if (_logDiagnostics.TryGetKnownFailureMessage(_paths) is { } knownFailureMessage)
+            {
+                throw new InvalidOperationException(knownFailureMessage, ex);
+            }
+
             throw;
         }
     }

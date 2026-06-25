@@ -13,6 +13,32 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
         LogTail(paths.UnityProcessLogPath, "Unity Process", 80);
     }
 
+    public string? TryGetKnownFailureMessage(BuildPaths paths)
+    {
+        string[] lines = ReadExistingLines(paths.UnityLogPath)
+            .Concat(ReadExistingLines(paths.UnityProcessLogPath))
+            .ToArray();
+
+        return TryGetKnownFailureMessage(lines);
+    }
+
+    internal static string? TryGetKnownFailureMessage(IEnumerable<string> lines)
+    {
+        string[] normalizedLines = lines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+
+        string? licenseEvidence = normalizedLines.LastOrDefault(IsUnityLicenseFailureLine);
+        if (licenseEvidence is not null)
+        {
+            return
+                "Unity Editor License 未激活或不可用。请在这台打包机上使用运行 BuildServer 的同一个 Windows/macOS 用户打开 Unity Hub，登录并激活 Unity Editor 许可证，或安装有效的 .ulf 离线许可证；确认 Unity Hub 和 Unity Editor 的 Licensing Client 正常后重新打包。" +
+                $" 日志线索: {licenseEvidence.Trim()}";
+        }
+
+        return null;
+    }
+
     public void LogDirectorySnapshot(string directory, string title)
     {
         if (!Directory.Exists(directory))
@@ -120,5 +146,44 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
         }
 
         return lines.ToArray();
+    }
+
+    private static string[] ReadExistingLines(string logPath)
+    {
+        try
+        {
+            return !string.IsNullOrWhiteSpace(logPath) && File.Exists(logPath)
+                ? ReadAllLinesShared(logPath)
+                : [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private static bool IsUnityLicenseFailureLine(string line)
+    {
+        return ContainsAny(
+            line,
+            "No valid Unity Editor license found",
+            "Please activate your license",
+            "No ULF license found",
+            "Token not found in cache",
+            "Access token is unavailable",
+            "Unable to update licenses",
+            "com.unity.editor.headless",
+            "Failed to handshake to channel",
+            "Unsupported protocol version",
+            "LicensingClient has failed validation");
+    }
+
+    private static bool ContainsAny(string line, params string[] needles)
+    {
+        return needles.Any(needle => line.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 }
