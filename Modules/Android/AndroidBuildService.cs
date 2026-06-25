@@ -56,9 +56,14 @@ internal sealed class AndroidBuildService(BuildRunContext context)
             ValidateAndroidArtifacts();
             _metadataReader.SyncBundleVersionFromUnityMetadata();
         }
-        catch
+        catch (Exception ex)
         {
             LogUnityFailureDetails();
+            if (_logDiagnostics.TryGetKnownFailureMessage(_paths) is { } knownFailureMessage)
+            {
+                throw new InvalidOperationException(knownFailureMessage, ex);
+            }
+
             throw;
         }
     }

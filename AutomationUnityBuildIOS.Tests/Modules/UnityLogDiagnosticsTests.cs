@@ -47,4 +47,22 @@ public class UnityLogDiagnosticsTests
             TestHelpers.CleanupTempDir(tempDir);
         }
     }
+
+    [Fact]
+    public void TryGetKnownFailureMessage_WhenUnityLicenseMissing_ReturnsActionableMessage()
+    {
+        string[] lines =
+        [
+            "[Licensing::Module] Error: Access token is unavailable; failed to update",
+            "[Licensing::Client] Error: Code 500 while processing request (status: Unable to update licenses. Errors: No ULF license found.,Token not found in cache)",
+            "No valid Unity Editor license found. Please activate your license."
+        ];
+
+        string? message = UnityLogDiagnostics.TryGetKnownFailureMessage(lines);
+
+        Assert.NotNull(message);
+        Assert.Contains("Unity Editor License", message);
+        Assert.Contains("激活", message);
+        Assert.Contains("No valid Unity Editor license found", message);
+    }
 }
