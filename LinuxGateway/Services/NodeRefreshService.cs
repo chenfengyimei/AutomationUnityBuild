@@ -96,8 +96,17 @@ public sealed class NodeRefreshService(
             {
                 GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
                 if (stored is null) return;
-                stored.LastStatus = "Disabled";
-                stored.LastError = "";
+                if (stored.CredentialRevokedAt.HasValue)
+                {
+                    stored.LastStatus = ReverseConnectionStatus.Revoked;
+                    stored.ConnectionStatus = ReverseConnectionStatus.Revoked;
+                    stored.LastError = "节点凭据已吊销。请重新注册或移除此记录。";
+                }
+                else
+                {
+                    stored.LastStatus = "Disabled";
+                    stored.LastError = "";
+                }
                 stored.LastRemote = null;
             });
             return;
@@ -142,6 +151,20 @@ public sealed class NodeRefreshService(
 
     private async Task RefreshReverseNodeAsync(GatewayNodeRecord node, CancellationToken cancellationToken)
     {
+        if (node.CredentialRevokedAt.HasValue)
+        {
+            await database.UpdateAsync(db =>
+            {
+                GatewayNodeRecord? stored = db.Nodes.FirstOrDefault(item => item.Id == node.Id);
+                if (stored is null) return;
+                stored.ConnectionStatus = ReverseConnectionStatus.Revoked;
+                stored.LastStatus = ReverseConnectionStatus.Revoked;
+                stored.LastError = "节点凭据已吊销。请重新注册或移除此记录。";
+                stored.LastRemote = null;
+            });
+            return;
+        }
+
         ReverseConnection? conn = connectionManager.GetConnection(node.Id);
         DateTimeOffset now = DateTimeOffset.Now;
 

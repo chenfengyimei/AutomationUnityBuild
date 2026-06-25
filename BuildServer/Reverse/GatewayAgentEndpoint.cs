@@ -34,7 +34,7 @@ public static class GatewayAgentEndpoint
         try
         {
             ConnectResult result = await agent.ConnectAsync(request.GatewayUrl, request.EnrollmentToken, request.AutoConnect);
-            return Results.Ok(new { nodeId = result.NodeId, nodeName = result.NodeName });
+            return Results.Ok(new { nodeId = result.NodeId, nodeName = result.NodeName, status = agent.GetStatus() });
         }
         catch (Exception ex)
         {
@@ -52,7 +52,7 @@ public static class GatewayAgentEndpoint
         if (!AuthService.IsAdmin(user)) return Results.Forbid();
 
         await agent.DisconnectAsync();
-        return Results.Ok(new { ok = true });
+        return Results.Ok(new { ok = true, status = agent.GetStatus() });
     }
 
     private static async Task<IResult> GetSettingsAsync(

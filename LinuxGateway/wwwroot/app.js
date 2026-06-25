@@ -359,12 +359,15 @@ function renderNodeCard(node) {
   const projects = remote?.projects?.length || 0;
   const configs = remote?.configs?.length || 0;
   const isReverse = node.connectionMode === "Reverse";
-  const status = node.enabled ? (node.lastStatus || "Unknown") : "Disabled";
+  const revoked = isCredentialRevoked(node);
+  const status = nodeDisplayStatus(node);
   const lastSeen = node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : "-";
+  const revokedAt = node.credentialRevokedAt ? new Date(node.credentialRevokedAt).toLocaleString() : "";
   const modeBadge = isReverse
     ? `<span class="mode-badge reverse">反向连接</span>`
     : `<span class="mode-badge direct">直连</span>`;
-  return `<article class="node-card">
+  const statusNote = nodeStatusNote(node);
+  return `<article class="node-card${revoked ? " revoked" : ""}">
     <header>
       <div class="node-main">
         <strong>${escapeHtml(node.name)}</strong>
@@ -377,10 +380,44 @@ function renderNodeCard(node) {
       <div><dt>项目</dt><dd>${projects}</dd></div>
       <div><dt>配置</dt><dd>${configs}</dd></div>
       <div><dt>最后在线</dt><dd>${escapeHtml(lastSeen)}</dd></div>
+      ${revokedAt ? `<div><dt>吊销时间</dt><dd>${escapeHtml(revokedAt)}</dd></div>` : ""}
     </dl>
-    ${node.lastError ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
-    ${isAdmin() ? `<div class="node-actions"><button class="secondary" type="button" data-edit-node-id="${escapeHtml(node.id)}">编辑节点</button>${isReverse ? `<button class="danger" type="button" data-revoke-node-id="${escapeHtml(node.id)}">吊销凭据</button>` : ""}</div>` : ""}
+    ${statusNote ? `<div class="${revoked ? "node-revoked-note" : "error node-error"}">${escapeHtml(statusNote)}</div>` : ""}
+    ${node.lastError && !statusNote ? `<div class="error node-error">${escapeHtml(node.lastError)}<br>如果是 timeout，请优先在 Linux 上测试 curl 该地址的 /api/health。</div>` : ""}
+    ${isAdmin() ? renderNodeActions(node) : ""}
   </article>`;
+}
+
+function nodeDisplayStatus(node) {
+  if (isCredentialRevoked(node)) return "Revoked";
+  if (!node.enabled) return "Disabled";
+  if (node.connectionMode === "Reverse" && node.connectionStatus) return node.connectionStatus;
+  return node.lastStatus || "Unknown";
+}
+
+function nodeStatusNote(node) {
+  if (isCredentialRevoked(node)) {
+    return "凭据已吊销，BuildServer 需要重新生成 Enrollment Token 后重新注册。确认不再需要这个旧节点时，可以移除记录。";
+  }
+  return node.lastError || "";
+}
+
+function isCredentialRevoked(node) {
+  return Boolean(node?.credentialRevoked || node?.credentialRevokedAt);
+}
+
+function renderNodeActions(node) {
+  const nodeId = escapeHtml(node.id);
+  const isReverse = node.connectionMode === "Reverse";
+  const revoked = isCredentialRevoked(node);
+  const editButton = `<button class="secondary" type="button" data-edit-node-id="${nodeId}">编辑节点</button>`;
+  const revokeButton = isReverse && !revoked
+    ? `<button class="danger" type="button" data-revoke-node-id="${nodeId}">吊销凭据</button>`
+    : "";
+  const removeButton = isReverse && revoked
+    ? `<button class="danger outline" type="button" data-remove-node-id="${nodeId}">移除记录</button>`
+    : "";
+  return `<div class="node-actions">${editButton}${revokeButton}${removeButton}</div>`;
 }
 
 function renderBuildSelectors() {
@@ -427,7 +464,12 @@ function selectedNode() {
 }
 
 function isBuildableNode(node) {
-  return Boolean(node?.enabled && node.remote && node.lastStatus !== "Offline" && node.connectionStatus !== "Offline");
+  return Boolean(node?.enabled &&
+    !isCredentialRevoked(node) &&
+    node.remote &&
+    node.lastStatus !== "Offline" &&
+    node.connectionStatus !== "Offline" &&
+    node.connectionStatus !== "Revoked");
 }
 
 function buildSelectionError() {
@@ -507,6 +549,12 @@ function handleNodesClick(event) {
   const revokeButton = event.target.closest("[data-revoke-node-id]");
   if (revokeButton) {
     revokeNodeCredential(revokeButton.dataset.revokeNodeId);
+    return;
+  }
+
+  const removeButton = event.target.closest("[data-remove-node-id]");
+  if (removeButton) {
+    removeNodeRecord(removeButton.dataset.removeNodeId);
   }
 }
 
@@ -540,11 +588,26 @@ function copyEnrollConfig() {
 }
 
 async function revokeNodeCredential(nodeId) {
-  if (!confirm("确认吊销该节点的凭据？吊销后节点需要重新注册才能连接。")) return;
+  const node = state.nodes.find((item) => item.id === nodeId);
+  const nodeName = node?.name || nodeId;
+  if (!confirm(`确认吊销 ${nodeName} 的凭据？吊销后该 BuildServer 会立即断开，需要重新生成 Enrollment Token 后重新注册。`)) return;
   try {
     await api(`/api/reverse-nodes/${encodeURIComponent(nodeId)}/revoke`, { method: "POST" });
     await refreshAll({ silent: true });
-    showNotice("节点凭据已吊销。");
+    showNotice("节点凭据已吊销。该记录已标记为 Revoked，可重新注册新节点或移除旧记录。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function removeNodeRecord(nodeId) {
+  const node = state.nodes.find((item) => item.id === nodeId);
+  const nodeName = node?.name || nodeId;
+  if (!confirm(`确认移除 ${nodeName} 的节点记录？这会从设备列表删除旧记录，但不会删除历史任务。`)) return;
+  try {
+    await api(`/api/reverse-nodes/${encodeURIComponent(nodeId)}`, { method: "DELETE" });
+    await refreshAll({ silent: true });
+    showNotice("旧节点记录已移除。");
   } catch (error) {
     showError(error);
   }

@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**\bin\**;**\obj\**;**\publish\**;**\.codex\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="bin\**\*.cs;obj\**\*.cs;publish\**\*.cs;.codex\**\*.cs" />
+    <EmbeddedResource Remove="bin\**;obj\**;publish\**;.codex\**" />
+    <None Remove="bin\**;obj\**;publish\**;.codex\**" />
+  </ItemGroup>
+</Project>

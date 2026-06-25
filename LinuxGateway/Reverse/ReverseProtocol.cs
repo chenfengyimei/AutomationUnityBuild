@@ -92,6 +92,7 @@ public static class ReverseConnectionStatus
     public const string Online = "Online";
     public const string Degraded = "Degraded";
     public const string Offline = "Offline";
+    public const string Revoked = "Revoked";
     public const string Unknown = "Unknown";
 }
 

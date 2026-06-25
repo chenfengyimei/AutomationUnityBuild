@@ -13,6 +13,7 @@ public static class ReverseNodeEndpoint
         app.MapPost("/api/reverse-nodes/enrollment-tokens", CreateTokenAsync);
         app.MapPost("/api/reverse-nodes/enroll", EnrollAsync);
         app.MapPost("/api/reverse-nodes/{nodeId}/revoke", RevokeAsync);
+        app.MapDelete("/api/reverse-nodes/{nodeId}", DeleteAsync);
         app.MapGet("/api/reverse-nodes/tokens", ListTokensAsync);
     }
 
@@ -375,7 +376,8 @@ public static class ReverseNodeEndpoint
         string nodeId,
         HttpContext context,
         EnrollmentService enrollment,
-        GatewayAuthService auth)
+        GatewayAuthService auth,
+        ReverseNodeConnectionManager connectionManager)
     {
         CurrentGatewayUser? user = await auth.GetUserAsync(context);
         if (user is null) return ApiDiagnostics.Unauthorized(context);
@@ -384,7 +386,31 @@ public static class ReverseNodeEndpoint
         try
         {
             await enrollment.RevokeCredentialAsync(nodeId, user);
+            await connectionManager.CloseAndRemoveAsync(nodeId, WebSocketCloseStatus.PolicyViolation, "Credential revoked");
             return Results.Ok(new { revoked = true });
+        }
+        catch (Exception ex)
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteAsync(
+        string nodeId,
+        HttpContext context,
+        EnrollmentService enrollment,
+        GatewayAuthService auth,
+        ReverseNodeConnectionManager connectionManager)
+    {
+        CurrentGatewayUser? user = await auth.GetUserAsync(context);
+        if (user is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(user)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            await connectionManager.CloseAndRemoveAsync(nodeId, WebSocketCloseStatus.PolicyViolation, "Node record removed");
+            bool deleted = await enrollment.DeleteReverseNodeAsync(nodeId, user);
+            return deleted ? Results.Ok(new { deleted = true }) : ApiDiagnostics.NotFound(context);
         }
         catch (Exception ex)
         {

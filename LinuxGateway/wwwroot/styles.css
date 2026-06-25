@@ -101,6 +101,16 @@ button.danger:hover {
   background: #8f1d14;
 }
 
+button.danger.outline {
+  border: 1px solid #f3b6b6;
+  background: #fff1f1;
+  color: var(--danger);
+}
+
+button.danger.outline:hover {
+  background: #fee2e2;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -902,6 +912,11 @@ form {
   box-shadow: var(--shadow-soft);
 }
 
+.node-card.revoked {
+  border-color: #f3b6b6;
+  background: #fffafa;
+}
+
 .node-card header {
   display: flex;
   align-items: flex-start;
@@ -965,12 +980,14 @@ form {
 
 .node-actions {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 10px;
 }
 
 .node-actions button {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .jobs-table-shell {
@@ -1124,6 +1141,7 @@ form {
 
 .status.Failed,
 .status.Offline,
+.status.Revoked,
 .status.Canceled,
 .status.Disabled {
   background: #fde8e7;
@@ -1158,6 +1176,17 @@ form {
   background: #fff6f4;
   padding: 9px 10px;
   font-size: 12px;
+}
+
+.node-revoked-note {
+  margin-top: 8px;
+  border-radius: 7px;
+  border: 1px solid #f3b6b6;
+  background: #fff1f1;
+  color: var(--danger);
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .notice {

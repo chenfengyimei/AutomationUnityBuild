@@ -363,6 +363,17 @@ button.danger:hover {
   margin-bottom: 16px;
 }
 
+.gateway-status-error {
+  border: 1px solid #f3b6b6;
+  border-radius: 8px;
+  background: #fff1f1;
+  color: var(--danger);
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 h1,
 h2,
 h3 {

@@ -506,10 +506,14 @@
                 <div><strong>节点 ID</strong><br><span id="gwNodeId">-</span></div>
                 <div><strong>Gateway 地址</strong><br><span id="gwUrl">-</span></div>
                 <div><strong>最后心跳</strong><br><span id="gwHeartbeat">-</span></div>
+                <div><strong>最后尝试</strong><br><span id="gwLastAttempt">-</span></div>
+                <div><strong>最后连接</strong><br><span id="gwLastConnected">-</span></div>
+                <div><strong>下次重试</strong><br><span id="gwNextRetry">-</span></div>
                 <div><strong>重连次数</strong><br><span id="gwReconnect">0</span></div>
               </div>
+              <p id="gwStatusError" class="gateway-status-error hidden"></p>
               <div class="form-actions">
-                <button id="gwDisconnectBtn" class="danger" type="button">断开连接</button>
+                <button id="gwDisconnectBtn" class="danger" type="button">断开并清除凭据</button>
                 <button id="gwTestBtn" class="secondary" type="button">刷新状态</button>
               </div>
             </section>
