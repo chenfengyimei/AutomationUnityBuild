@@ -21,7 +21,6 @@ internal sealed class BuildConfigSnapshotWriter(BuildRunContext context)
         if (_options.DryRun)
         {
             _logger.Info($"[dry-run] 生成配置快照: {_paths.ConfigSnapshotPath}");
-            return;
         }
 
         PathTools.EnsureParentDirectory(_paths.ConfigSnapshotPath);
