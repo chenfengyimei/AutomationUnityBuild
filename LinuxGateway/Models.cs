@@ -44,6 +44,7 @@ public sealed class GatewayNodeRecord
     public DateTimeOffset? LastHeartbeatAt { get; set; }
     public string ConnectionStatus { get; set; } = "";
     public DateTimeOffset? CredentialRevokedAt { get; set; }
+    public bool CredentialRevoked => CredentialRevokedAt.HasValue;
 }
 
 public sealed class GatewayJobRecord

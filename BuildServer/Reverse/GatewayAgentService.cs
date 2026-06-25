@@ -21,11 +21,17 @@ public sealed class GatewayAgentService(
     private string _gatewayUrl = "";
     private AgentCredential? _credential;
     private int _reconnectAttempts;
+    private string _lastError = "";
+    private string _failureKind = GatewayAgentFailureKinds.None;
+    private DateTimeOffset? _lastAttemptAt;
+    private DateTimeOffset? _lastConnectedAt;
+    private DateTimeOffset? _lastDisconnectedAt;
+    private DateTimeOffset? _nextRetryAt;
     private volatile bool _disposed;
     private volatile bool _manualDisconnect;
     private volatile bool _loopStarted;
 
-    public string ConnectionStatus { get; private set; } = "Disconnected";
+    public string ConnectionStatus { get; private set; } = GatewayAgentStatuses.Disconnected;
     public DateTimeOffset? LastHeartbeatAt { get; private set; }
     public int ReconnectCount => _reconnectAttempts;
     public string NodeId => _nodeId;
@@ -51,7 +57,7 @@ public sealed class GatewayAgentService(
             throw new ArgumentException("Enrollment Token 不能为空。");
         }
 
-        ConnectionStatus = "Connecting";
+        MarkConnecting(clearError: true);
         string normalizedUrl = gatewayUrl.TrimEnd('/');
 
         logger.LogInformation("Enrolling with gateway {Url}", normalizedUrl);
@@ -72,14 +78,14 @@ public sealed class GatewayAgentService(
         if (!response.IsSuccessStatusCode)
         {
             string error = await response.Content.ReadAsStringAsync();
-            ConnectionStatus = "Failed";
+            MarkFailed($"Enrollment 失败: {response.StatusCode} {error}", GatewayAgentFailureKinds.Enrollment);
             throw new InvalidOperationException($"Enrollment 失败: {response.StatusCode} {error}");
         }
 
         EnrollResponse? enrollResult = await response.Content.ReadFromJsonAsync<EnrollResponse>();
         if (enrollResult is null)
         {
-            ConnectionStatus = "Failed";
+            MarkFailed("Enrollment 返回无效响应。", GatewayAgentFailureKinds.Enrollment);
             throw new InvalidOperationException("Enrollment 返回无效响应。");
         }
 
@@ -97,16 +103,20 @@ public sealed class GatewayAgentService(
         _gatewayUrl = _credential.GatewayUrl;
         _manualDisconnect = false;
         _reconnectAttempts = 0;
+        _nextRetryAt = null;
+        _lastError = "";
+        _failureKind = GatewayAgentFailureKinds.None;
 
         logger.LogInformation("Enrolled successfully, nodeId={NodeId}", _nodeId);
 
         return new ConnectResult(enrollResult.NodeId, enrollResult.NodeName);
     }
 
-    public async Task DisconnectAsync()
+    public async Task DisconnectAsync(bool forgetCredential = true)
     {
         _manualDisconnect = true;
-        ConnectionStatus = "Disconnected";
+        _nextRetryAt = null;
+        MarkDisconnected("Manual disconnect");
 
         if (_webSocket is not null && _webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
         {
@@ -117,7 +127,27 @@ public sealed class GatewayAgentService(
             catch { }
         }
 
-        await credentialStore.UpdateAutoConnectAsync(false);
+        _webSocket?.Dispose();
+        _webSocket = null;
+
+        if (forgetCredential)
+        {
+            credentialStore.Delete();
+            _credential = null;
+            _nodeId = "";
+            _gatewayUrl = "";
+            LastHeartbeatAt = null;
+            _lastAttemptAt = null;
+            _lastConnectedAt = null;
+            _lastDisconnectedAt = null;
+            _lastError = "";
+            _failureKind = GatewayAgentFailureKinds.None;
+            _reconnectAttempts = 0;
+        }
+        else
+        {
+            await credentialStore.UpdateAutoConnectAsync(false);
+        }
     }
 
     public AgentStatusInfo GetStatus()
@@ -128,7 +158,16 @@ public sealed class GatewayAgentService(
             _gatewayUrl,
             LastHeartbeatAt,
             _reconnectAttempts,
-            IsConnected);
+            IsConnected,
+            _lastError,
+            _failureKind,
+            _lastAttemptAt,
+            _lastConnectedAt,
+            _lastDisconnectedAt,
+            _nextRetryAt,
+            _credential is not null,
+            _credential?.AutoConnect ?? false,
+            ConnectionStatus == GatewayAgentStatuses.Failed && _failureKind == GatewayAgentFailureKinds.CredentialRejected);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -138,6 +177,7 @@ public sealed class GatewayAgentService(
         if (!options.ReverseGatewayEnabled)
         {
             logger.LogInformation("Gateway agent service disabled.");
+            MarkDisconnected("Gateway agent is disabled. Set BUILD_SERVER_REVERSE_GATEWAY_ENABLED=true to auto-connect on startup.");
             return;
         }
 
@@ -196,7 +236,7 @@ public sealed class GatewayAgentService(
 
         if (requireAutoConnect && !_credential.AutoConnect)
         {
-            ConnectionStatus = "Disconnected";
+            MarkDisconnected("Auto-connect is disabled for the saved Gateway credential.");
             _loopStarted = false;
             return;
         }
@@ -215,6 +255,20 @@ public sealed class GatewayAgentService(
                 }
                 catch (Exception ex)
                 {
+                    if (IsCredentialRejected(ex))
+                    {
+                        string message = "Gateway 拒绝了节点凭据，凭据可能已在 LinuxGateway 吊销。请重新生成 Enrollment Token 并重新连接。";
+                        logger.LogWarning(ex, "Gateway credential rejected for node {NodeId}", _nodeId);
+                        MarkFailed(message, GatewayAgentFailureKinds.CredentialRejected);
+                        if (_credential is not null)
+                        {
+                            _credential.AutoConnect = false;
+                        }
+                        await credentialStore.UpdateAutoConnectAsync(false);
+                        break;
+                    }
+
+                    MarkConnectionError(ex);
                     logger.LogWarning(ex, "WebSocket connection error");
                 }
 
@@ -223,9 +277,10 @@ public sealed class GatewayAgentService(
                     break;
                 }
 
-                ConnectionStatus = "Reconnecting";
                 _reconnectAttempts++;
                 int delay = CalculateReconnectDelay(_reconnectAttempts);
+                _nextRetryAt = DateTimeOffset.Now.AddMilliseconds(delay);
+                ConnectionStatus = GatewayAgentStatuses.Reconnecting;
                 try
                 {
                     await Task.Delay(delay, stoppingToken);
@@ -249,7 +304,7 @@ public sealed class GatewayAgentService(
             return;
         }
 
-        ConnectionStatus = "Connecting";
+        MarkConnecting(clearError: false);
         _manualDisconnect = false;
 
         string wsUrl = _gatewayUrl.Replace("https://", "wss://").Replace("http://", "ws://");
@@ -262,11 +317,17 @@ public sealed class GatewayAgentService(
 
         logger.LogInformation("Connecting WebSocket to {Url} (nodeId={NodeId})", wsUrl, _credential.NodeId);
 
+        _lastAttemptAt = DateTimeOffset.Now;
+        _nextRetryAt = null;
         await _webSocket.ConnectAsync(new Uri(wsUrl), stoppingToken);
 
-        ConnectionStatus = "Connected";
+        ConnectionStatus = GatewayAgentStatuses.Connected;
         _reconnectAttempts = 0;
         LastHeartbeatAt = DateTimeOffset.Now;
+        _lastConnectedAt = LastHeartbeatAt;
+        _lastError = "";
+        _failureKind = GatewayAgentFailureKinds.None;
+        _nextRetryAt = null;
         logger.LogInformation("WebSocket connected, nodeId={NodeId}", _nodeId);
 
         await SendHelloAsync(stoppingToken);
@@ -296,6 +357,8 @@ public sealed class GatewayAgentService(
             }
             catch (Exception ex)
             {
+                _lastError = $"Heartbeat failed: {ex.Message}";
+                _failureKind = GatewayAgentFailureKinds.WebSocket;
                 logger.LogWarning(ex, "Heartbeat failed");
                 break;
             }
@@ -320,12 +383,18 @@ public sealed class GatewayAgentService(
             }
             catch (Exception ex)
             {
+                _lastError = $"WebSocket receive error: {ex.Message}";
+                _failureKind = GatewayAgentFailureKinds.WebSocket;
                 logger.LogWarning(ex, "WebSocket receive error");
                 break;
             }
 
             if (result.MessageType is WebSocketMessageType.Close)
             {
+                _lastError = string.IsNullOrWhiteSpace(result.CloseStatusDescription)
+                    ? "Gateway closed WebSocket connection."
+                    : $"Gateway closed WebSocket connection: {result.CloseStatusDescription}";
+                _failureKind = GatewayAgentFailureKinds.WebSocket;
                 logger.LogInformation("Gateway closed WebSocket connection");
                 break;
             }
@@ -363,7 +432,8 @@ public sealed class GatewayAgentService(
 
         if (!_manualDisconnect)
         {
-            ConnectionStatus = "Reconnecting";
+            _lastDisconnectedAt = DateTimeOffset.Now;
+            ConnectionStatus = GatewayAgentStatuses.Reconnecting;
         }
     }
 
@@ -423,6 +493,52 @@ public sealed class GatewayAgentService(
             });
 
         await SendMessageAsync(hello, cancellationToken);
+    }
+
+    private void MarkConnecting(bool clearError)
+    {
+        ConnectionStatus = GatewayAgentStatuses.Connecting;
+        _nextRetryAt = null;
+        if (clearError)
+        {
+            _lastError = "";
+            _failureKind = GatewayAgentFailureKinds.None;
+        }
+    }
+
+    private void MarkDisconnected(string reason)
+    {
+        ConnectionStatus = GatewayAgentStatuses.Disconnected;
+        _lastDisconnectedAt = DateTimeOffset.Now;
+        _nextRetryAt = null;
+        _lastError = reason;
+        _failureKind = GatewayAgentFailureKinds.None;
+    }
+
+    private void MarkConnectionError(Exception ex)
+    {
+        _lastDisconnectedAt = DateTimeOffset.Now;
+        _lastError = ex.Message;
+        _failureKind = GatewayAgentFailureKinds.WebSocket;
+        ConnectionStatus = GatewayAgentStatuses.Reconnecting;
+    }
+
+    private void MarkFailed(string message, string failureKind)
+    {
+        ConnectionStatus = GatewayAgentStatuses.Failed;
+        _lastDisconnectedAt = DateTimeOffset.Now;
+        _nextRetryAt = null;
+        _lastError = message;
+        _failureKind = failureKind;
+    }
+
+    private static bool IsCredentialRejected(Exception ex)
+    {
+        string text = ex.ToString();
+        return text.Contains("401", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("403", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("Forbidden", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int CalculateReconnectDelay(int attempt)
@@ -766,7 +882,33 @@ public sealed record AgentStatusInfo(
     string GatewayUrl,
     DateTimeOffset? LastHeartbeatAt,
     int ReconnectAttempts,
-    bool IsConnected);
+    bool IsConnected,
+    string LastError,
+    string FailureKind,
+    DateTimeOffset? LastAttemptAt,
+    DateTimeOffset? LastConnectedAt,
+    DateTimeOffset? LastDisconnectedAt,
+    DateTimeOffset? NextRetryAt,
+    bool HasCredential,
+    bool AutoConnect,
+    bool RequiresEnrollment);
+
+public static class GatewayAgentStatuses
+{
+    public const string Disconnected = "Disconnected";
+    public const string Connecting = "Connecting";
+    public const string Connected = "Connected";
+    public const string Reconnecting = "Reconnecting";
+    public const string Failed = "Failed";
+}
+
+public static class GatewayAgentFailureKinds
+{
+    public const string None = "None";
+    public const string Enrollment = "Enrollment";
+    public const string WebSocket = "WebSocket";
+    public const string CredentialRejected = "CredentialRejected";
+}
 
 public sealed class EnrollResponse
 {

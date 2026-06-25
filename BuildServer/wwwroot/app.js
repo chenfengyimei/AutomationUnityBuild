@@ -1948,25 +1948,74 @@ function updateGatewayAgentPill(status) {
   if (!pill) return;
   const statusMap = {
     Connected: { text: "Gateway 已连接", cls: "connected" },
-    Connecting: { text: "Gateway 连接中", cls: "connecting" },
-    Reconnecting: { text: "Gateway 重连中", cls: "connecting" },
+    Connecting: { text: "Gateway 建立连接中", cls: "connecting" },
+    Reconnecting: { text: "Gateway 等待重连", cls: "connecting" },
     Disconnected: { text: "Gateway 未连接", cls: "disconnected" },
-    Failed: { text: "Gateway 连接失败", cls: "failed" },
+    Failed: { text: status?.requiresEnrollment ? "Gateway 凭据已失效" : "Gateway 连接失败", cls: "failed" },
   };
-  const info = statusMap[status.status] || statusMap.Disconnected;
+  const info = statusMap[status?.status] || statusMap.Disconnected;
   pill.textContent = info.text;
   pill.className = `live-status gateway-pill ${info.cls}`;
-  if (status.isConnected && status.nodeId) {
+  if (status?.isConnected && status.nodeId) {
     pill.textContent += ` · ${status.nodeId.slice(-8)}`;
+  }
+  if (status?.lastError) {
+    pill.title = status.lastError;
+  } else {
+    pill.title = "Gateway 连接状态";
   }
 }
 
 function updateGatewayStatusDetail(status) {
-  $("gwStatus").textContent = status.status || "未知";
+  $("gwStatus").textContent = describeGatewayStatus(status);
   $("gwNodeId").textContent = status.nodeId || "-";
   $("gwUrl").textContent = status.gatewayUrl || "-";
-  $("gwHeartbeat").textContent = status.lastHeartbeatAt ? new Date(status.lastHeartbeatAt).toLocaleString() : "-";
+  $("gwHeartbeat").textContent = formatGatewayTime(status.lastHeartbeatAt);
+  $("gwLastAttempt").textContent = formatGatewayTime(status.lastAttemptAt);
+  $("gwLastConnected").textContent = formatGatewayTime(status.lastConnectedAt);
+  $("gwNextRetry").textContent = formatGatewayTime(status.nextRetryAt);
   $("gwReconnect").textContent = String(status.reconnectAttempts || 0);
+  const errorEl = $("gwStatusError");
+  const errorText = gatewayStatusMessage(status);
+  if (errorText) {
+    errorEl.textContent = errorText;
+    errorEl.classList.remove("hidden");
+  } else {
+    errorEl.textContent = "";
+    errorEl.classList.add("hidden");
+  }
+
+  const disconnectBtn = $("gwDisconnectBtn");
+  if (disconnectBtn) {
+    disconnectBtn.disabled = !status.hasCredential && !status.isConnected && !status.nodeId;
+  }
+
+  if (status.gatewayUrl && !$("gwGatewayUrl").value) {
+    $("gwGatewayUrl").value = status.gatewayUrl;
+  }
+}
+
+function describeGatewayStatus(status) {
+  const statusMap = {
+    Connected: "已连接",
+    Connecting: "建立连接中",
+    Reconnecting: "等待重连",
+    Disconnected: "未连接",
+    Failed: status?.requiresEnrollment ? "凭据失效" : "连接失败",
+  };
+  return statusMap[status?.status] || "未知";
+}
+
+function gatewayStatusMessage(status) {
+  if (!status?.lastError) return "";
+  if (status.requiresEnrollment) {
+    return `${status.lastError} 旧凭据已不可用，请在 LinuxGateway 重新生成 Enrollment Token 后重新连接。`;
+  }
+  return status.lastError;
+}
+
+function formatGatewayTime(value) {
+  return value ? new Date(value).toLocaleString() : "-";
 }
 
 async function connectGateway(event) {
@@ -1984,7 +2033,14 @@ async function connectGateway(event) {
         autoConnect: $("gwAutoConnect").checked,
       }),
     });
-    showMessage(`已连接到 Gateway，节点 ID: ${result.nodeId}`);
+    if (result.status) {
+      updateGatewayAgentPill(result.status);
+      updateGatewayStatusDetail(result.status);
+    }
+    const statusText = result.status?.isConnected
+      ? "WebSocket 已连接"
+      : "已完成注册，正在建立 WebSocket 连接";
+    showMessage(`${statusText}，节点 ID: ${result.nodeId}`);
     $("gwEnrollmentToken").value = "";
     await refreshGatewayAgentStatus();
   } catch (error) {
@@ -1998,8 +2054,13 @@ async function connectGateway(event) {
 async function disconnectGateway() {
   setButtonBusy("gwDisconnectBtn", true, "断开中...");
   try {
-    await api("/api/gateway-agent/disconnect", { method: "POST" });
-    showMessage("已断开 Gateway 连接。");
+    const result = await api("/api/gateway-agent/disconnect", { method: "POST" });
+    if (result.status) {
+      updateGatewayAgentPill(result.status);
+      updateGatewayStatusDetail(result.status);
+    }
+    $("gwEnrollmentToken").value = "";
+    showMessage("已断开 Gateway 连接，并清除本机保存的节点凭据。");
     await refreshGatewayAgentStatus();
   } catch (error) {
     showError(error);

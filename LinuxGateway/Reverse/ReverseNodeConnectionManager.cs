@@ -116,6 +116,32 @@ public sealed class ReverseNodeConnectionManager(ILogger<ReverseNodeConnectionMa
         }
     }
 
+    public async Task CloseAndRemoveAsync(string nodeId, WebSocketCloseStatus status, string reason)
+    {
+        if (!_connections.TryRemove(nodeId, out ReverseConnection? conn))
+        {
+            return;
+        }
+
+        try
+        {
+            if (conn.Socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+            {
+                using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(2));
+                await conn.Socket.CloseAsync(status, reason, timeout.Token);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to close WebSocket for node {NodeId}", nodeId);
+        }
+        finally
+        {
+            conn.Dispose();
+            logger.LogInformation("Node {NodeId} connection closed ({Reason}), total online: {Count}", nodeId, reason, _connections.Count);
+        }
+    }
+
     public void UpdateHeartbeat(string nodeId)
     {
         if (_connections.TryGetValue(nodeId, out ReverseConnection? conn))

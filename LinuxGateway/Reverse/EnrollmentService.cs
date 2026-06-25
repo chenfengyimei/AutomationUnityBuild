@@ -121,7 +121,11 @@ public sealed class EnrollmentService(JsonGatewayDatabase database, ILogger<Enro
             if (node is not null)
             {
                 node.CredentialRevokedAt = DateTimeOffset.Now;
-                node.ConnectionStatus = ReverseConnectionStatus.Offline;
+                node.Enabled = false;
+                node.ConnectionStatus = ReverseConnectionStatus.Revoked;
+                node.LastStatus = ReverseConnectionStatus.Revoked;
+                node.LastRemote = null;
+                node.LastError = "节点凭据已吊销。请在 BuildServer 重新使用 Enrollment Token 注册，或移除此记录。";
             }
 
             GatewayAuthService.AddAudit(db, admin.Id, admin.UserName, "node.credential-revoke", "node", nodeId, $"吊销反向节点凭据: {node?.Name ?? nodeId}");
@@ -129,6 +133,41 @@ public sealed class EnrollmentService(JsonGatewayDatabase database, ILogger<Enro
 
         logger.LogInformation("Credential revoked for node {NodeId}", nodeId);
         return true;
+    }
+
+    public async Task<bool> DeleteReverseNodeAsync(string nodeId, CurrentGatewayUser admin)
+    {
+        if (string.IsNullOrWhiteSpace(nodeId))
+        {
+            throw new ArgumentException("节点 ID 不能为空。");
+        }
+
+        bool deleted = await database.UpdateAsync(db =>
+        {
+            GatewayNodeRecord? node = db.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (node is null)
+            {
+                return false;
+            }
+
+            if (node.ConnectionMode != ReverseConnectionModes.Reverse)
+            {
+                throw new InvalidOperationException("只能移除反向连接节点记录；直连节点请在设备编辑里停用或修改。");
+            }
+
+            db.Nodes.Remove(node);
+            db.ReverseCredentials.RemoveAll(c => c.NodeId == nodeId);
+            db.Commands.RemoveAll(c => c.NodeId == nodeId && c.Status is ReverseCommandStatus.Pending or ReverseCommandStatus.Sent);
+            GatewayAuthService.AddAudit(db, admin.Id, admin.UserName, "node.delete", "node", nodeId, $"移除反向节点记录: {node.Name}");
+            return true;
+        });
+
+        if (deleted)
+        {
+            logger.LogInformation("Reverse node record deleted: {NodeId}", nodeId);
+        }
+
+        return deleted;
     }
 
     public async Task<bool> ValidateCredentialAsync(string nodeId, string credential)
