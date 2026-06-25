@@ -3,6 +3,7 @@
 internal sealed class BuildDirectoryPreparer(BuildRunContext context)
 {
     private BuildConfig _config => context.Config;
+    private CliOptions _options => context.Options;
     private BuildPaths _paths => context.Paths;
     private BuildLogger _logger => context.Logger;
 
@@ -34,8 +35,15 @@ internal sealed class BuildDirectoryPreparer(BuildRunContext context)
         if (_config.CleanXcodeOutputBeforeBuild && Directory.Exists(_paths.XcodeOutputDirectory))
         {
             EnsureSafeCleanTarget(_paths.XcodeOutputDirectory, _paths.ArtifactsRunRoot);
-            _logger.Warn($"清理旧 Xcode 输出目录: {_paths.XcodeOutputDirectory}");
-            Directory.Delete(_paths.XcodeOutputDirectory, recursive: true);
+            if (_options.DryRun)
+            {
+                _logger.Warn($"[dry-run] 将清理旧 Xcode 输出目录: {_paths.XcodeOutputDirectory}");
+            }
+            else
+            {
+                _logger.Warn($"清理旧 Xcode 输出目录: {_paths.XcodeOutputDirectory}");
+                Directory.Delete(_paths.XcodeOutputDirectory, recursive: true);
+            }
         }
 
         EnsureDirectoryExists(_paths.XcodeOutputDirectory, "Xcode 输出目录");

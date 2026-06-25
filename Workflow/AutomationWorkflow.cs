@@ -44,16 +44,14 @@ internal sealed class AutomationWorkflow : IDisposable
             PrintSummary();
             _environmentDoctor.EnsureMacOrAllowed();
             await CheckPrerequisitesAsync();
-            _stepRunner.Run("生成配置快照", _configSnapshotWriter.Write);
 
             if (_options.DryRun)
             {
-                _logger.Info("[dry-run] 跳过目录创建、清理和文件生成。");
+                _logger.Info("[dry-run] 创建本次运行目录和日志目录，但不会执行清理、真实构建或上传。");
             }
-            else
-            {
-                _stepRunner.Run("准备目录", _directoryPreparer.Prepare);
-            }
+
+            _stepRunner.Run("准备目录", _directoryPreparer.Prepare);
+            _stepRunner.Run("生成配置快照", _configSnapshotWriter.Write);
 
             if (!_options.SkipGit)
             {
@@ -100,7 +98,7 @@ internal sealed class AutomationWorkflow : IDisposable
         _logger.Info($"Unity 工程: {_paths.UnityProjectRoot}");
         _logger.Info(_config.SyncBundleVersionFromUnity
             ? $"Bundle Version: 同步 Unity 项目设置（配置记录值: {BuildDisplay.BundleVersion(_config.BundleVersion)}）"
-            : $"Bundle Version: 使用配置固定值 {_config.BundleVersion}");
+            : $"Bundle Version: 使用配置固定值 {BuildDisplay.BundleVersion(_config.BundleVersion)}");
         _logger.Info($"Build Number: {BuildDisplay.BuildNumber(_config.BuildNumber)}，自动+1: {(_config.AutoIncrementBuildNumber ? "启用" : "关闭")}");
         _platformPipeline.PrintSummary();
         _logger.Info($"日志目录: {_paths.LogsDirectory}");

@@ -20,6 +20,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         if (dryRun)
         {
             logger.DryRun(commandText);
+            WriteDryRunCommandLog(logPath, commandText, resolvedWorkingDirectory);
             return;
         }
 
@@ -118,6 +119,12 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
                 logger.CommandOutput(fileName, line, isError, verbose || logWriter is null || isError);
             }
         }
+    }
+
+    private static void WriteDryRunCommandLog(string? logPath, string commandText, string workingDirectory)
+    {
+        using StreamWriter? logWriter = CommandLogWriter.Open(logPath, commandText, workingDirectory);
+        CommandLogWriter.WriteLine(logWriter, "[dry-run] Command was not executed.", isError: false);
     }
 
     public async Task<string> RunCaptureStdoutAsync(

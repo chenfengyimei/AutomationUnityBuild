@@ -10,7 +10,7 @@
   <main id="app">
     <section id="loginView" class="login">
       <form id="loginForm" class="panel login-panel">
-        <p class="eyebrow">BuildServer Console</p>
+        <p class="eyebrow">BuildServer 控制台</p>
         <h1>Unity 自动化打包平台</h1>
         <p class="login-copy">集中管理本机项目配置、打包任务、Worker 状态和审计记录。</p>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
@@ -24,12 +24,12 @@
     <section id="mainView" class="shell hidden">
       <aside class="sidebar">
         <div class="side-brand">
-          <p class="eyebrow">Unity Automation</p>
+          <p class="eyebrow">Unity 自动化</p>
           <h2>BuildServer</h2>
         </div>
         <button data-tab="builds" class="active">打包任务</button>
         <button data-tab="projects">项目配置</button>
-        <button data-tab="workers">Worker</button>
+        <button data-tab="workers">Worker 节点</button>
         <button data-tab="audit">审计日志</button>
         <button id="usersNav" data-tab="users">用户权限</button>
         <button data-tab="help">填写说明</button>
@@ -82,7 +82,7 @@
               <label>分支<input id="buildBranch" placeholder="留空使用项目默认分支"></label>
               <label>Build Number<input id="buildNumber" placeholder="留空由服务器分配"></label>
               <div class="checks">
-                <label><input id="dryRun" type="checkbox"> dry-run</label>
+                <label><input id="dryRun" type="checkbox"> 演练模式（dry-run）</label>
                 <label><input id="skipGit" type="checkbox"> 跳过 Git</label>
                 <label><input id="skipUnity" type="checkbox"> 跳过 Unity</label>
                 <label><input id="skipXcode" type="checkbox"> 跳过 Xcode（iOS）</label>
@@ -95,7 +95,7 @@
             <section class="panel jobs-panel">
               <header class="section-toolbar">
                 <div>
-                  <p class="eyebrow">Build Operations</p>
+                  <p class="eyebrow">构建操作</p>
                   <h3>任务列表</h3>
                   <p class="muted">集中查看队列、运行中和历史打包任务，并可进入详情读取日志和产物。</p>
                 </div>
@@ -189,16 +189,16 @@
                       <label>iOS Deployment Target<input id="configIosDeploymentTarget" value="13.0"></label>
                       <label>Export Method
                         <select id="configExportMethod">
-                          <option value="development">development</option>
-                          <option value="ad-hoc">ad-hoc</option>
-                          <option value="app-store">app-store</option>
-                          <option value="enterprise">enterprise</option>
+                          <option value="development">开发测试</option>
+                          <option value="ad-hoc">Ad Hoc 测试分发</option>
+                          <option value="app-store">App Store 发布</option>
+                          <option value="enterprise">企业分发</option>
                         </select>
                       </label>
                       <label>Signing Style
                         <select id="configSigningStyle">
-                          <option value="automatic">automatic</option>
-                          <option value="manual">manual</option>
+                          <option value="automatic">自动签名</option>
+                          <option value="manual">手动签名</option>
                         </select>
                       </label>
                       <label><input id="configAllowProvisioningUpdates" type="checkbox" checked> 允许 Xcode 自动处理签名</label>
@@ -231,9 +231,9 @@
                     <div class="form-grid">
                       <label>Android Build Format
                         <select id="configAndroidBuildFormat">
-                          <option value="aab">aab</option>
-                          <option value="apk">apk</option>
-                          <option value="both">both</option>
+                          <option value="aab">AAB 包</option>
+                          <option value="apk">APK 包</option>
+                          <option value="both">APK + AAB</option>
                         </select>
                       </label>
                       <label>Android 输出目录<input id="configAndroidOutputDirectory" placeholder="留空使用默认 Android 目录"></label>
@@ -270,30 +270,30 @@
                       <label>Service Account JSON<input id="configGooglePlayServiceAccountJsonPath" placeholder="/Users/buildbot/secrets/google-play.json"></label>
                       <label>Track
                         <select id="configGooglePlayTrack">
-                          <option value="internal">internal</option>
-                          <option value="alpha">alpha</option>
-                          <option value="beta">beta</option>
-                          <option value="production">production</option>
+                          <option value="internal">内部测试</option>
+                          <option value="alpha">Alpha 测试</option>
+                          <option value="beta">Beta 测试</option>
+                          <option value="production">正式发布</option>
                         </select>
                       </label>
                       <label>Release Status
                         <select id="configGooglePlayReleaseStatus">
-                          <option value="draft">draft</option>
-                          <option value="inProgress">inProgress</option>
-                          <option value="halted">halted</option>
-                          <option value="completed">completed</option>
+                          <option value="draft">草稿</option>
+                          <option value="inProgress">分阶段发布中</option>
+                          <option value="halted">已暂停</option>
+                          <option value="completed">已完成</option>
                         </select>
                       </label>
                       <label>Release Name<input id="configGooglePlayReleaseName"></label>
                       <label>上传产物
                         <select id="configGooglePlayUploadArtifact">
-                          <option value="aab">aab</option>
-                          <option value="apk">apk</option>
-                          <option value="both">both</option>
+                          <option value="aab">AAB 包</option>
+                          <option value="apk">APK 包</option>
+                          <option value="both">APK + AAB</option>
                         </select>
                       </label>
-                      <label><input id="configGooglePlayChangesNotSentForReview" type="checkbox"> changesNotSentForReview</label>
-                      <label>User Fraction<input id="configGooglePlayUserFraction" placeholder="0.1 到 1，留空"></label>
+                      <label><input id="configGooglePlayChangesNotSentForReview" type="checkbox"> 暂不提交审核</label>
+                      <label>灰度比例<input id="configGooglePlayUserFraction" placeholder="0.1 到 1，留空"></label>
                     </div>
                   </details>
                 </div>
@@ -309,7 +309,7 @@
           <section class="panel projects-panel">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Project Registry</p>
+                <p class="eyebrow">项目登记</p>
                 <h3>已有项目和配置</h3>
                 <p class="muted">按项目集中查看仓库、路径、平台、配置文件和自动化入口权限。</p>
               </div>
@@ -322,7 +322,7 @@
           <section class="panel workers-panel">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Worker Fleet</p>
+                <p class="eyebrow">Worker 集群</p>
                 <h3>Worker 节点</h3>
                 <p class="muted">查看构建执行器的心跳、主机、版本能力和当前任务。</p>
               </div>
@@ -335,7 +335,7 @@
           <section class="panel audit-panel">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Governance</p>
+                <p class="eyebrow">审计治理</p>
                 <h3>审计日志</h3>
                 <p class="muted">追踪用户、配置、Worker 与构建相关的关键操作。</p>
               </div>
@@ -345,11 +345,11 @@
         </section>
 
         <section id="usersTab" class="tab hidden">
-          <p id="usersPermissionHint" class="toast hidden">当前账号不是 Admin，只能修改自己的密码。</p>
+          <p id="usersPermissionHint" class="toast hidden">当前账号不是管理员，只能修改自己的密码。</p>
           <section id="adminUsersPanel" class="panel admin-panel">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Identity & Access</p>
+                <p class="eyebrow">账号与权限</p>
                 <h3>用户权限</h3>
                 <p class="muted">集中维护控制台账号、角色与启用状态。主账号与最后一个管理员受到保护。</p>
               </div>
@@ -360,7 +360,7 @@
               <section class="user-directory-card" aria-label="账号列表">
                 <header class="directory-heading">
                   <div>
-                    <p class="eyebrow">Account Directory</p>
+                    <p class="eyebrow">账号目录</p>
                     <h4>账号列表</h4>
                   </div>
                   <span id="userDirectoryCount" class="count-badge">0 人</span>
@@ -391,7 +391,7 @@
                   <li>在 Mac 或 Windows 的本地 BuildServer 里维护项目和配置。</li>
                   <li>新增项目时填写 Git 仓库、工作区、产物目录和默认平台。</li>
                   <li>新增配置时选择 iOS 或 Android，勾选“生成新的配置文件”。</li>
-                  <li>配置保存后，到“打包任务”选择项目和配置，先 dry-run，再正式打包。</li>
+                  <li>配置保存后，到“打包任务”选择项目和配置，先用演练模式（dry-run），再正式打包。</li>
                   <li>如果使用 LinuxGateway，它只负责选择设备和发任务，具体配置仍在本机 BuildServer 维护。</li>
                 </ol>
               </article>
@@ -420,7 +420,7 @@
                   <dt>Bundle Identifier</dt>
                   <dd>应用包名，例如 <code>com.company.game</code>。iOS 和 Android 都会用到。</dd>
                   <dt>Build Number 自动 +1</dt>
-                  <dd>建议开启。正式打包会自动递增构建号，dry-run 不递增。</dd>
+                  <dd>建议开启。正式打包会自动递增构建号，演练模式（dry-run）不递增。</dd>
                 </dl>
               </article>
 
@@ -463,9 +463,9 @@
                   <dd>一般等于 Bundle Identifier，例如 <code>com.company.game</code>。</dd>
                   <dt>Service Account JSON</dt>
                   <dd>Google Play 服务账号 JSON 文件路径，必须是打包机本地路径。</dd>
-                  <dt>Track / Release Status</dt>
+                  <dt>测试轨道 / 发布状态</dt>
                   <dd>建议先用 <code>internal</code> + <code>draft</code>，确认流程无误后再改正式发布策略。</dd>
-                  <dt>User Fraction</dt>
+                  <dt>灰度比例</dt>
                   <dd>灰度比例，填 <code>0.1</code> 到 <code>1</code>；内部测试或草稿通常留空。</dd>
                 </dl>
               </article>
@@ -485,8 +485,8 @@
               <article>
                 <h4>常见排查</h4>
                 <dl>
-                  <dt>先用 dry-run</dt>
-                  <dd>新增项目或配置后，先 dry-run 看路径、Git、Unity 和 Xcode/Android 参数是否正确。</dd>
+                  <dt>先用演练模式</dt>
+                  <dd>新增项目或配置后，先用演练模式（dry-run）看路径、Git、Unity 和 Xcode/Android 参数是否正确。</dd>
                   <dt>看日志</dt>
                   <dd>失败时优先看任务详情里的完整日志，再看本次产物目录下的 Unity、Xcode 或 Android 日志。</dd>
                   <dt>路径归属</dt>
@@ -618,10 +618,10 @@
             <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
             <label>角色
               <select id="userRole">
-                <option value="Admin">Admin</option>
-                <option value="ProjectOwner">ProjectOwner</option>
-                <option value="Builder">Builder</option>
-                <option value="Viewer">Viewer</option>
+                <option value="Admin">管理员</option>
+                <option value="ProjectOwner">项目负责人</option>
+                <option value="Builder">构建员</option>
+                <option value="Viewer">查看者</option>
               </select>
             </label>
             <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>

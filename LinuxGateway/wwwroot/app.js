@@ -1,5 +1,45 @@
 const $ = (id) => document.getElementById(id);
 
+const STATUS_LABELS = {
+  Online: "在线",
+  Offline: "离线",
+  Revoked: "已吊销",
+  Disabled: "已停用",
+  Enabled: "已启用",
+  Unknown: "未知",
+  Queued: "排队中",
+  Running: "执行中",
+  Succeeded: "成功",
+  Failed: "失败",
+  Canceled: "已取消",
+  Cancelled: "已取消",
+  Idle: "空闲",
+};
+
+const ROLE_LABELS = {
+  Admin: "管理员",
+  Builder: "构建员",
+  Viewer: "查看者",
+};
+
+const PLATFORM_LABELS = {
+  ios: "iOS",
+  android: "Android",
+  auto: "自动",
+};
+
+const ARTIFACT_TYPE_LABELS = {
+  ipa: "IPA 包",
+  apk: "APK 包",
+  aab: "AAB 包",
+  archive: "归档",
+  log: "日志",
+  logs: "日志",
+  folder: "文件夹",
+  directory: "目录",
+  file: "文件",
+};
+
 const state = {
   user: null,
   nodes: [],
@@ -100,7 +140,7 @@ function showLogin() {
 function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
-  $("userInfo").textContent = `${state.user?.displayName || state.user?.userName || "-"} / ${state.user?.role || "-"}`;
+  $("userInfo").textContent = `${state.user?.displayName || state.user?.userName || "-"} / ${roleLabel(state.user?.role)}`;
   setTab(state.activeTab || "overview");
   renderPermissionChrome();
 }
@@ -141,7 +181,7 @@ function stopDashboardEvents() {
 
 function setTab(tab) {
   if (tab === "users" && !isAdmin()) {
-    showError(new Error("只有 Admin 可以进入用户权限模块。"));
+    showError(new Error("只有管理员可以进入用户权限模块。"));
     tab = "account";
   }
 
@@ -194,7 +234,7 @@ async function refreshAll(options = {}) {
       await refreshUsers();
     }
     if (!options.silent) {
-      showNotice("刷新完成。如果设备仍显示 Offline，请先确认 Linux 服务器能 curl 通该设备的 /api/health。");
+      showNotice("刷新完成。如果设备仍显示离线，请先确认 Linux 服务器能 curl 通该设备的 /api/health。");
     }
   } catch (error) {
     showError(error);
@@ -219,7 +259,7 @@ function renderPermissionChrome() {
     setTab("account");
   }
   $("roleHint").textContent = roleDescription();
-  setFormDisabled("nodeForm", !isAdmin(), "只有 Admin 可以新增或更新节点。");
+  setFormDisabled("nodeForm", !isAdmin(), "只有管理员可以新增或更新节点。");
   setFormDisabled("buildForm", !canBuild(), "当前角色不能提交构建任务。");
   if (isAdmin()) {
     renderUsers();
@@ -229,9 +269,9 @@ function renderPermissionChrome() {
 
 function roleDescription() {
   if (!state.user) return "未登录。";
-  if (isAdmin()) return "Admin 可以维护节点、用户并提交构建。";
-  if (canBuild()) return "Builder 可以提交构建并查看任务，不能维护节点或用户。";
-  return "Viewer 可以查看节点、任务、日志和产物，不能修改配置或提交构建。";
+  if (isAdmin()) return "管理员可以维护节点、用户并提交构建。";
+  if (canBuild()) return "构建员可以提交构建并查看任务，不能维护节点或用户。";
+  return "查看者可以查看节点、任务、日志和产物，不能修改配置或提交构建。";
 }
 
 function setFormDisabled(formId, disabled, reason) {
@@ -259,7 +299,7 @@ async function saveNode(event) {
   event.preventDefault();
   clearError();
   if (!isAdmin()) {
-    showError(new Error("只有 Admin 可以保存节点。"));
+    showError(new Error("只有管理员可以保存节点。"));
     return;
   }
   showNotice("正在保存设备并刷新节点状态。保存后会立即请求该 BuildServer，请等待状态返回。");
@@ -371,9 +411,9 @@ function renderNodeCard(node) {
     <header>
       <div class="node-main">
         <strong>${escapeHtml(node.name)}</strong>
-        <span class="node-url">${escapeHtml(node.baseUrl || node.connectionStatus || "-")}</span>
+        <span class="node-url">${escapeHtml(node.baseUrl || statusLabel(node.connectionStatus) || "-")}</span>
       </div>
-      <span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span>
+      <span class="status ${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span>
     </header>
     <div class="item-row">${modeBadge} ${platforms(node.platforms)}</div>
     <dl class="node-metrics">
@@ -424,7 +464,7 @@ function renderBuildSelectors() {
   const selectedNodeId = $("buildNode").value;
   const enabledNodes = state.nodes.filter(isBuildableNode);
   $("buildNode").innerHTML = enabledNodes.length
-    ? enabledNodes.map((node) => `<option value="${escapeHtml(node.id)}">${escapeHtml(node.name)} / ${(node.platforms || []).join(",") || "auto"}</option>`).join("")
+    ? enabledNodes.map((node) => `<option value="${escapeHtml(node.id)}">${escapeHtml(node.name)} / ${escapeHtml((node.platforms || []).map(platformLabel).join(", ") || platformLabel("auto"))}</option>`).join("")
     : `<option value="">暂无在线设备</option>`;
   if (enabledNodes.some((node) => node.id === selectedNodeId)) {
     $("buildNode").value = selectedNodeId;
@@ -525,7 +565,7 @@ function renderJobRow(job) {
         ${job.error ? `<div class="error job-error">${escapeHtml(job.error)}</div>` : ""}
       </div>
     </td>
-    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
+    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
     <td>${platformBadge(job.buildPlatform)}</td>
     <td>${escapeHtml(job.buildNumber || "-")}</td>
     <td class="nowrap">${escapeHtml(createdAt)}</td>
@@ -539,7 +579,7 @@ function handleNodesClick(event) {
   const editButton = event.target.closest("[data-edit-node-id]");
   if (editButton) {
     if (!isAdmin()) {
-      showError(new Error("只有 Admin 可以编辑节点。"));
+      showError(new Error("只有管理员可以编辑节点。"));
       return;
     }
     fillNodeForm(editButton.dataset.editNodeId);
@@ -594,7 +634,7 @@ async function revokeNodeCredential(nodeId) {
   try {
     await api(`/api/reverse-nodes/${encodeURIComponent(nodeId)}/revoke`, { method: "POST" });
     await refreshAll({ silent: true });
-    showNotice("节点凭据已吊销。该记录已标记为 Revoked，可重新注册新节点或移除旧记录。");
+    showNotice("节点凭据已吊销。该记录已标记为已吊销，可重新注册新节点或移除旧记录。");
   } catch (error) {
     showError(error);
   }
@@ -657,12 +697,12 @@ function renderJobDetail(job, artifacts, log) {
   $("jobDetail").classList.remove("hidden");
   $("jobTitle").textContent = `${job.nodeName} / ${job.projectName} / ${job.configName}`;
   $("jobMeta").innerHTML = [
-    ["状态", job.status],
-    ["平台", job.buildPlatform],
+    ["状态", statusLabel(job.status)],
+    ["平台", platformLabel(job.buildPlatform)],
     ["远程任务", job.remoteJobId],
     ["分支", job.branch || "-"],
     ["Build Number", job.buildNumber || "-"],
-    ["dry-run", job.dryRun ? "true" : "false"],
+    ["演练模式", job.dryRun ? "是" : "否"],
     ["更新时间", new Date(job.updatedAt).toLocaleString()],
     ["错误", job.error || "-"],
   ].map(([key, value]) => `<div><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`).join("");
@@ -726,7 +766,7 @@ function renderArtifactsTable(job, artifacts) {
       </thead>
       <tbody>
         ${artifacts.map((artifact) => `<tr>
-          <td><span class="role-pill">${escapeHtml(artifact.type)}</span></td>
+          <td><span class="role-pill">${escapeHtml(artifactTypeLabel(artifact.type))}</span></td>
           <td class="path-cell">${escapeHtml(artifact.path || "-")}</td>
           <td>${formatBytes(artifact.sizeBytes)}</td>
           <td class="table-actions">
@@ -801,8 +841,8 @@ function renderUserListItem(user) {
       <span class="muted small">${escapeHtml(user.userName)}</span>
     </span>
     <span class="user-list-badges">
-      <span class="role-pill">${escapeHtml(user.role)}</span>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+      <span class="role-pill">${escapeHtml(roleLabel(user.role))}</span>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(user.enabled)}</span>
     </span>
   </article>`;
 }
@@ -810,7 +850,7 @@ function renderUserListItem(user) {
 function renderUserDetail(user = state.users.find((item) => item.id === state.selectedUserId)) {
   if (!user) {
     $("userDetailPanel").innerHTML = `<div class="user-detail-empty">
-      <p class="eyebrow">User Detail</p>
+      <p class="eyebrow">账号详情</p>
       <h4>还没有可查看的账号</h4>
       <p class="muted">点击右上角“新增用户”为 Gateway 团队成员分配权限。</p>
     </div>`;
@@ -823,16 +863,16 @@ function renderUserDetail(user = state.users.find((item) => item.id === state.se
   $("userDetailPanel").innerHTML = `<div class="user-detail-header">
       <span class="avatar large">${avatarText(user)}</span>
       <div>
-        <p class="eyebrow">Selected Account</p>
+        <p class="eyebrow">当前账号</p>
         <h4>${escapeHtml(user.displayName || user.userName)}</h4>
         <p class="muted">${escapeHtml(user.userName)}</p>
       </div>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(user.enabled)}</span>
     </div>
     <dl class="user-detail-grid">
       <div>
         <dt>角色</dt>
-        <dd><span class="role-pill">${escapeHtml(user.role)}</span></dd>
+        <dd><span class="role-pill">${escapeHtml(roleLabel(user.role))}</span></dd>
       </div>
       <div>
         <dt>账号类型</dt>
@@ -848,8 +888,8 @@ function renderUserDetail(user = state.users.find((item) => item.id === state.se
       </div>
     </dl>
     <section class="permission-card">
-      <p class="eyebrow">Permission Scope</p>
-      <strong>${escapeHtml(user.role)}</strong>
+      <p class="eyebrow">权限范围</p>
+      <strong>${escapeHtml(roleLabel(user.role))}</strong>
       <p>${escapeHtml(roleDescription(user.role))}</p>
       ${protectedReason ? `<p class="protect-warning">${escapeHtml(protectedReason)}</p>` : ""}
     </section>
@@ -886,7 +926,7 @@ async function saveUser(event) {
   event.preventDefault();
   clearError();
   if (!isAdmin()) {
-    showError(new Error("只有 Admin 可以维护用户。"));
+    showError(new Error("只有管理员可以维护用户。"));
     return;
   }
 
@@ -1005,7 +1045,7 @@ function fillUserForm(userId) {
   $("userName").disabled = rootAdmin;
   $("userRole").disabled = rootAdmin;
   $("userEnabled").disabled = rootAdmin || user.id === state.user?.id;
-  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持 Admin 且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
+  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持管理员角色且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
   $("userModalTitle").textContent = "编辑用户";
   $("userModalSubTitle").textContent = "密码留空表示不修改。";
   $("userSaveBtn").textContent = "更新用户";
@@ -1068,6 +1108,35 @@ async function fetchText(path) {
   return AppRuntime.requestText(path);
 }
 
+function statusLabel(value) {
+  return labelFromMap(STATUS_LABELS, value);
+}
+
+function roleLabel(value) {
+  return labelFromMap(ROLE_LABELS, value);
+}
+
+function platformLabel(value) {
+  return labelFromMap(PLATFORM_LABELS, value || "ios");
+}
+
+function artifactTypeLabel(value) {
+  return labelFromMap(ARTIFACT_TYPE_LABELS, value);
+}
+
+function enabledLabel(enabled) {
+  return enabled ? "已启用" : "已停用";
+}
+
+function labelFromMap(map, value) {
+  const text = String(value ?? "");
+  if (!text) return "-";
+  const direct = map[text] || map[text.toLowerCase()] || map[text.toUpperCase()];
+  if (direct) return direct;
+  const matchedKey = Object.keys(map).find((key) => key.toLowerCase() === text.toLowerCase());
+  return matchedKey ? map[matchedKey] : text;
+}
+
 function platforms(values) {
   const list = values && values.length ? values : ["auto"];
   return list.map((value) => platformBadge(value)).join(" ");
@@ -1075,7 +1144,7 @@ function platforms(values) {
 
 function platformBadge(value) {
   const platform = value || "ios";
-  return `<span class="platform ${escapeHtml(platform)}">${escapeHtml(platform)}</span>`;
+  return `<span class="platform ${escapeHtml(platform)}">${escapeHtml(platformLabel(platform))}</span>`;
 }
 
 function formatBytes(size) {

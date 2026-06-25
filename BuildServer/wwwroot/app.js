@@ -19,6 +19,89 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+const STATUS_LABELS = {
+  Queued: "排队中",
+  Running: "执行中",
+  Succeeded: "成功",
+  Failed: "失败",
+  Canceled: "已取消",
+  Cancelled: "已取消",
+  Online: "在线",
+  Offline: "离线",
+  Disabled: "已停用",
+  Enabled: "已启用",
+  Unknown: "未知",
+  Idle: "空闲",
+  Busy: "忙碌",
+};
+
+const ROLE_LABELS = {
+  Admin: "管理员",
+  ProjectOwner: "项目负责人",
+  Builder: "构建员",
+  Viewer: "查看者",
+  Agent: "自动化账号",
+};
+
+const PLATFORM_LABELS = {
+  ios: "iOS",
+  android: "Android",
+  auto: "自动",
+};
+
+const SOURCE_LABELS = {
+  Web: "网页提交",
+  Manual: "手动提交",
+  Gateway: "Gateway 转发",
+  LinuxGateway: "LinuxGateway 转发",
+  Mcp: "MCP 调用",
+  MCP: "MCP 调用",
+  Agent: "自动化提交",
+};
+
+const ARTIFACT_TYPE_LABELS = {
+  ipa: "IPA 包",
+  apk: "APK 包",
+  aab: "AAB 包",
+  archive: "归档",
+  log: "日志",
+  logs: "日志",
+  folder: "文件夹",
+  directory: "目录",
+  file: "文件",
+};
+
+const AUDIT_ACTION_LABELS = {
+  "auth.login": "用户登录",
+  "auth.logout": "用户退出",
+  "user.create": "新增用户",
+  "user.update": "更新用户",
+  "user.disable": "停用用户",
+  "user.delete": "删除用户",
+  "user.password": "修改密码",
+  "project.create": "新增项目",
+  "project.update": "更新项目",
+  "project.delete": "删除项目",
+  "config.create": "新增配置",
+  "config.update": "更新配置",
+  "config.delete": "删除配置",
+  "build.create": "提交构建",
+  "build.cancel": "取消构建",
+  "gateway.connect": "连接 Gateway",
+  "gateway.disconnect": "断开 Gateway",
+};
+
+const AUDIT_TARGET_LABELS = {
+  User: "用户",
+  Project: "项目",
+  Config: "配置",
+  Build: "构建任务",
+  Job: "任务",
+  Worker: "Worker",
+  Gateway: "Gateway",
+  System: "系统",
+};
+
 const CONFIG_FIELD_HELP = {
   configProject: {
     title: "项目",
@@ -114,7 +197,7 @@ const CONFIG_FIELD_HELP = {
     title: "Build Number 自动 +1",
     subtitle: "正式打包时自动递增构建号。",
     body: "开启后，每次正式打包前会把 Build Number 加 1，减少上传商店时报构建号重复的概率。",
-    tips: ["dry-run 不会真的递增。", "Build Number 必须是纯数字才能自动 +1。"]
+    tips: ["演练模式（dry-run）不会真的递增。", "Build Number 必须是纯数字才能自动 +1。"]
   },
   configTeamId: {
     title: "Apple Team ID",
@@ -138,7 +221,7 @@ const CONFIG_FIELD_HELP = {
     title: "Signing Style",
     subtitle: "Xcode 签名方式。",
     body: "automatic 表示让 Xcode 自动找证书和描述文件；manual 表示你自己指定签名资料。",
-    tips: ["新手和专用打包机建议先用 automatic。", "manual 通常要配 provisioningProfiles 等高级字段。"]
+    tips: ["新手和专用打包机建议先用自动签名。", "手动签名通常要配 provisioningProfiles 等高级字段。"]
   },
   configAllowProvisioningUpdates: {
     title: "允许 Xcode 自动处理签名",
@@ -569,7 +652,7 @@ function showLogin() {
 function showMain() {
   $("loginView").classList.add("hidden");
   $("mainView").classList.remove("hidden");
-  $("userInfo").textContent = `${state.user.displayName || state.user.userName} / ${state.user.role}`;
+  $("userInfo").textContent = `${state.user.displayName || state.user.userName} / ${roleLabel(state.user.role)}`;
   setEventStatus("实时连接准备中", "warn");
   renderPermissionChrome();
 }
@@ -626,7 +709,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker", audit: "审计日志", users: "用户权限", help: "填写说明", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -1248,7 +1331,7 @@ function renderProjectPanel(project) {
         <strong>${escapeHtml(project.name)}</strong>
         <div class="muted small">${escapeHtml(project.repositoryUrl || "-")}</div>
       </div>
-      <span class="status ${project.enabled ? "Succeeded" : "Canceled"}">${project.enabled ? "Enabled" : "Disabled"}</span>
+      <span class="status ${project.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(project.enabled)}</span>
     </header>
     <dl class="project-meta">
       <div><dt>默认分支</dt><dd>${escapeHtml(project.defaultBranch || "-")}</dd></div>
@@ -1285,7 +1368,7 @@ function renderConfigRow(config) {
   return `<tr>
     <td><strong>${escapeHtml(config.name)}</strong></td>
     <td>${platformBadge(config.buildPlatform || "ios")}</td>
-    <td><span class="status ${config.enabled ? "Succeeded" : "Canceled"}">${config.enabled ? "Enabled" : "Disabled"}</span></td>
+    <td><span class="status ${config.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(config.enabled)}</span></td>
     <td><span class="role-pill">${config.allowMcpBuild ? "允许" : "不允许"}</span></td>
     <td class="path-cell">${escapeHtml(config.configPath || "-")}</td>
     <td class="table-actions">
@@ -1369,11 +1452,11 @@ function renderJobRow(job) {
         <div class="muted small">${new Date(job.createdAt).toLocaleString()}</div>
       </div>
     </td>
-    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
+    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
     <td>${platformBadge(job.buildPlatform || config?.buildPlatform || "ios")}</td>
     <td>${escapeHtml(job.branch || "-")}</td>
     <td>${escapeHtml(job.buildNumber || "-")}</td>
-    <td>${escapeHtml(job.source || "-")}</td>
+    <td>${escapeHtml(sourceLabel(job.source))}</td>
     <td class="table-actions">
       <button class="secondary" type="button" data-view-job-id="${escapeHtml(job.id)}">查看详情</button>
       ${active ? `<button class="danger" type="button" data-cancel-job-id="${escapeHtml(job.id)}">取消</button>` : ""}
@@ -1454,14 +1537,14 @@ async function refreshJobModal(jobId) {
   $("jobModalTitle").textContent = "任务详情";
   $("jobModalSubTitle").textContent = `${job.id} / ${new Date(job.createdAt).toLocaleString()}`;
   $("jobModalDetail").innerHTML = [
-    ["状态", job.status],
-    ["平台", job.buildPlatform || "ios"],
+    ["状态", statusLabel(job.status)],
+    ["平台", platformLabel(job.buildPlatform || "ios")],
     ["分支", job.branch],
     ["Build Number", job.buildNumber],
     ["Worker", job.workerId || "-"],
     ["开始时间", job.startedAt ? new Date(job.startedAt).toLocaleString() : "-"],
     ["结束时间", job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"],
-    ["dry-run", job.dryRun ? "是" : "否"],
+    ["演练模式", job.dryRun ? "是" : "否"],
     ["错误信息", job.error || "-"],
   ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
 
@@ -1505,7 +1588,7 @@ function renderArtifactsTable(artifacts) {
       </thead>
       <tbody>
         ${artifacts.map((artifact) => `<tr>
-          <td><span class="role-pill">${escapeHtml(artifact.type)}</span></td>
+          <td><span class="role-pill">${escapeHtml(artifactTypeLabel(artifact.type))}</span></td>
           <td class="path-cell">${escapeHtml(artifact.path || "-")}</td>
           <td class="table-actions">
             <a class="download-link" href="/api/artifacts/${encodeURIComponent(artifact.id)}/download" target="_blank" rel="noopener">下载</a>
@@ -1518,7 +1601,7 @@ function renderArtifactsTable(artifacts) {
 
 function platformBadge(platform) {
   const value = String(platform || "ios");
-  return `<span class="platform ${escapeHtml(value)}">${escapeHtml(value)}</span>`;
+  return `<span class="platform ${escapeHtml(value)}">${escapeHtml(platformLabel(value))}</span>`;
 }
 
 function renderWorkers(workers) {
@@ -1559,7 +1642,7 @@ function renderWorkerRow(worker) {
         <div class="muted small">${escapeHtml(worker.hostName || "-")}</div>
       </div>
     </td>
-    <td><span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
+    <td><span class="status ${escapeHtml(status)}">${escapeHtml(statusLabel(status))}</span></td>
     <td>${escapeHtml(worker.currentJobId || "-")}</td>
     <td>${escapeHtml(unityVersions)}</td>
     <td>${escapeHtml(xcodeVersions)}</td>
@@ -1624,8 +1707,8 @@ function renderUserListItem(user) {
       <span class="muted small">${escapeHtml(user.userName)}</span>
     </span>
     <span class="user-list-badges">
-      <span class="role-pill">${escapeHtml(user.role)}</span>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+      <span class="role-pill">${escapeHtml(roleLabel(user.role))}</span>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(user.enabled)}</span>
     </span>
   </article>`;
 }
@@ -1633,7 +1716,7 @@ function renderUserListItem(user) {
 function renderUserDetail(user = state.users.find((item) => item.id === state.selectedUserId)) {
   if (!user) {
     $("userDetailPanel").innerHTML = `<div class="user-detail-empty">
-      <p class="eyebrow">User Detail</p>
+      <p class="eyebrow">账号详情</p>
       <h4>还没有可查看的账号</h4>
       <p class="muted">点击右上角“新增用户”为团队成员分配权限。</p>
     </div>`;
@@ -1646,16 +1729,16 @@ function renderUserDetail(user = state.users.find((item) => item.id === state.se
   $("userDetailPanel").innerHTML = `<div class="user-detail-header">
       <span class="avatar large">${avatarText(user)}</span>
       <div>
-        <p class="eyebrow">Selected Account</p>
+        <p class="eyebrow">当前账号</p>
         <h4>${escapeHtml(user.displayName || user.userName)}</h4>
         <p class="muted">${escapeHtml(user.userName)}</p>
       </div>
-      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${user.enabled ? "Enabled" : "Disabled"}</span>
+      <span class="status ${user.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(user.enabled)}</span>
     </div>
     <dl class="user-detail-grid">
       <div>
         <dt>角色</dt>
-        <dd><span class="role-pill">${escapeHtml(user.role)}</span></dd>
+        <dd><span class="role-pill">${escapeHtml(roleLabel(user.role))}</span></dd>
       </div>
       <div>
         <dt>账号类型</dt>
@@ -1671,8 +1754,8 @@ function renderUserDetail(user = state.users.find((item) => item.id === state.se
       </div>
     </dl>
     <section class="permission-card">
-      <p class="eyebrow">Permission Scope</p>
-      <strong>${escapeHtml(user.role)}</strong>
+      <p class="eyebrow">权限范围</p>
+      <strong>${escapeHtml(roleLabel(user.role))}</strong>
       <p>${escapeHtml(roleDescription(user.role))}</p>
       ${protectedReason ? `<p class="protect-warning">${escapeHtml(protectedReason)}</p>` : ""}
     </section>
@@ -1825,7 +1908,7 @@ function fillUserForm(userId) {
   $("userName").disabled = rootAdmin;
   $("userRole").disabled = rootAdmin;
   $("userEnabled").disabled = rootAdmin || user.id === state.user?.id;
-  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持 Admin 且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
+  $("userEnabled").parentElement.title = rootAdmin ? "主账号必须保持管理员角色且启用。" : ($("userEnabled").disabled ? "不能禁用当前登录账号。" : "");
   $("userModalTitle").textContent = "编辑用户";
   $("userModalSubTitle").textContent = "密码留空表示不修改。";
   $("userSaveBtn").textContent = "更新用户";
@@ -1898,17 +1981,58 @@ async function refreshAudit() {
 
 function renderAuditRow(item) {
   return `<tr>
-    <td><span class="role-pill">${escapeHtml(item.action)}</span></td>
+    <td><span class="role-pill">${escapeHtml(auditActionLabel(item.action))}</span></td>
     <td>${escapeHtml(item.userName || "-")}</td>
     <td>
       <div class="job-title-cell">
-        <strong>${escapeHtml(item.targetType || "-")}</strong>
+        <strong>${escapeHtml(auditTargetLabel(item.targetType))}</strong>
         <div class="muted small">${escapeHtml(item.targetId || "-")}</div>
       </div>
     </td>
     <td class="audit-detail">${escapeHtml(item.details || "-")}</td>
     <td class="nowrap">${item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}</td>
   </tr>`;
+}
+
+function statusLabel(value) {
+  return labelFromMap(STATUS_LABELS, value);
+}
+
+function roleLabel(value) {
+  return labelFromMap(ROLE_LABELS, value);
+}
+
+function platformLabel(value) {
+  return labelFromMap(PLATFORM_LABELS, value || "ios");
+}
+
+function sourceLabel(value) {
+  return value ? labelFromMap(SOURCE_LABELS, value) : "-";
+}
+
+function artifactTypeLabel(value) {
+  return labelFromMap(ARTIFACT_TYPE_LABELS, value);
+}
+
+function auditActionLabel(value) {
+  return labelFromMap(AUDIT_ACTION_LABELS, value);
+}
+
+function auditTargetLabel(value) {
+  return value ? labelFromMap(AUDIT_TARGET_LABELS, value) : "-";
+}
+
+function enabledLabel(enabled) {
+  return enabled ? "已启用" : "已停用";
+}
+
+function labelFromMap(map, value) {
+  const text = String(value ?? "");
+  if (!text) return "-";
+  const direct = map[text] || map[text.toLowerCase()] || map[text.toUpperCase()];
+  if (direct) return direct;
+  const matchedKey = Object.keys(map).find((key) => key.toLowerCase() === text.toLowerCase());
+  return matchedKey ? map[matchedKey] : text;
 }
 
 function loadingItem(text) {

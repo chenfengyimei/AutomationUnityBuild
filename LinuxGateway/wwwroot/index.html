@@ -10,7 +10,7 @@
   <main id="app">
     <section id="loginView" class="login">
       <form id="loginForm" class="panel login-panel">
-        <p class="eyebrow">LinuxGateway Console</p>
+        <p class="eyebrow">LinuxGateway 控制台</p>
         <h1>Unity Build Gateway</h1>
         <p class="login-copy">统一调度 Mac / Windows 打包机，项目配置仍在各节点的 BuildServer 里维护。</p>
         <label>账号<input id="loginUser" autocomplete="username" value="admin"></label>
@@ -24,7 +24,7 @@
     <section id="mainView" class="app-shell hidden">
       <aside class="app-sidebar">
         <div class="side-brand">
-          <p class="eyebrow">Fleet Console</p>
+          <p class="eyebrow">设备控制台</p>
           <h2>LinuxGateway</h2>
         </div>
         <button data-tab="overview" class="active" type="button">首页概览</button>
@@ -39,7 +39,7 @@
       <section class="app-main">
         <header class="page-header">
           <div>
-            <p class="eyebrow">Fleet Orchestration</p>
+            <p class="eyebrow">设备调度</p>
             <h1 id="pageTitle">首页概览</h1>
             <p id="pageSubTitle">统一调度 Mac / Windows 打包机，真正构建仍在各节点执行。</p>
           </div>
@@ -75,12 +75,12 @@
 
           <section class="overview-grid">
             <article class="panel">
-              <p class="eyebrow">Topology</p>
+              <p class="eyebrow">拓扑概览</p>
               <h2>调度说明</h2>
               <p class="hint">LinuxGateway 只保存节点、用户和调度记录。项目配置、Unity/Xcode/Android 构建能力仍由各 BuildServer 节点维护。</p>
             </article>
             <article class="panel">
-              <p class="eyebrow">Operations</p>
+              <p class="eyebrow">常用操作</p>
               <h2>推荐流程</h2>
               <ol class="clean-list">
                 <li>在设备节点页维护 Mac/Windows BuildServer。</li>
@@ -96,7 +96,7 @@
             <section class="panel nodes-panel">
               <header class="section-toolbar">
                 <div>
-                  <p class="eyebrow">Node Registry</p>
+                  <p class="eyebrow">节点登记</p>
                   <h2>设备节点</h2>
                   <p class="muted">查看节点在线状态、平台能力、远程项目和配置同步结果。</p>
                 </div>
@@ -111,7 +111,7 @@
             </section>
 
             <form id="nodeForm" class="panel">
-              <p class="eyebrow">Node Settings</p>
+              <p class="eyebrow">节点设置</p>
               <h2>新增 / 更新设备</h2>
               <label>设备 ID<input id="nodeId" placeholder="新增时留空；更新时填写已有 ID"></label>
               <label>设备名称<input id="nodeName" placeholder="Mac Build / Windows Android"></label>
@@ -128,7 +128,7 @@
             </form>
 
             <article class="panel">
-              <p class="eyebrow">Reverse Agent</p>
+              <p class="eyebrow">反向连接</p>
               <h2>生成反向连接 Token</h2>
               <p class="hint">生成一次性 Enrollment Token，让 BuildServer 主动连接 Gateway（无需公网端口或内网穿透）。</p>
               <label>节点名称提示<input id="enrollNodeNameHint" placeholder="Mac Build / Windows Android"></label>
@@ -147,7 +147,7 @@
         <section id="buildsTab" class="tab hidden">
           <section class="split-layout">
             <form id="buildForm" class="panel">
-              <p class="eyebrow">Build Dispatch</p>
+              <p class="eyebrow">构建分发</p>
               <h2>发起打包</h2>
               <p class="hint">提交任务后会转发到选中节点执行。节点拉 Git、Unity 导出和 Xcode/Android 构建都可能需要几分钟。</p>
               <label>目标设备<select id="buildNode"></select></label>
@@ -156,7 +156,7 @@
               <label>分支<input id="buildBranch" placeholder="留空使用项目默认分支"></label>
               <label>Build Number<input id="buildNumber" placeholder="留空自动递增"></label>
               <div class="checks">
-                <label><input id="dryRun" type="checkbox" checked> dry-run</label>
+                <label><input id="dryRun" type="checkbox" checked> 演练模式（dry-run）</label>
                 <label><input id="skipGit" type="checkbox"> 跳过 Git</label>
                 <label><input id="skipUnity" type="checkbox"> 跳过 Unity</label>
                 <label><input id="skipXcode" type="checkbox"> 跳过 Xcode（iOS）</label>
@@ -168,12 +168,12 @@
             </form>
 
             <article class="panel">
-              <p class="eyebrow">Readiness</p>
+              <p class="eyebrow">提交前检查</p>
               <h2>提交前检查</h2>
               <ul class="clean-list">
                 <li>目标设备必须在线并已同步远程项目。</li>
                 <li>iOS 任务建议选择 Mac 节点，Android 可选择 Mac 或 Windows 节点。</li>
-                <li>首次提交建议保留 dry-run，确认 Git、Unity 和签名配置无误。</li>
+                <li>首次提交建议保留演练模式（dry-run），确认 Git、Unity 和签名配置无误。</li>
               </ul>
             </article>
           </section>
@@ -183,7 +183,7 @@
           <section class="panel jobs-panel">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Build Operations</p>
+                <p class="eyebrow">构建操作</p>
                 <h2>任务队列</h2>
                 <p class="muted">查看任务会实时拉取远程节点状态、日志和产物。</p>
               </div>
@@ -208,7 +208,7 @@
         <section id="accountTab" class="tab hidden">
           <section class="grid">
             <form id="passwordForm" class="panel">
-              <p class="eyebrow">Profile</p>
+              <p class="eyebrow">个人资料</p>
               <h2>我的账户</h2>
               <p id="roleHint" class="hint">当前角色决定可执行的操作。</p>
               <label>当前密码<input id="currentPassword" type="password" autocomplete="current-password"></label>
@@ -217,9 +217,9 @@
             </form>
 
             <article class="panel">
-              <p class="eyebrow">Current Role</p>
+              <p class="eyebrow">当前角色</p>
               <h2>权限说明</h2>
-              <p class="hint">Admin 可维护节点、用户并提交构建；Builder 可提交构建并查看任务；Viewer 仅查看节点、任务、日志和产物。</p>
+              <p class="hint">管理员可维护节点、用户并提交构建；构建员可提交构建并查看任务；查看者仅查看节点、任务、日志和产物。</p>
             </article>
           </section>
         </section>
@@ -228,7 +228,7 @@
           <section id="adminPanel" class="panel admin-panel hidden">
             <header class="section-toolbar">
               <div>
-                <p class="eyebrow">Identity & Access</p>
+                <p class="eyebrow">账号与权限</p>
                 <h2>用户权限</h2>
                 <p class="muted">维护 Gateway 管理员、构建者与只读观察者。主账号不可删除或禁用。</p>
               </div>
@@ -239,7 +239,7 @@
               <section class="user-directory-card" aria-label="账号列表">
                 <header class="directory-heading">
                   <div>
-                    <p class="eyebrow">Account Directory</p>
+                    <p class="eyebrow">账号目录</p>
                     <h4>账号列表</h4>
                   </div>
                   <span id="userDirectoryCount" class="count-badge">0 人</span>
@@ -270,9 +270,9 @@
             <label>显示名<input id="userDisplayName" autocomplete="off" placeholder="构建操作员"></label>
             <label>角色
               <select id="userRole">
-                <option value="Admin">Admin</option>
-                <option value="Builder">Builder</option>
-                <option value="Viewer">Viewer</option>
+                <option value="Admin">管理员</option>
+                <option value="Builder">构建员</option>
+                <option value="Viewer">查看者</option>
               </select>
             </label>
             <label>密码<input id="userPassword" type="password" autocomplete="new-password" placeholder="新增必填，编辑时留空表示不修改"></label>
