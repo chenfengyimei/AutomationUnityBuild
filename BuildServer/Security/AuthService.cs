@@ -141,10 +141,12 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
         }
 
         string tokenHash = PasswordHasher.HashToken(token);
-        return await database.UpdateAsync(db =>
+        return await database.ReadAsync(db =>
         {
-            db.Sessions.RemoveAll(session => session.ExpiresAt <= DateTimeOffset.Now);
-            SessionRecord? session = db.Sessions.FirstOrDefault(session => session.TokenHash == tokenHash);
+            DateTimeOffset now = DateTimeOffset.Now;
+            SessionRecord? session = db.Sessions.FirstOrDefault(session =>
+                session.TokenHash == tokenHash &&
+                session.ExpiresAt > now);
             if (session is null)
             {
                 return null;
@@ -152,6 +154,15 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
 
             UserRecord? user = db.Users.FirstOrDefault(user => user.Id == session.UserId && user.Enabled);
             return user is null ? null : ToCurrentUser(user);
+        });
+    }
+
+    public async Task<int> CleanupExpiredSessionsAsync()
+    {
+        return await database.UpdateAsync(db =>
+        {
+            DateTimeOffset now = DateTimeOffset.Now;
+            return db.Sessions.RemoveAll(session => session.ExpiresAt <= now);
         });
     }
 
@@ -201,7 +212,7 @@ public sealed class AuthService(JsonDatabase database, BuildServerOptions option
 
     public static CurrentUser ToCurrentUser(UserRecord user)
     {
-        return new CurrentUser(user.Id, user.UserName, user.DisplayName, user.Role);
+        return new CurrentUser(user.Id, user.UserName, user.DisplayName, user.Role, user.AllowedProjectIds);
     }
 
     public static void AddAudit(BuildServerDatabase db, string userId, string userName, string action, string targetType, string targetId, string details)

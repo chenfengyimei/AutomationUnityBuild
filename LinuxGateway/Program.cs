@@ -28,11 +28,13 @@ builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<JsonGatewayDatabase>();
 builder.Services.AddSingleton<GatewayAuthService>();
 builder.Services.AddSingleton<NodeRefreshService>();
+builder.Services.AddSingleton<JobRefreshService>();
 builder.Services.AddHttpClient<NodeGatewayClient>(client =>
 {
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddHostedService(provider => provider.GetRequiredService<NodeRefreshService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<JobRefreshService>());
 builder.Services.AddSingleton<ReverseNodeConnectionManager>();
 builder.Services.AddSingleton<GatewayCommandStore>();
 builder.Services.AddSingleton<GatewayCommandDispatcher>();
@@ -66,16 +68,7 @@ app.UseWebSockets(new WebSocketOptions
     KeepAliveInterval = TimeSpan.FromSeconds(15)
 });
 
-app.Use(async (context, next) =>
-{
-    if (IsUnsafeMethod(context.Request.Method) && !IsAllowedOrigin(context, options))
-    {
-        await ApiDiagnostics.Forbidden(context, "请求来源不允许。").ExecuteAsync(context);
-        return;
-    }
-
-    await next();
-});
+app.UseLinuxGatewaySecurity();
 
 string? webRoot = ResolveWebRoot(app.Environment.ContentRootPath);
 if (webRoot is not null)
@@ -92,34 +85,6 @@ else
 ApiRoutes.Map(app);
 ReverseNodeEndpoint.Map(app);
 app.Run();
-
-static bool IsUnsafeMethod(string method)
-{
-    return method is "POST" or "PUT" or "PATCH" or "DELETE";
-}
-
-static bool IsAllowedOrigin(HttpContext context, LinuxGatewayOptions options)
-{
-    string origin = context.Request.Headers.Origin.ToString().TrimEnd('/');
-    if (string.IsNullOrWhiteSpace(origin))
-    {
-        return true;
-    }
-
-    string currentOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
-    if (string.Equals(origin, currentOrigin, StringComparison.OrdinalIgnoreCase))
-    {
-        return true;
-    }
-
-    if (!string.IsNullOrWhiteSpace(options.PublicBaseUrl) &&
-        string.Equals(origin, options.PublicBaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
-    {
-        return true;
-    }
-
-    return options.AllowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
-}
 
 static string ResolveContentRoot()
 {

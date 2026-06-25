@@ -18,7 +18,25 @@ internal static class ConfigFileWriter
     {
         PathTools.EnsureParentDirectory(fullPath);
         string json = JsonSerializer.Serialize(config, JsonOptions.IndentedCamelCase);
-        File.WriteAllText(fullPath, json + Environment.NewLine, TextEncodings.Utf8Bom);
+        string tempPath = $"{fullPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(tempPath, json + Environment.NewLine, TextEncodings.Utf8Bom);
+            File.Move(tempPath, fullPath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 }
 

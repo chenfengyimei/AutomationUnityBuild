@@ -1,0 +1,5 @@
+data/
+linuxgateway-data/
+*.log
+Dockerfile
+.dockerignore

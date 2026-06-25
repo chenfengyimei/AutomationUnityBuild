@@ -6,6 +6,8 @@ public sealed class LinuxGatewayOptions
     public string AdminPassword { get; set; } = "";
     public string PublicBaseUrl { get; set; } = "";
     public List<string> AllowedOrigins { get; set; } = [];
+    public int JobRefreshIntervalSeconds { get; set; } = 15;
+    public int MaxSseConnectionsPerUser { get; set; } = 5;
 
     public static LinuxGatewayOptions Load(IConfiguration configuration, IWebHostEnvironment environment)
     {
@@ -15,6 +17,8 @@ public sealed class LinuxGatewayOptions
         options.DataRoot = Env("LINUX_GATEWAY_DATA_ROOT", options.DataRoot);
         options.AdminPassword = Env("LINUX_GATEWAY_ADMIN_PASSWORD", options.AdminPassword);
         options.PublicBaseUrl = Env("LINUX_GATEWAY_PUBLIC_BASE_URL", options.PublicBaseUrl);
+        options.JobRefreshIntervalSeconds = EnvInt("LINUX_GATEWAY_JOB_REFRESH_INTERVAL_SECONDS", options.JobRefreshIntervalSeconds);
+        options.MaxSseConnectionsPerUser = EnvInt("LINUX_GATEWAY_MAX_SSE_CONNECTIONS_PER_USER", options.MaxSseConnectionsPerUser);
         OverrideListFromEnv(options.AllowedOrigins, "LINUX_GATEWAY_ALLOWED_ORIGINS");
 
         if (string.IsNullOrWhiteSpace(options.DataRoot))
@@ -28,6 +32,8 @@ public sealed class LinuxGatewayOptions
             .Select(value => value.Trim().TrimEnd('/'))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        options.JobRefreshIntervalSeconds = Math.Max(1, options.JobRefreshIntervalSeconds);
+        options.MaxSseConnectionsPerUser = Math.Max(1, options.MaxSseConnectionsPerUser);
         return options;
     }
 
@@ -47,6 +53,12 @@ public sealed class LinuxGatewayOptions
 
         target.Clear();
         target.AddRange(value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static int EnvInt(string name, int fallback)
+    {
+        string? value = Environment.GetEnvironmentVariable(name);
+        return int.TryParse(value, out int parsed) ? parsed : fallback;
     }
 
     private static string ResolvePath(string path, string contentRootPath)

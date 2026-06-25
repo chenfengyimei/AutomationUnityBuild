@@ -10,13 +10,14 @@ internal sealed class GooglePlayApiClient
     private static readonly Uri AndroidPublisherUploadBaseUri = new("https://androidpublisher.googleapis.com/upload/");
 
     private readonly HttpClient _httpClient;
+    private readonly string _accessToken;
     private readonly BuildLogger _logger;
 
     public GooglePlayApiClient(HttpClient httpClient, string accessToken, BuildLogger logger)
     {
         _httpClient = httpClient;
+        _accessToken = accessToken;
         _logger = logger;
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
     }
 
     public async Task<string> CreateEditAsync(string packageName)
@@ -77,7 +78,7 @@ internal sealed class GooglePlayApiClient
             release["name"] = releaseName;
         }
 
-        if (userFraction is not null)
+        if (userFraction is not null && ReleaseStatusAllowsUserFraction(release["status"]!.GetValue<string>()))
         {
             release["userFraction"] = userFraction.Value;
         }
@@ -109,7 +110,9 @@ internal sealed class GooglePlayApiClient
         try
         {
             string url = $"androidpublisher/v3/applications/{Uri.EscapeDataString(packageName)}/edits/{Uri.EscapeDataString(editId)}";
-            using HttpResponseMessage response = await _httpClient.DeleteAsync(new Uri(AndroidPublisherBaseUri, url));
+            using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(AndroidPublisherBaseUri, url));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+            using HttpResponseMessage response = await _httpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 _logger.Warn($"Google Play edit 已回滚删除: {editId}");
@@ -131,11 +134,7 @@ internal sealed class GooglePlayApiClient
 
     private async Task<JsonNode> SendJsonAsync(HttpMethod method, Uri uri, HttpContent? content)
     {
-        using var request = new HttpRequestMessage(method, uri)
-        {
-            Content = content
-        };
-        using HttpResponseMessage response = await _httpClient.SendAsync(request);
+        using HttpResponseMessage response = await SendWithRetryAsync(method, uri, content);
         string body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
         {
@@ -149,6 +148,48 @@ internal sealed class GooglePlayApiClient
         }
 
         return JsonNode.Parse(body) ?? new JsonObject();
+    }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(HttpMethod method, Uri uri, HttpContent? content)
+    {
+        const int maxAttempts = 3;
+        byte[]? bufferedContent = content is null ? null : await content.ReadAsByteArrayAsync();
+        string? mediaType = content?.Headers.ContentType?.MediaType;
+        Exception? lastException = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            using var request = new HttpRequestMessage(method, uri);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+            if (bufferedContent is not null)
+            {
+                request.Content = new ByteArrayContent(bufferedContent);
+                if (!string.IsNullOrWhiteSpace(mediaType))
+                {
+                    request.Content.Headers.ContentType = new MediaTypeHeaderValue(mediaType);
+                }
+            }
+
+            try
+            {
+                HttpResponseMessage response = await _httpClient.SendAsync(request);
+                if (attempt < maxAttempts && IsTransient(response))
+                {
+                    response.Dispose();
+                    await Task.Delay(BackoffDelay(attempt));
+                    continue;
+                }
+
+                return response;
+            }
+            catch (Exception ex) when (attempt < maxAttempts && ex is HttpRequestException or TaskCanceledException)
+            {
+                lastException = ex;
+                await Task.Delay(BackoffDelay(attempt));
+            }
+        }
+
+        throw lastException ?? new HttpRequestException("Google Play API request failed.");
     }
 
     private static StringContent JsonContent(JsonNode node)
@@ -165,5 +206,21 @@ internal sealed class GooglePlayApiClient
         }
 
         return node.ToString();
+    }
+
+    private static bool ReleaseStatusAllowsUserFraction(string status)
+    {
+        return status is "inProgress" or "halted";
+    }
+
+    private static bool IsTransient(HttpResponseMessage response)
+    {
+        int status = (int)response.StatusCode;
+        return status == 429 || status >= 500;
+    }
+
+    private static TimeSpan BackoffDelay(int attempt)
+    {
+        return TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 1));
     }
 }

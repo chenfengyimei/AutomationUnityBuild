@@ -4,9 +4,15 @@ using BuildServer.Security;
 
 namespace BuildServer.Services;
 
-public sealed class ArtifactScanner(JsonDatabase database)
+public sealed class ArtifactScanner(JsonDatabase database, BuildServerOptions options)
 {
     private static readonly Regex ArtifactRootRegex = new(@"产物目录:\s*(?<path>.+)$", RegexOptions.Compiled);
+    private static readonly EnumerationOptions ArtifactEnumerationOptions = new()
+    {
+        RecurseSubdirectories = true,
+        IgnoreInaccessible = true,
+        AttributesToSkip = FileAttributes.ReparsePoint
+    };
 
     public async Task ScanAsync(BuildJobRecord job)
     {
@@ -16,8 +22,14 @@ public sealed class ArtifactScanner(JsonDatabase database)
             return;
         }
 
+        artifactRoot = Path.GetFullPath(artifactRoot);
+        if (!IsAllowedArtifactRoot(artifactRoot))
+        {
+            return;
+        }
+
         List<BuildArtifactRecord> artifacts = [];
-        foreach (string path in Directory.EnumerateFileSystemEntries(artifactRoot, "*", SearchOption.AllDirectories))
+        foreach (string path in Directory.EnumerateFileSystemEntries(artifactRoot, "*", ArtifactEnumerationOptions))
         {
             string type = ArtifactType(path);
             if (string.IsNullOrWhiteSpace(type))
@@ -104,7 +116,31 @@ public sealed class ArtifactScanner(JsonDatabase database)
             return 0;
         }
 
-        return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(path, "*", ArtifactEnumerationOptions)
             .Sum(file => new FileInfo(file).Length);
+    }
+
+    private bool IsAllowedArtifactRoot(string path)
+    {
+        return options.AllowedArtifactsRoots.Count == 0 ||
+               options.AllowedArtifactsRoots.Any(root => IsSameOrChild(path, root));
+    }
+
+    private static bool IsSameOrChild(string path, string root)
+    {
+        string normalizedPath = NormalizeDirectory(path);
+        string normalizedRoot = NormalizeDirectory(root);
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return normalizedPath.Equals(normalizedRoot, comparison) ||
+               normalizedPath.StartsWith(normalizedRoot, comparison);
+    }
+
+    private static string NormalizeDirectory(string path)
+    {
+        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(path))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath + Path.DirectorySeparatorChar;
     }
 }

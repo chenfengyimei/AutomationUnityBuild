@@ -8,6 +8,7 @@ namespace LinuxGateway.Reverse;
 
 public sealed class ReverseConnection : IDisposable
 {
+    public string ConnectionId { get; } = Guid.NewGuid().ToString("N");
     public string NodeId { get; }
     public WebSocket Socket { get; }
     public DateTimeOffset ConnectedAt { get; }
@@ -116,6 +117,25 @@ public sealed class ReverseNodeConnectionManager(ILogger<ReverseNodeConnectionMa
         }
     }
 
+    public bool Remove(string nodeId, string connectionId)
+    {
+        if (!_connections.TryGetValue(nodeId, out ReverseConnection? conn) ||
+            !string.Equals(conn.ConnectionId, connectionId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (((ICollection<KeyValuePair<string, ReverseConnection>>)_connections)
+            .Remove(new KeyValuePair<string, ReverseConnection>(nodeId, conn)))
+        {
+            conn.Dispose();
+            logger.LogInformation("Node {NodeId} disconnected, total online: {Count}", nodeId, _connections.Count);
+            return true;
+        }
+
+        return false;
+    }
+
     public async Task CloseAndRemoveAsync(string nodeId, WebSocketCloseStatus status, string reason)
     {
         if (!_connections.TryRemove(nodeId, out ReverseConnection? conn))
@@ -165,7 +185,7 @@ public sealed class ReverseNodeConnectionManager(ILogger<ReverseNodeConnectionMa
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to send message to node {NodeId}", nodeId);
-            Remove(nodeId);
+            Remove(nodeId, conn.ConnectionId);
             return false;
         }
     }

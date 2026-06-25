@@ -47,7 +47,7 @@ public sealed class BuildWorkerService(
         await database.UpdateAsync(db =>
         {
             BuildJobRecord? job = db.Jobs.FirstOrDefault(job => job.Id == jobId);
-            if (job is not null)
+            if (job is not null && !IsTerminal(job.Status))
             {
                 job.Status = BuildStatuses.Canceled;
                 job.FinishedAt = DateTimeOffset.Now;
@@ -63,6 +63,7 @@ public sealed class BuildWorkerService(
     {
         await Task.Yield();
         logger.LogInformation("Build worker service starting.");
+        await RecoverStaleRunningJobsAsync();
         await RegisterWorkerAsync(WorkerStatuses.Idle, "");
         logger.LogInformation("Build worker service started.");
 
@@ -123,6 +124,10 @@ public sealed class BuildWorkerService(
     {
         await RegisterWorkerAsync(WorkerStatuses.Running, job.Id);
         Directory.CreateDirectory(Path.GetDirectoryName(job.WorkerLogPath)!);
+        lock (_processLock)
+        {
+            _currentJobId = job.Id;
+        }
 
         try
         {
@@ -145,9 +150,10 @@ public sealed class BuildWorkerService(
 
                 storedJob.ExitCode = exitCode;
                 storedJob.FinishedAt = DateTimeOffset.Now;
-                storedJob.Status = storedJob.Status == BuildStatuses.Canceled
-                    ? BuildStatuses.Canceled
-                    : exitCode == 0 ? BuildStatuses.Succeeded : BuildStatuses.Failed;
+                if (!IsTerminal(storedJob.Status))
+                {
+                    storedJob.Status = exitCode == 0 ? BuildStatuses.Succeeded : BuildStatuses.Failed;
+                }
                 if (exitCode != 0 && string.IsNullOrWhiteSpace(storedJob.Error))
                 {
                     storedJob.Error = $"打包工具退出码: {exitCode}";
@@ -176,17 +182,26 @@ public sealed class BuildWorkerService(
                     return;
                 }
 
-                storedJob.Status = storedJob.Status == BuildStatuses.Canceled ? BuildStatuses.Canceled : BuildStatuses.Failed;
+                if (!IsTerminal(storedJob.Status))
+                {
+                    storedJob.Status = BuildStatuses.Failed;
+                }
                 storedJob.FinishedAt = DateTimeOffset.Now;
-                storedJob.Error = ex.Message;
+                if (string.IsNullOrWhiteSpace(storedJob.Error))
+                {
+                    storedJob.Error = ex.Message;
+                }
             });
         }
         finally
         {
             lock (_processLock)
             {
-                _currentProcess = null;
-                _currentJobId = "";
+                if (string.Equals(_currentJobId, job.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    _currentProcess = null;
+                    _currentJobId = "";
+                }
             }
 
             await RegisterWorkerAsync(WorkerStatuses.Idle, "");
@@ -250,6 +265,9 @@ public sealed class BuildWorkerService(
             }
         };
 
+        using CancellationTokenSource timeoutCts = new(TimeSpan.FromMinutes(options.BuildTimeoutMinutes));
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         process.Start();
         lock (_processLock)
         {
@@ -259,9 +277,64 @@ public sealed class BuildWorkerService(
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(linkedCts.Token);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            await KillProcessTreeAsync(process, $"任务超过 {options.BuildTimeoutMinutes} 分钟超时。", logWriter);
+            throw new TimeoutException($"任务超过 {options.BuildTimeoutMinutes} 分钟超时。");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await KillProcessTreeAsync(process, "服务正在关闭，终止当前打包进程。", logWriter);
+            throw;
+        }
         await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] EXIT {process.ExitCode}");
         return process.ExitCode;
+    }
+
+    private async Task RecoverStaleRunningJobsAsync()
+    {
+        int recovered = await database.UpdateAsync(db =>
+        {
+            int count = 0;
+            foreach (BuildJobRecord job in db.Jobs.Where(job => job.Status == BuildStatuses.Running))
+            {
+                job.Status = BuildStatuses.Failed;
+                job.FinishedAt = DateTimeOffset.Now;
+                if (string.IsNullOrWhiteSpace(job.Error))
+                {
+                    job.Error = "BuildServer may have been terminated unexpectedly while this job was running.";
+                }
+                count++;
+            }
+
+            return count;
+        });
+
+        if (recovered > 0)
+        {
+            logger.LogWarning("Recovered {Count} stale running build jobs.", recovered);
+        }
+    }
+
+    private static async Task KillProcessTreeAsync(Process process, string reason, StreamWriter logWriter)
+    {
+        await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] {reason}");
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await logWriter.WriteLineAsync($"[{DateTimeOffset.Now:O}] Failed to kill process tree: {ex.Message}");
+        }
     }
 
     private async Task RegisterWorkerAsync(string status, string currentJobId)
@@ -322,5 +395,10 @@ public sealed class BuildWorkerService(
     private static string Quote(string value)
     {
         return value.Any(char.IsWhiteSpace) ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
+    }
+
+    private static bool IsTerminal(string status)
+    {
+        return status is BuildStatuses.Succeeded or BuildStatuses.Failed or BuildStatuses.Canceled;
     }
 }

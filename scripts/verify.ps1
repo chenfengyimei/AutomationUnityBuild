@@ -27,6 +27,7 @@ $solutionVerifyOutput = Join-Path $repoRoot "bin/VerifySolution"
 $verifyOutput = Join-Path $repoRoot "bin/Verify"
 $buildServerVerifyOutput = Join-Path $repoRoot "bin/VerifyBuildServer"
 $linuxGatewayVerifyOutput = Join-Path $repoRoot "bin/VerifyLinuxGateway"
+$testVerifyOutput = Join-Path $repoRoot "bin/VerifyTests"
 $dll = Join-Path $verifyOutput "AutomationUnityBuildIOS.dll"
 $sampleConfig = Join-Path $repoRoot "build-ios.sample.json"
 $androidSampleConfig = Join-Path $repoRoot "build-android.sample.json"
@@ -35,6 +36,7 @@ Invoke-Native "dotnet" @("build", $solution, "-c", $Configuration, "-p:UseAppHos
 Invoke-Native "dotnet" @("build", $project, "-c", $Configuration, "-p:UseAppHost=false", "-o", $verifyOutput)
 Invoke-Native "dotnet" @("build", $buildServerProject, "-c", $Configuration, "-p:UseAppHost=false", "-o", $buildServerVerifyOutput)
 Invoke-Native "dotnet" @("build", $linuxGatewayProject, "-c", $Configuration, "-p:UseAppHost=false", "-o", $linuxGatewayVerifyOutput)
+Invoke-Native "dotnet" @("test", (Join-Path $repoRoot "AutomationUnityBuildIOS.Tests/AutomationUnityBuildIOS.Tests.csproj"), "-c", $Configuration, "-p:UseAppHost=false", "-p:BaseOutputPath=$testVerifyOutput\")
 Invoke-Native "dotnet" @($dll, "00")
 Invoke-Native "dotnet" @($dll, "run", "--config", $sampleConfig, "--dry-run", "--allow-non-mac", "--skip-git", "--skip-xcode")
 Invoke-Native "dotnet" @($dll, "run", "--config", $androidSampleConfig, "--dry-run", "--allow-non-mac", "--skip-git")

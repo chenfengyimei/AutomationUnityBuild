@@ -20,6 +20,7 @@ public sealed class GatewayUserRecord
     public string DisplayName { get; set; } = "";
     public string PasswordHash { get; set; } = "";
     public string Role { get; set; } = GatewayRoles.Viewer;
+    public List<string> AllowedProjectIds { get; set; } = [];
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
@@ -135,14 +136,20 @@ public sealed class GatewayAuditLogRecord
 
 public sealed record LoginRequest(string UserName, string Password);
 
-public sealed record CurrentGatewayUser(string Id, string UserName, string DisplayName, string Role);
+public sealed record CurrentGatewayUser(
+    string Id,
+    string UserName,
+    string DisplayName,
+    string Role,
+    IReadOnlyList<string>? AllowedProjectIds = null);
 
 public sealed record GatewayUserRequest(
     string UserName,
     string DisplayName,
     string Role,
     string? Password,
-    bool Enabled = true);
+    bool Enabled = true,
+    string[]? AllowedProjectIds = null);
 
 public sealed record GatewayChangePasswordRequest(string CurrentPassword, string NewPassword);
 
@@ -151,6 +158,16 @@ public static class GatewayRoles
     public const string Admin = "Admin";
     public const string Builder = "Builder";
     public const string Viewer = "Viewer";
+}
+
+public static class GatewayBuildStatuses
+{
+    public const string Creating = "Creating";
+    public const string Queued = "Queued";
+    public const string Running = "Running";
+    public const string Succeeded = "Succeeded";
+    public const string Failed = "Failed";
+    public const string Canceled = "Canceled";
 }
 
 public sealed record GatewayNodeRequest(

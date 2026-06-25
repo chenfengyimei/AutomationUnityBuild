@@ -17,6 +17,9 @@ public sealed class BuildServerOptions
     public string WorkerName { get; set; } = "";
     public int RetentionDays { get; set; } = 30;
     public long MaxArtifactBytes { get; set; } = 200L * 1024 * 1024 * 1024;
+    public int BuildTimeoutMinutes { get; set; } = 240;
+    public int MaxSseConnectionsPerUser { get; set; } = 5;
+    public int SessionCleanupIntervalMinutes { get; set; } = 10;
 
     public bool ReverseGatewayEnabled { get; set; }
     public string ReverseGatewayUrl { get; set; } = "";
@@ -45,6 +48,9 @@ public static class BuildServerEnvironment
         OverrideListFromEnv(options.AllowedRepositoryHosts, "BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS");
         OverrideListFromEnv(options.NodePlatforms, "BUILD_SERVER_NODE_PLATFORMS");
         options.WorkerName = Env("BUILD_SERVER_WORKER_NAME", options.WorkerName);
+        options.BuildTimeoutMinutes = EnvInt("BUILD_SERVER_BUILD_TIMEOUT_MINUTES", options.BuildTimeoutMinutes);
+        options.MaxSseConnectionsPerUser = EnvInt("BUILD_SERVER_MAX_SSE_CONNECTIONS_PER_USER", options.MaxSseConnectionsPerUser);
+        options.SessionCleanupIntervalMinutes = EnvInt("BUILD_SERVER_SESSION_CLEANUP_INTERVAL_MINUTES", options.SessionCleanupIntervalMinutes);
 
         options.ReverseGatewayEnabled = EnvBool("BUILD_SERVER_REVERSE_GATEWAY_ENABLED", options.ReverseGatewayEnabled);
         options.ReverseGatewayUrl = Env("BUILD_SERVER_REVERSE_GATEWAY_URL", options.ReverseGatewayUrl);
@@ -92,6 +98,9 @@ public static class BuildServerEnvironment
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         options.NodePlatforms = NormalizeNodePlatforms(options.NodePlatforms);
+        options.BuildTimeoutMinutes = Math.Max(1, options.BuildTimeoutMinutes);
+        options.MaxSseConnectionsPerUser = Math.Max(1, options.MaxSseConnectionsPerUser);
+        options.SessionCleanupIntervalMinutes = Math.Max(1, options.SessionCleanupIntervalMinutes);
         return options;
     }
 
@@ -131,6 +140,12 @@ public static class BuildServerEnvironment
         return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("1", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int EnvInt(string name, int fallback)
+    {
+        string? value = Environment.GetEnvironmentVariable(name);
+        return int.TryParse(value, out int parsed) ? parsed : fallback;
     }
 
     private static void OverrideListFromEnv(List<string> target, string name)

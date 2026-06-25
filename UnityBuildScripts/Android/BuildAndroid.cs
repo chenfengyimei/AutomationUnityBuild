@@ -170,13 +170,68 @@ namespace BuildAutomation
                 PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)targetSdk;
             }
 
+            bool hasSigningArgument =
+                !string.IsNullOrWhiteSpace(keystoreName) ||
+                !string.IsNullOrWhiteSpace(keystorePass) ||
+                !string.IsNullOrWhiteSpace(keyaliasName) ||
+                !string.IsNullOrWhiteSpace(keyaliasPass);
+
             if (!string.IsNullOrWhiteSpace(keystoreName))
             {
                 PlayerSettings.Android.useCustomKeystore = true;
                 PlayerSettings.Android.keystoreName = keystoreName;
-                PlayerSettings.Android.keystorePass = keystorePass;
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyaliasName))
+            {
                 PlayerSettings.Android.keyaliasName = keyaliasName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(keystorePass))
+            {
+                PlayerSettings.Android.keystorePass = keystorePass;
+            }
+
+            if (!string.IsNullOrWhiteSpace(keyaliasPass))
+            {
                 PlayerSettings.Android.keyaliasPass = keyaliasPass;
+            }
+            else if (!string.IsNullOrWhiteSpace(keystorePass))
+            {
+                PlayerSettings.Android.keyaliasPass = keystorePass;
+            }
+
+            if (hasSigningArgument)
+            {
+                ValidateAndroidSigningSettings();
+            }
+        }
+
+        private static void ValidateAndroidSigningSettings()
+        {
+            if (!PlayerSettings.Android.useCustomKeystore)
+            {
+                throw new InvalidOperationException("检测到 Android 签名参数，但 Unity 项目未启用 Custom Keystore。请填写 androidKeystoreName，或先在 Unity Player Settings 中配置自定义 keystore。");
+            }
+
+            if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keystoreName))
+            {
+                throw new InvalidOperationException("Android 签名缺少 keystore 路径。请填写 androidKeystoreName，或确认 Unity Player Settings 已保存 keystore。");
+            }
+
+            if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keystorePass))
+            {
+                throw new InvalidOperationException("Android 签名缺少 keystore 密码。请填写 androidKeystorePass。");
+            }
+
+            if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasName))
+            {
+                throw new InvalidOperationException("Android 签名缺少 Key Alias。请填写 androidKeyaliasName，或确认 Unity Player Settings 已保存 alias。");
+            }
+
+            if (string.IsNullOrWhiteSpace(PlayerSettings.Android.keyaliasPass))
+            {
+                throw new InvalidOperationException("Android 签名缺少 Key Alias 密码。请填写 androidKeyaliasPass；如果和 keystore 密码一致，可以和 androidKeystorePass 填同一个值。");
             }
         }
 

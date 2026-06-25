@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using BuildServer.Persistence;
@@ -9,6 +10,9 @@ namespace BuildServer;
 
 public static class ApiRoutes
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, int> SseConnectionsByUser = new(StringComparer.Ordinal);
+
     private static readonly JsonSerializerOptions CamelizeOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -75,12 +79,22 @@ public static class ApiRoutes
             return;
         }
 
+        if (!TryAcquireSseConnection(user.Id, options.MaxSseConnectionsPerUser, out int currentConnections))
+        {
+            context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            await context.Response.WriteAsync(
+                $"Too many event connections for this user. Current limit is {options.MaxSseConnectionsPerUser}.",
+                context.RequestAborted);
+            return;
+        }
+
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers.Connection = "keep-alive";
         context.Response.ContentType = "text/event-stream; charset=utf-8";
 
         try
         {
+            context.Response.Headers["X-Sse-Connection-Count"] = currentConnections.ToString();
             await WriteSseEventAsync(context, "dashboard", await DashboardSnapshotAsync(database, options));
             using PeriodicTimer timer = new(TimeSpan.FromSeconds(5));
             while (await timer.WaitForNextTickAsync(context.RequestAborted))
@@ -91,6 +105,10 @@ public static class ApiRoutes
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
+        }
+        finally
+        {
+            ReleaseSseConnection(user.Id);
         }
     }
 
@@ -120,6 +138,23 @@ public static class ApiRoutes
         await context.Response.WriteAsync($"event: {eventName}\n", context.RequestAborted);
         await context.Response.WriteAsync($"data: {json}\n\n", context.RequestAborted);
         await context.Response.Body.FlushAsync(context.RequestAborted);
+    }
+
+    private static bool TryAcquireSseConnection(string userId, int maxConnections, out int currentConnections)
+    {
+        currentConnections = SseConnectionsByUser.AddOrUpdate(userId, 1, (_, count) => count + 1);
+        if (currentConnections <= maxConnections)
+        {
+            return true;
+        }
+
+        ReleaseSseConnection(userId);
+        return false;
+    }
+
+    private static void ReleaseSseConnection(string userId)
+    {
+        SseConnectionsByUser.AddOrUpdate(userId, 0, (_, count) => Math.Max(0, count - 1));
     }
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext context, AuthService auth, LoginRateLimiter limiter)
@@ -244,6 +279,7 @@ public static class ApiRoutes
                     UserName = userName,
                     DisplayName = displayName,
                     Role = role,
+                    AllowedProjectIds = NormalizeAllowedProjectIds(request.AllowedProjectIds, db),
                     PasswordHash = PasswordHasher.Hash(password),
                     Enabled = request.Enabled,
                     CreatedAt = DateTimeOffset.Now
@@ -254,6 +290,10 @@ public static class ApiRoutes
             });
 
             return Results.Ok(UserView(user));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
@@ -291,6 +331,9 @@ public static class ApiRoutes
                 user.UserName = userName;
                 user.DisplayName = displayName;
                 user.Role = role;
+                user.AllowedProjectIds = IsRootAdmin(user)
+                    ? []
+                    : NormalizeAllowedProjectIds(request.AllowedProjectIds, db);
                 user.Enabled = request.Enabled;
                 if (newPassword is not null)
                 {
@@ -307,6 +350,10 @@ public static class ApiRoutes
             });
 
             return Results.Ok(UserView(user));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
@@ -345,7 +392,10 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
-        return Results.Ok(await database.ReadAsync(db => db.Projects.OrderBy(project => project.Name).ToList()));
+        return Results.Ok(await database.ReadAsync(db => db.Projects
+            .Where(project => CanAccessProject(user, project.Id))
+            .OrderBy(project => project.Name)
+            .ToList()));
     }
 
     private static async Task<IResult> CreateProjectAsync(ProjectRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -389,7 +439,9 @@ public static class ApiRoutes
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
         return Results.Ok(await database.ReadAsync(db => db.Configs
-            .Where(config => string.IsNullOrWhiteSpace(projectId) || config.ProjectId == projectId)
+            .Where(config =>
+                CanAccessProject(user, config.ProjectId) &&
+                (string.IsNullOrWhiteSpace(projectId) || config.ProjectId == projectId))
             .OrderBy(config => config.Name)
             .ToList()));
     }
@@ -398,6 +450,7 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
+        if (!CanAccessProject(user, request.ProjectId)) return Results.Forbid();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
         try
@@ -446,6 +499,7 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
+        if (!CanAccessProject(user, request.ProjectId)) return Results.Forbid();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
         try
@@ -468,7 +522,7 @@ public static class ApiRoutes
 
                 string? dir = Path.GetDirectoryName(configPath);
                 if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(
+                WriteTextAtomically(
                     configPath,
                     BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
 
@@ -502,6 +556,10 @@ public static class ApiRoutes
 
             return Results.Ok(config);
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
+        }
         catch (Exception ex) when (IsClientInputError(ex))
         {
             return ApiDiagnostics.ClientError(context, ex);
@@ -518,6 +576,7 @@ public static class ApiRoutes
         {
             BuildConfigRecord config = await database.ReadAsync(db => db.Configs.FirstOrDefault(config => config.Id == configId))
                 ?? throw new FileNotFoundException("配置不存在。");
+            if (!CanAccessProject(user, config.ProjectId)) return Results.Forbid();
             string configPath = ValidatePathUnderAllowedRoots(config.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
             if (!File.Exists(configPath))
             {
@@ -538,6 +597,7 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
+        if (!CanAccessProject(user, request.ProjectId)) return Results.Forbid();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
         try
@@ -546,6 +606,10 @@ public static class ApiRoutes
             {
                 BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
                     ?? throw new FileNotFoundException("配置不存在。");
+                if (!CanAccessProject(user, record.ProjectId))
+                {
+                    throw new UnauthorizedAccessException();
+                }
                 if (!db.Projects.Any(project => project.Id == request.ProjectId && project.Enabled))
                 {
                     throw new InvalidOperationException("项目不存在或已禁用。");
@@ -592,6 +656,10 @@ public static class ApiRoutes
             {
                 BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
                     ?? throw new FileNotFoundException("配置不存在。");
+                if (!CanAccessProject(user, record.ProjectId))
+                {
+                    throw new UnauthorizedAccessException();
+                }
                 ProjectRecord project = db.Projects.FirstOrDefault(project => project.Id == request.ProjectId && project.Enabled)
                     ?? throw new InvalidOperationException("项目不存在或已禁用。");
 
@@ -601,7 +669,7 @@ public static class ApiRoutes
 
                 string? dir2 = Path.GetDirectoryName(configPath);
                 if (!string.IsNullOrWhiteSpace(dir2)) Directory.CreateDirectory(dir2);
-                File.WriteAllText(
+                WriteTextAtomically(
                     configPath,
                     BuildConfigJson(project, request, configName, buildPlatform).ToJsonString(IndentedCamelizeOptions) + Environment.NewLine);
 
@@ -615,6 +683,10 @@ public static class ApiRoutes
             });
 
             return Results.Ok(updatedConfig);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
@@ -635,6 +707,10 @@ public static class ApiRoutes
             {
                 BuildConfigRecord record = db.Configs.FirstOrDefault(config => config.Id == configId)
                     ?? throw new FileNotFoundException("配置不存在。");
+                if (!CanAccessProject(user, record.ProjectId))
+                {
+                    throw new UnauthorizedAccessException();
+                }
                 if (db.Jobs.Any(job => job.ConfigId == record.Id && (job.Status == BuildStatuses.Queued || job.Status == BuildStatuses.Running)))
                 {
                     throw new InvalidOperationException("这个配置还有排队中或运行中的任务，不能删除。");
@@ -667,6 +743,10 @@ public static class ApiRoutes
 
             return Results.Ok(new { deleted = true, deletedFile, config = deletedConfig });
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
+        }
         catch (Exception ex) when (IsClientInputError(ex))
         {
             return ApiDiagnostics.ClientError(context, ex);
@@ -688,6 +768,10 @@ public static class ApiRoutes
             BuildJobRecord job = await queue.EnqueueAsync(request, user, BuildSources.Web);
             return Results.Ok(job);
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Forbid();
+        }
         catch (Exception ex) when (IsClientInputError(ex))
         {
             return ApiDiagnostics.ClientError(context, ex);
@@ -699,7 +783,9 @@ public static class ApiRoutes
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
         return Results.Ok(await database.ReadAsync(db => db.Jobs
-            .Where(job => string.IsNullOrWhiteSpace(projectId) || job.ProjectId == projectId)
+            .Where(job =>
+                CanAccessProject(user, job.ProjectId) &&
+                (string.IsNullOrWhiteSpace(projectId) || job.ProjectId == projectId))
             .OrderByDescending(job => job.CreatedAt)
             .Take(100)
             .ToList()));
@@ -710,7 +796,9 @@ public static class ApiRoutes
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
-        return job is null ? Results.NotFound() : Results.Ok(job);
+        if (job is null) return Results.NotFound();
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
+        return Results.Ok(job);
     }
 
     private static async Task<IResult> GetJobLogAsync(string jobId, HttpContext context, AuthService auth, JsonDatabase database, int? lines, bool full = false)
@@ -719,6 +807,7 @@ public static class ApiRoutes
         if (user is null) return Results.Unauthorized();
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == jobId));
         if (job is null) return Results.NotFound();
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
         SetNoStoreHeaders(context);
         if (!File.Exists(job.WorkerLogPath)) return Results.Ok("");
         string log = full
@@ -746,7 +835,18 @@ public static class ApiRoutes
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
-        return Results.Ok(await database.ReadAsync(db => db.Artifacts.Where(artifact => artifact.JobId == jobId).ToList()));
+        (BuildJobRecord? job, List<BuildArtifactRecord> artifacts) = await database.ReadAsync(db =>
+        {
+            BuildJobRecord? job = db.Jobs.FirstOrDefault(job => job.Id == jobId);
+            List<BuildArtifactRecord> artifacts = job is null
+                ? []
+                : db.Artifacts.Where(artifact => artifact.JobId == jobId).ToList();
+            return (job, artifacts);
+        });
+
+        if (job is null) return Results.NotFound();
+        if (!CanAccessProject(user, job.ProjectId)) return Results.Forbid();
+        return Results.Ok(artifacts);
     }
 
     private static async Task<IResult> DownloadArtifactAsync(string artifactId, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -756,7 +856,7 @@ public static class ApiRoutes
         BuildArtifactRecord? artifact = await database.ReadAsync(db => db.Artifacts.FirstOrDefault(artifact => artifact.Id == artifactId));
         if (artifact is null) return Results.NotFound();
         BuildJobRecord? job = await database.ReadAsync(db => db.Jobs.FirstOrDefault(job => job.Id == artifact.JobId));
-        if (job is null || !IsAllowedArtifactPath(artifact.Path, job))
+        if (job is null || !CanAccessProject(user, job.ProjectId) || !IsAllowedArtifactPath(artifact.Path, job, options))
         {
             return Results.Forbid();
         }
@@ -771,8 +871,7 @@ public static class ApiRoutes
             string zipRoot = Path.Combine(options.DataRoot, "downloads");
             Directory.CreateDirectory(zipRoot);
             string zipPath = Path.Combine(zipRoot, $"{Path.GetFileName(artifact.Path)}-{artifact.Id}.zip");
-            if (File.Exists(zipPath)) File.Delete(zipPath);
-            ZipFile.CreateFromDirectory(artifact.Path, zipPath);
+            await EnsureZipAsync(artifact.Path, zipPath);
             return Results.File(zipPath, "application/zip", Path.GetFileName(zipPath));
         }
 
@@ -802,10 +901,18 @@ public static class ApiRoutes
 
         WorkerNodeRecord worker = await database.UpdateAsync(db =>
         {
-            WorkerNodeRecord? worker = db.Workers.FirstOrDefault(worker => worker.Id == request.Id);
+            string workerId = string.IsNullOrWhiteSpace(request.Id)
+                ? Ids.New("worker")
+                : request.Id.Trim();
+            WorkerNodeRecord? worker = db.Workers.FirstOrDefault(worker => worker.Id == workerId);
             if (worker is null)
             {
-                worker = request;
+                worker = new WorkerNodeRecord
+                {
+                    Id = workerId,
+                    Enabled = true,
+                    Status = WorkerStatuses.Idle
+                };
                 db.Workers.Add(worker);
             }
 
@@ -814,7 +921,6 @@ public static class ApiRoutes
             worker.UnityVersions = request.UnityVersions;
             worker.XcodeVersions = request.XcodeVersions;
             worker.ProjectIds = request.ProjectIds;
-            worker.Enabled = request.Enabled;
             worker.LastSeenAt = DateTimeOffset.Now;
             AuthService.AddAudit(db, user.Id, user.UserName, "worker.register", "worker", worker.Id, $"注册/更新 Worker {worker.Name}");
             return worker;
@@ -851,9 +957,33 @@ public static class ApiRoutes
             user.UserName,
             user.DisplayName,
             user.Role,
+            user.AllowedProjectIds,
             user.Enabled,
             user.CreatedAt
         };
+    }
+
+    private static List<string> NormalizeAllowedProjectIds(IEnumerable<string>? values, BuildServerDatabase db)
+    {
+        if (values is null)
+        {
+            return [];
+        }
+
+        List<string> ids = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (string id in ids)
+        {
+            if (!db.Projects.Any(project => project.Id == id))
+            {
+                throw new InvalidOperationException($"Project does not exist: {id}");
+            }
+        }
+
+        return ids;
     }
 
     private static string NormalizeUserName(string? value)
@@ -1366,11 +1496,14 @@ public static class ApiRoutes
         return normalized.Length == 0 || normalized.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsAllowedArtifactPath(string path, BuildJobRecord job)
+    private static bool IsAllowedArtifactPath(string path, BuildJobRecord job, BuildServerOptions options)
     {
         string? jobRoot = string.IsNullOrWhiteSpace(job.WorkerLogPath) ? null : Path.GetDirectoryName(job.WorkerLogPath);
-        return (!string.IsNullOrWhiteSpace(job.ArtifactRoot) && IsSameOrChild(path, job.ArtifactRoot)) ||
-               (!string.IsNullOrWhiteSpace(jobRoot) && IsSameOrChild(path, jobRoot));
+        bool underJobRoot = (!string.IsNullOrWhiteSpace(job.ArtifactRoot) && IsSameOrChild(path, job.ArtifactRoot)) ||
+                            (!string.IsNullOrWhiteSpace(jobRoot) && IsSameOrChild(path, jobRoot));
+        bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
+                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(path, root));
+        return underJobRoot && underAllowedRoot;
     }
 
     private static bool IsSameOrChild(string path, string root)
@@ -1395,10 +1528,82 @@ public static class ApiRoutes
             : StringComparison.Ordinal;
     }
 
+    private static bool CanAccessProject(CurrentUser user, string projectId)
+    {
+        return user.AllowedProjectIds is null ||
+               user.AllowedProjectIds.Count == 0 ||
+               user.AllowedProjectIds.Contains(projectId, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static async Task EnsureZipAsync(string sourceDirectory, string zipPath)
+    {
+        string lockKey = Path.GetFullPath(zipPath);
+        SemaphoreSlim semaphore = ZipLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        try
+        {
+            if (!File.Exists(zipPath))
+            {
+                string tempPath = $"{zipPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+                try
+                {
+                    ZipFile.CreateFromDirectory(sourceDirectory, tempPath);
+                    File.Move(tempPath, zipPath, overwrite: true);
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(tempPath))
+                        {
+                            File.Delete(tempPath);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
     private static void SetNoStoreHeaders(HttpContext context)
     {
         context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
         context.Response.Headers.Pragma = "no-cache";
         context.Response.Headers.Expires = "0";
+    }
+
+    private static void WriteTextAtomically(string targetPath, string content)
+    {
+        string? directory = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        string tempPath = $"{targetPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(tempPath, content);
+            File.Move(tempPath, targetPath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 }
