@@ -98,7 +98,20 @@ internal sealed class GooglePlayApiClient
         string url = $"androidpublisher/v3/applications/{Uri.EscapeDataString(packageName)}/edits/{Uri.EscapeDataString(editId)}:commit";
         if (changesNotSentForReview)
         {
-            url += "?changesNotSentForReview=true";
+            Uri reviewDeferredUri = new(AndroidPublisherBaseUri, url + "?changesNotSentForReview=true");
+            GooglePlayApiError? error = await TrySendJsonAsync(HttpMethod.Post, reviewDeferredUri, content: null);
+            if (error is null)
+            {
+                _logger.Info("Google Play edit 已提交。");
+                return;
+            }
+
+            if (!error.IsChangesNotSentForReviewUnsupported)
+            {
+                throw error.ToException();
+            }
+
+            _logger.Warn("Google Play 当前应用会自动送审，API 不允许设置 changesNotSentForReview；已自动改用普通提交。");
         }
 
         await SendJsonAsync(HttpMethod.Post, new Uri(AndroidPublisherBaseUri, url), content: null);
@@ -138,8 +151,7 @@ internal sealed class GooglePlayApiClient
         string body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException(
-                $"Google Play API 请求失败({(int)response.StatusCode} {response.ReasonPhrase}): {SensitiveText.Redact(body)}");
+            throw GooglePlayApiError.Create(response, body).ToException();
         }
 
         if (string.IsNullOrWhiteSpace(body))
@@ -148,6 +160,15 @@ internal sealed class GooglePlayApiClient
         }
 
         return JsonNode.Parse(body) ?? new JsonObject();
+    }
+
+    private async Task<GooglePlayApiError?> TrySendJsonAsync(HttpMethod method, Uri uri, HttpContent? content)
+    {
+        using HttpResponseMessage response = await SendWithRetryAsync(method, uri, content);
+        string body = await response.Content.ReadAsStringAsync();
+        return response.IsSuccessStatusCode
+            ? null
+            : GooglePlayApiError.Create(response, body);
     }
 
     private async Task<HttpResponseMessage> SendWithRetryAsync(HttpMethod method, Uri uri, HttpContent? content)
@@ -222,5 +243,23 @@ internal sealed class GooglePlayApiClient
     private static TimeSpan BackoffDelay(int attempt)
     {
         return TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 1));
+    }
+
+    private sealed record GooglePlayApiError(int StatusCode, string? ReasonPhrase, string Body)
+    {
+        public bool IsChangesNotSentForReviewUnsupported =>
+            StatusCode == 400 &&
+            Body.Contains("changesNotSentForReview must not be set", StringComparison.OrdinalIgnoreCase);
+
+        public InvalidOperationException ToException()
+        {
+            return new InvalidOperationException(
+                $"Google Play API 请求失败({StatusCode} {ReasonPhrase}): {SensitiveText.Redact(Body)}");
+        }
+
+        public static GooglePlayApiError Create(HttpResponseMessage response, string body)
+        {
+            return new GooglePlayApiError((int)response.StatusCode, response.ReasonPhrase, body);
+        }
     }
 }
