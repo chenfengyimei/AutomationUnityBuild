@@ -84,4 +84,23 @@ public class UnityLogDiagnosticsTests
         Assert.Contains("Can not sign the application", message);
         Assert.DoesNotContain("Unity Editor License", message);
     }
+
+    [Fact]
+    public void TryGetKnownFailureMessage_WhenGoogleVersionHandlerCrashes_ReturnsCacheGuidance()
+    {
+        string[] lines =
+        [
+            "#15 UnityEditor.AssetDatabase:FindAssets (string)",
+            "#18 Google.VersionHandlerImpl:SearchAssetDatabase (string,Google.VersionHandler/FilenameFilter,System.Collections.Generic.IEnumerable`1<string>)",
+            "#19 Google.VersionHandlerImpl:UpdateAssetsWithBuildTargets (UnityEditor.BuildTarget)",
+            "#20 Google.VersionHandlerImpl:UpdateVersionedAssetsOnUpdate ()"
+        ];
+
+        string? message = UnityLogDiagnostics.TryGetKnownFailureMessage(lines);
+
+        Assert.NotNull(message);
+        Assert.Contains("Google VersionHandler", message);
+        Assert.Contains("Library", message);
+        Assert.Contains("preserveUnityLibraryOnReset", message);
+    }
 }

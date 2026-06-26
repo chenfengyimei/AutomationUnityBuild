@@ -28,6 +28,15 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToArray();
 
+        string? googleVersionHandlerEvidence = normalizedLines.FirstOrDefault(IsGoogleVersionHandlerCrashLine);
+        if (googleVersionHandlerEvidence is not null &&
+            normalizedLines.Any(line => ContainsAny(line, "AssetDatabase", "FindAssets", "AssetResolver")))
+        {
+            return
+                "Unity Editor 在 Mobile Dependency Resolver / Google VersionHandler 初始化时崩溃。通常是 git reset 后保留的 Unity Library/AssetDatabase 缓存损坏，或 External Dependency Manager 自动扫描资源时触发 Unity 原生崩溃。建议先在该 iOS 节点对本项目执行一次干净导入：删除 Unity 工程 Library 目录，或把 preserveUnityLibraryOnReset 临时设为 false 后重跑；如果仍复现，请升级/重新导入 External Dependency Manager for Unity 并关闭自动 Version Handler 处理。" +
+                $" 日志线索: {googleVersionHandlerEvidence.Trim()}";
+        }
+
         string? androidSigningEvidence = normalizedLines.FirstOrDefault(IsAndroidSigningFailureLine);
         if (androidSigningEvidence is not null)
         {
@@ -210,6 +219,16 @@ internal sealed class UnityLogDiagnostics(BuildLogger logger)
             "签名缺少",
             "缺少 Key Alias",
             "缺少 keystore");
+    }
+
+    private static bool IsGoogleVersionHandlerCrashLine(string line)
+    {
+        return ContainsAny(
+            line,
+            "Google.VersionHandlerImpl",
+            "Google.VersionHandler",
+            "Mobile-Dependency-Resolver",
+            "UpdateVersionedAssetsOnUpdate");
     }
 
     private static bool ContainsAny(string line, params string[] needles)
