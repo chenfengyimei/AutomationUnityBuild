@@ -31,28 +31,51 @@ internal sealed class GitRepositoryService(BuildRunContext context)
                 }
             }
 
-            await _processRunner.RunAsync(
-                "git",
+            await RunGitCommandAsync(
                 ["clone", "--branch", _config.Branch, _config.RepositoryUrl, _paths.RepositoryRoot],
                 _paths.WorkspaceRoot,
-                environment: gitEnvironment);
+                gitEnvironment);
             return;
         }
 
         _logger.Info($"仓库已存在，准备更新: {_paths.RepositoryRoot}");
         await ValidateExistingRepositoryRemoteAsync(gitEnvironment);
-        await _processRunner.RunAsync("git", ["fetch", "--prune", "origin"], _paths.RepositoryRoot, environment: gitEnvironment);
-        await _processRunner.RunAsync("git", ["checkout", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
+        await RunGitCommandAsync(["fetch", "--prune", "origin"], _paths.RepositoryRoot, gitEnvironment);
+        await RunGitCommandAsync(["checkout", _config.Branch], _paths.RepositoryRoot, gitEnvironment);
 
         if (_config.ResetRepository)
         {
             _logger.Warn($"resetRepository=true，将强制重置到 origin/{_config.Branch} 并清理未跟踪文件。");
-            await _processRunner.RunAsync("git", ["reset", "--hard", $"origin/{_config.Branch}"], _paths.RepositoryRoot, environment: gitEnvironment);
-            await _processRunner.RunAsync("git", GitCleanArguments(), _paths.RepositoryRoot, environment: gitEnvironment);
+            await RunGitCommandAsync(["reset", "--hard", $"origin/{_config.Branch}"], _paths.RepositoryRoot, gitEnvironment);
+            await RunGitCommandAsync(GitCleanArguments(), _paths.RepositoryRoot, gitEnvironment);
         }
         else
         {
-            await _processRunner.RunAsync("git", ["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, environment: gitEnvironment);
+            await RunGitCommandAsync(["pull", "--ff-only", "origin", _config.Branch], _paths.RepositoryRoot, gitEnvironment);
+        }
+    }
+
+    private async Task RunGitCommandAsync(IReadOnlyList<string> args, string workingDirectory, IReadOnlyDictionary<string, string> gitEnvironment)
+    {
+        try
+        {
+            await _processRunner.RunAsync("git", args, workingDirectory, environment: gitEnvironment);
+        }
+        catch (InvalidOperationException ex) when (GitAuthFailureDetector.IsAuthFailure(ex.Message))
+        {
+            string redactedRepoUrl = GitRepositoryUrl.Redact(_config.RepositoryUrl);
+            string stderrSummary = GitAuthFailureDetector.ExtractStderrSummary(ex.Message);
+            throw new InvalidOperationException(
+                $"Git 认证失败：构建机器上的 Git 凭据可能已过期或无效。{Environment.NewLine}" +
+                $"仓库: {redactedRepoUrl}{Environment.NewLine}" +
+                $"分支: {_config.Branch}{Environment.NewLine}" +
+                $"原始错误: {stderrSummary}{Environment.NewLine}" +
+                $"解决方法：{Environment.NewLine}" +
+                $"  1. SSH 方式：在构建机器上验证 SSH 密钥是否有效（ssh -T git@github.com）{Environment.NewLine}" +
+                $"  2. HTTPS 方式：在构建机器上更新 Git 凭据（git credential reject / git credential approve）{Environment.NewLine}" +
+                $"  3. GitHub PAT：生成新 Token 并更新 git credential helper 或 URL{Environment.NewLine}" +
+                $"  4. 手动验证：在构建机器上以构建服务账号执行 git clone {redactedRepoUrl} 确认凭据可用",
+                ex);
         }
     }
 
@@ -128,5 +151,71 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         var environment = new Dictionary<string, string>(_config.Environment, StringComparer.OrdinalIgnoreCase);
         environment.TryAdd("GIT_TERMINAL_PROMPT", "0");
         return environment;
+    }
+}
+
+internal static class GitAuthFailureDetector
+{
+    private static readonly string[] AuthFailurePatterns =
+    [
+        "Authentication failed",
+        "could not read Username",
+        "could not read Password",
+        "Invalid username or token",
+        "Invalid username or password",
+        "Permission denied (publickey)",
+        "Permission denied",
+        "access denied",
+        "fatal: unable to access",
+        "403 Forbidden",
+        "401 Unauthorized",
+        "Support for password authentication was removed",
+        "Personal access tokens with read:org",
+    ];
+
+    public static bool IsAuthFailure(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        foreach (string pattern in AuthFailurePatterns)
+        {
+            if (message.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static string ExtractStderrSummary(string exceptionMessage)
+    {
+        if (string.IsNullOrWhiteSpace(exceptionMessage))
+        {
+            return "（无详细信息）";
+        }
+
+        int newlineIndex = exceptionMessage.IndexOf('\n');
+        string detail = newlineIndex >= 0
+            ? exceptionMessage[(newlineIndex + 1)..].Trim()
+            : exceptionMessage;
+
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return "（无 stderr 输出）";
+        }
+
+        string[] lines = detail.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var relevant = lines
+            .Where(line => !line.StartsWith("命令执行失败", StringComparison.OrdinalIgnoreCase))
+            .Take(5)
+            .ToArray();
+
+        return relevant.Length > 0
+            ? string.Join(Environment.NewLine, relevant)
+            : detail;
     }
 }

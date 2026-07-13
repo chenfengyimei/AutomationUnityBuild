@@ -61,6 +61,9 @@ public static class ApiRoutes
         app.MapGet("/api/workers", ListWorkersAsync);
         app.MapPost("/api/workers/register", RegisterWorkerAsync);
         app.MapGet("/api/settings", SettingsAsync);
+        app.MapGet("/api/email-settings", GetEmailSettingsAsync);
+        app.MapPut("/api/email-settings", UpdateEmailSettingsAsync);
+        app.MapPost("/api/email-settings/test", SendTestEmailAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -942,6 +945,157 @@ public static class ApiRoutes
             options.MaxArtifactBytes,
             ConfigRoot = options.AllowedConfigRoots.FirstOrDefault() ?? ""
         });
+    }
+
+    private static async Task<IResult> GetEmailSettingsAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        return Results.Ok(await database.ReadAsync(db =>
+        {
+            EmailSettingsRecord? settings = db.EmailSettings;
+            if (settings is null)
+            {
+                return (object)new { enabled = false, smtpHost = "", smtpPort = 587, smtpUserName = "", fromEmail = "", fromName = "", useSsl = true };
+            }
+
+            return (object)new
+            {
+                settings.Enabled,
+                settings.SmtpHost,
+                settings.SmtpPort,
+                settings.SmtpUserName,
+                FromEmail = settings.FromEmail,
+                FromName = settings.FromName,
+                settings.UseSsl,
+                settings.UpdatedAt
+            };
+        }));
+    }
+
+    private static async Task<IResult> UpdateEmailSettingsAsync(EmailSettingsRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            string smtpHost = Required(request.SmtpHost, "SMTP 主机");
+            string smtpUserName = (request.SmtpUserName ?? "").Trim();
+            string fromEmail = Required(request.FromEmail, "发信邮箱");
+            if (!IsValidEmail(fromEmail))
+            {
+                throw new InvalidOperationException("发信邮箱格式不正确。");
+            }
+
+            int smtpPort = request.SmtpPort < 1 || request.SmtpPort > 65535
+                ? throw new InvalidOperationException("SMTP 端口必须在 1 到 65535 之间。")
+                : request.SmtpPort;
+
+            EmailSettingsRecord saved = await database.UpdateAsync(db =>
+            {
+                EmailSettingsRecord? existing = db.EmailSettings;
+                EmailSettingsRecord settings = existing ?? new EmailSettingsRecord { Id = "email-settings" };
+
+                settings.SmtpHost = smtpHost;
+                settings.SmtpPort = smtpPort;
+                settings.SmtpUserName = smtpUserName;
+                if (!string.IsNullOrWhiteSpace(request.SmtpPassword))
+                {
+                    settings.SmtpPassword = request.SmtpPassword;
+                }
+                settings.FromEmail = fromEmail;
+                settings.FromName = (request.FromName ?? "").Trim();
+                settings.UseSsl = request.UseSsl;
+                settings.Enabled = request.Enabled;
+                settings.UpdatedAt = DateTimeOffset.Now;
+
+                db.EmailSettings = settings;
+                AuthService.AddAudit(db, user.Id, user.UserName, "email-settings.update", "settings", "email-settings", $"更新邮件通知设置 enabled={settings.Enabled} host={settings.SmtpHost}:{settings.SmtpPort}");
+                return settings;
+            });
+
+            return Results.Ok(new
+            {
+                saved.Enabled,
+                saved.SmtpHost,
+                saved.SmtpPort,
+                saved.SmtpUserName,
+                saved.FromEmail,
+                saved.FromName,
+                saved.UseSsl,
+                saved.UpdatedAt
+            });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> SendTestEmailAsync(TestEmailRequest request, HttpContext context, AuthService auth, EmailNotificationService emailService)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            string toEmail = Required(request.ToEmail, "收件邮箱");
+            if (!IsValidEmail(toEmail))
+            {
+                throw new InvalidOperationException("收件邮箱格式不正确。");
+            }
+
+            (bool success, string error) = await emailService.SendTestEmailAsync(toEmail);
+            return success
+                ? Results.Ok(new { ok = true })
+                : Results.Ok(new { ok = false, error });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<string> NormalizeNotifyEmails(string[]? emails)
+    {
+        if (emails is null || emails.Length == 0)
+        {
+            return [];
+        }
+
+        List<string> result = emails
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Select(email => email.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (string email in result)
+        {
+            if (!IsValidEmail(email))
+            {
+                throw new InvalidOperationException($"通知邮箱格式不正确: {email}");
+            }
+        }
+
+        return result;
     }
 
     private static bool IsClientInputError(Exception ex)

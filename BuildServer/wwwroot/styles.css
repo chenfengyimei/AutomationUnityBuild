@@ -1659,3 +1659,18 @@ pre {
     transform: rotate(360deg);
   }
 }
+
+.auth-error-banner {
+  display: block;
+  padding: 12px 14px;
+  margin: 4px 0;
+  border: 1px solid #f4c7c3;
+  border-left: 4px solid var(--danger, #c5221f);
+  border-radius: 6px;
+  background: #fff4f2;
+  color: #c5221f;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

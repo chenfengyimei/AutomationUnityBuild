@@ -64,6 +64,8 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 throw new FileNotFoundException($"配置文件不存在: {config.ConfigPath}");
             }
 
+            List<string> notifyEmails = NormalizeNotifyEmails(request.NotifyEmails);
+
             string buildNumber = string.IsNullOrWhiteSpace(request.BuildNumber)
                 ? project.NextBuildNumber.ToString()
                 : request.BuildNumber.Trim();
@@ -102,6 +104,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 Notes = request.Notes ?? "",
                 MaterializedConfigPath = materializedConfigPath,
                 WorkerLogPath = Path.Combine(jobRoot, "worker.log"),
+                NotifyEmails = notifyEmails,
                 CreatedAt = DateTimeOffset.Now
             };
 
@@ -457,6 +460,43 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
     private static string JsonString(JsonObject json, string propertyName)
     {
         return json[propertyName]?.GetValue<string>()?.Trim() ?? "";
+    }
+
+    private static List<string> NormalizeNotifyEmails(string[]? emails)
+    {
+        if (emails is null || emails.Length == 0)
+        {
+            return [];
+        }
+
+        List<string> result = emails
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Select(email => email.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (string email in result)
+        {
+            if (!IsValidEmail(email))
+            {
+                throw new InvalidOperationException($"通知邮箱格式不正确: {email}");
+            }
+        }
+
+        return result;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static string ExpandPath(string path)

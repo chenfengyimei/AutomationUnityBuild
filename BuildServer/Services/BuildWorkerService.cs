@@ -12,6 +12,7 @@ public sealed class BuildWorkerService(
     ArtifactScanner artifactScanner,
     IWebHostEnvironment environment,
     IGatewayPushChannel gatewayPushChannel,
+    EmailNotificationService emailNotificationService,
     ILogger<BuildWorkerService> logger) : BackgroundService
 {
     private readonly object _processLock = new();
@@ -164,6 +165,23 @@ public sealed class BuildWorkerService(
             if (completedJob is not null)
             {
                 await artifactScanner.ScanAsync(completedJob);
+
+                if (completedJob.Status == BuildStatuses.Succeeded &&
+                    completedJob.NotifyEmails is not null && completedJob.NotifyEmails.Count > 0)
+                {
+                    string projectName = await database.ReadAsync(db =>
+                        db.Projects.FirstOrDefault(project => project.Id == job.ProjectId)?.Name ?? job.ProjectId);
+                    string configName = await database.ReadAsync(db =>
+                        db.Configs.FirstOrDefault(config => config.Id == job.ConfigId)?.Name ?? job.ConfigId);
+                    try
+                    {
+                        await emailNotificationService.SendBuildNotificationAsync(completedJob, projectName, configName);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "发送打包成功邮件通知失败 (JobId={JobId})", job.Id);
+                    }
+                }
             }
 
             if (gatewayPushChannel.IsConnected)

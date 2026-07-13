@@ -5,6 +5,7 @@ const state = {
   jobs: [],
   users: [],
   settings: null,
+  emailSettings: null,
   manualConfigPath: "",
   selectedJobId: null,
   pendingConfigDeleteId: null,
@@ -550,6 +551,8 @@ function bindEvents() {
   $("gatewayConnectForm").addEventListener("submit", connectGateway);
   $("gwDisconnectBtn").addEventListener("click", disconnectGateway);
   $("gwTestBtn").addEventListener("click", () => refreshGatewayAgentStatus().catch(showError));
+  $("emailSettingsForm").addEventListener("submit", saveEmailSettings);
+  $("emailTestBtn").addEventListener("click", sendTestEmail);
 }
 
 function installConfigFieldHelp() {
@@ -709,7 +712,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -721,6 +724,9 @@ function setTab(tab) {
   }
   if (tab === "gateway") {
     refreshGatewayAgentStatus().catch(() => {});
+  }
+  if (tab === "settings" && canManageProjects()) {
+    loadEmailSettings().catch(showError);
   }
 }
 
@@ -1114,6 +1120,7 @@ async function startBuild(event) {
         allowNonMac: $("allowNonMac").checked,
         clientRequestId: AppRuntime.createRequestId("build"),
         notes: $("buildNotes").value,
+        notifyEmails: ($("buildNotifyEmails").value || "").split(",").map((s) => s.trim()).filter(Boolean),
       }),
     });
     state.selectedJobId = job.id;
@@ -1536,6 +1543,12 @@ async function refreshJobModal(jobId) {
 
   $("jobModalTitle").textContent = "任务详情";
   $("jobModalSubTitle").textContent = `${job.id} / ${new Date(job.createdAt).toLocaleString()}`;
+  const errorText = job.error || "";
+  const authError = isGitAuthError(errorText);
+  const errorHtml = errorText
+    ? `<div class="${authError ? "auth-error-banner" : ""}">${escapeHtml(errorText)}</div>`
+    : "-";
+
   $("jobModalDetail").innerHTML = [
     ["状态", statusLabel(job.status)],
     ["平台", platformLabel(job.buildPlatform || "ios")],
@@ -1545,8 +1558,8 @@ async function refreshJobModal(jobId) {
     ["开始时间", job.startedAt ? new Date(job.startedAt).toLocaleString() : "-"],
     ["结束时间", job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"],
     ["演练模式", job.dryRun ? "是" : "否"],
-    ["错误信息", job.error || "-"],
-  ].map(([key, value]) => `<div><strong>${key}</strong><br>${escapeHtml(String(value))}</div>`).join("");
+    ["错误信息", errorHtml],
+  ].map(([key, value]) => `<div><strong>${key}</strong><br>${typeof value === "string" ? value : escapeHtml(String(value))}</div>`).join("");
 
   const [logResult, artifactsResult] = await Promise.allSettled([
     fetchText(`/api/builds/${encodedJobId}/log?full=true&_ts=${Date.now()}`),
@@ -1570,6 +1583,22 @@ async function refreshJobModal(jobId) {
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error || "未知错误");
+}
+
+function isGitAuthError(text) {
+  if (!text) return false;
+  const patterns = [
+    "Git 认证失败",
+    "Authentication failed",
+    "could not read Username",
+    "could not read Password",
+    "Invalid username or token",
+    "Invalid username or password",
+    "Permission denied (publickey)",
+    "Support for password authentication was removed",
+    "Personal access tokens with read:org",
+  ];
+  return patterns.some((p) => text.includes(p));
 }
 
 function renderArtifactsTable(artifacts) {
@@ -2047,6 +2076,79 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   }[char]));
+}
+
+async function loadEmailSettings() {
+  const settings = await api("/api/email-settings");
+  state.emailSettings = settings;
+  $("emailEnabled").checked = Boolean(settings.enabled);
+  $("smtpHost").value = settings.smtpHost || "";
+  $("smtpPort").value = settings.smtpPort || 587;
+  $("smtpUserName").value = settings.smtpUserName || "";
+  $("smtpPassword").value = "";
+  $("fromEmail").value = settings.fromEmail || "";
+  $("fromName").value = settings.fromName || "";
+  $("useSsl").checked = settings.useSsl !== false;
+}
+
+async function saveEmailSettings(event) {
+  event.preventDefault();
+  clearMessage();
+  setButtonBusy("emailSaveBtn", true, "保存中...");
+  try {
+    await api("/api/email-settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        smtpHost: $("smtpHost").value,
+        smtpPort: parseInt($("smtpPort").value, 10) || 587,
+        smtpUserName: $("smtpUserName").value,
+        smtpPassword: $("smtpPassword").value || null,
+        fromEmail: $("fromEmail").value,
+        fromName: $("fromName").value || null,
+        useSsl: $("useSsl").checked,
+        enabled: $("emailEnabled").checked,
+      }),
+    });
+    $("smtpPassword").value = "";
+    showMessage("邮件通知设置已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("emailSaveBtn", false);
+  }
+}
+
+async function sendTestEmail() {
+  clearMessage();
+  const toEmail = $("testEmailTo").value.trim();
+  if (!toEmail) {
+    showError(new Error("请填写收件邮箱。"));
+    return;
+  }
+
+  setButtonBusy("emailTestBtn", true, "发送中...");
+  const resultEl = $("emailTestResult");
+  resultEl.classList.remove("hidden");
+  resultEl.className = "toast";
+  resultEl.textContent = "正在发送测试邮件...";
+  try {
+    const result = await api("/api/email-settings/test", {
+      method: "POST",
+      body: JSON.stringify({ toEmail }),
+    });
+    if (result.ok) {
+      resultEl.className = "toast";
+      resultEl.textContent = "测试邮件已发送，请检查收件箱。";
+    } else {
+      resultEl.className = "toast error";
+      resultEl.textContent = `发送失败：${result.error || "未知错误"}`;
+    }
+  } catch (error) {
+    resultEl.className = "toast error";
+    resultEl.textContent = `发送失败：${error.message || error}`;
+  } finally {
+    setButtonBusy("emailTestBtn", false);
+  }
 }
 
 function startGatewayAgentPolling() {

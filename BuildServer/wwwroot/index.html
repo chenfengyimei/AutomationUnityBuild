@@ -33,6 +33,7 @@
         <button data-tab="audit">审计日志</button>
         <button id="usersNav" data-tab="users">用户权限</button>
         <button data-tab="help">填写说明</button>
+        <button data-tab="settings">项目设置</button>
         <button data-tab="gateway">Gateway 连接</button>
         <button id="logoutBtn">退出登录</button>
       </aside>
@@ -89,6 +90,7 @@
                 <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
               </div>
               <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
+              <label>通知邮箱（打包成功后发送）<input id="buildNotifyEmails" placeholder="多个邮箱用逗号隔开，留空则不通知"></label>
               <button id="buildSubmitBtn" type="submit">提交任务</button>
             </form>
 
@@ -495,6 +497,38 @@
               </article>
             </div>
           </section>
+        </section>
+
+        <section id="settingsTab" class="tab hidden">
+          <div class="grid two">
+            <form id="emailSettingsForm" class="panel">
+              <h3>邮件通知设置</h3>
+              <p class="muted">配置 SMTP 发信账号。打包成功后会自动向指定的收件人发送通知邮件。</p>
+              <label><input id="emailEnabled" type="checkbox"> 启用邮件通知</label>
+              <div class="form-grid">
+                <label>SMTP 主机<input id="smtpHost" placeholder="smtp.gmail.com"></label>
+                <label>SMTP 端口<input id="smtpPort" type="number" value="587" placeholder="587"></label>
+                <label>SMTP 用户名<input id="smtpUserName" placeholder="your-email@gmail.com"></label>
+                <label>SMTP 密码<input id="smtpPassword" type="password" placeholder="留空不修改"></label>
+                <label>发信邮箱<input id="fromEmail" placeholder="your-email@gmail.com"></label>
+                <label>发信人名称<input id="fromName" placeholder="BuildServer"></label>
+              </div>
+              <label><input id="useSsl" type="checkbox" checked> 启用 SSL/TLS</label>
+              <div class="form-actions">
+                <button id="emailSaveBtn" type="submit">保存设置</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <h3>发送测试邮件</h3>
+              <p class="muted">保存设置后，可以发送一封测试邮件验证配置是否正确。</p>
+              <label>收件邮箱<input id="testEmailTo" placeholder="someone@example.com"></label>
+              <div class="form-actions">
+                <button id="emailTestBtn" class="secondary" type="button">发送测试邮件</button>
+              </div>
+              <div id="emailTestResult" class="hidden"></div>
+            </section>
+          </div>
         </section>
 
         <section id="gatewayTab" class="tab hidden">

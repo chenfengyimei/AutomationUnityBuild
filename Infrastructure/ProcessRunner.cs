@@ -63,6 +63,7 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         var outputClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var errorClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         object writeLock = new();
+        var stderrBuilder = new StringBuilder();
 
         process.OutputDataReceived += (_, eventArgs) =>
         {
@@ -84,6 +85,10 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
             }
 
             WriteLine(eventArgs.Data, isError: true);
+            lock (writeLock)
+            {
+                stderrBuilder.AppendLine(eventArgs.Data);
+            }
         };
 
         try
@@ -105,8 +110,10 @@ internal sealed class ProcessRunner(bool dryRun, bool verbose, BuildLogger logge
         if (process.ExitCode != 0)
         {
             string hint = string.IsNullOrWhiteSpace(logPath) ? "" : $"，日志: {logPath}";
+            string stderr = stderrBuilder.ToString().Trim();
+            string detail = string.IsNullOrWhiteSpace(stderr) ? "" : $"{Environment.NewLine}{SensitiveText.Redact(stderr)}";
             logger.CommandFailed(commandText, stopwatch.Elapsed, process.ExitCode);
-            throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {SensitiveText.Redact(commandText)}{hint}");
+            throw new InvalidOperationException($"命令执行失败({process.ExitCode}): {SensitiveText.Redact(commandText)}{detail}{hint}");
         }
 
         logger.CommandCompleted(commandText, stopwatch.Elapsed);
