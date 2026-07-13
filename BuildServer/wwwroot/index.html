@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260624-sidebar-align">
+  <link rel="stylesheet" href="/styles.css?v=20260713e-notify-fix">
 </head>
 <body>
   <main id="app">
@@ -90,7 +90,7 @@
                 <label><input id="allowNonMac" type="checkbox"> 允许非 Mac 调试</label>
               </div>
               <label>备注<textarea id="buildNotes" rows="3"></textarea></label>
-              <label>通知邮箱（打包成功后发送）<input id="buildNotifyEmails" placeholder="多个邮箱用逗号隔开，留空则不通知"></label>
+              <label>通知邮箱（打包完成后发送，成功或失败均通知）<input id="buildNotifyEmails" placeholder="多个邮箱用逗号隔开，留空则不通知"></label>
               <button id="buildSubmitBtn" type="submit">提交任务</button>
             </form>
 
@@ -529,6 +529,27 @@
               <div id="emailTestResult" class="hidden"></div>
             </section>
           </div>
+
+          <section class="panel" style="margin-top: 16px;">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">通知联系人</p>
+                <h3>默认通知邮箱列表</h3>
+                <p class="muted">打包时自动向以下联系人发送通知，无需每次手动填写。与打包表单中手动填写的通知邮箱合并发送。</p>
+              </div>
+            </header>
+            <form id="contactForm" class="form-grid" style="margin-bottom: 16px;">
+              <label>职位名称<input id="contactTitle" placeholder="例如：负责人、测试开发者"></label>
+              <label>邮箱<input id="contactEmail" placeholder="someone@example.com"></label>
+              <label><input id="contactEnabled" type="checkbox" checked> 启用</label>
+              <input id="contactId" type="hidden">
+              <div class="form-actions">
+                <button id="contactSaveBtn" type="submit">添加联系人</button>
+                <button id="contactCancelBtn" class="secondary hidden" type="button">取消编辑</button>
+              </div>
+            </form>
+            <div id="contactsList" class="list"></div>
+          </section>
         </section>
 
         <section id="gatewayTab" class="tab hidden">
@@ -670,7 +691,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260624-continuous-log"></script>
-  <script src="/app.js?v=20260624-continuous-log"></script>
+  <script src="/runtime.js?v=20260713e-notify-fix"></script>
+  <script src="/app.js?v=20260713e-notify-fix"></script>
 </body>
 </html>

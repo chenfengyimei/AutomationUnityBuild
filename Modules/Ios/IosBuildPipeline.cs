@@ -53,13 +53,20 @@ internal sealed class IosBuildPipeline : IPlatformBuildPipeline
             _logger.Warn("跳过 Unity 导出。");
         }
 
-        if (!_options.SkipXcode)
+        bool shouldSkipXcode = _options.SkipXcode ||
+            (!OperatingSystem.IsMacOS() && _options.AllowNonMac);
+
+        if (!shouldSkipXcode)
         {
             await _stepRunner.RunAsync("Xcode archive/export", _xcodeBuildService.ArchiveAndExportAsync);
             if (_config.AppStoreConnectUploadEnabled)
             {
                 await _stepRunner.RunAsync("App Store Connect 上传", _appStoreConnectUploader.UploadAsync);
             }
+        }
+        else if (!_options.SkipXcode)
+        {
+            _logger.Warn("非 macOS 环境且 --allow-non-mac：自动跳过 Xcode 编译导出步骤。如需完整 iOS 构建，请在 macOS 上运行。");
         }
         else
         {

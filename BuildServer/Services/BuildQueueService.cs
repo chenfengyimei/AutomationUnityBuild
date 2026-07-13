@@ -104,7 +104,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                 Notes = request.Notes ?? "",
                 MaterializedConfigPath = materializedConfigPath,
                 WorkerLogPath = Path.Combine(jobRoot, "worker.log"),
-                NotifyEmails = notifyEmails,
+                NotifyEmails = MergeNotifyEmails(notifyEmails, db.NotificationContacts),
                 CreatedAt = DateTimeOffset.Now
             };
 
@@ -484,6 +484,19 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
         }
 
         return result;
+    }
+
+    private static List<string> MergeNotifyEmails(List<string> manualEmails, List<NotificationContactRecord> contacts)
+    {
+        List<string> all = new(manualEmails);
+        foreach (NotificationContactRecord contact in contacts.Where(c => c.Enabled))
+        {
+            if (!all.Contains(contact.Email, StringComparer.OrdinalIgnoreCase))
+            {
+                all.Add(contact.Email);
+            }
+        }
+        return all;
     }
 
     private static bool IsValidEmail(string email)

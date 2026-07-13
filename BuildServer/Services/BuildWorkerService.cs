@@ -141,6 +141,7 @@ public sealed class BuildWorkerService(
             if (job.AllowNonMac || job.DryRun) args.Add("--allow-non-mac");
 
             int exitCode = await RunProcessAsync(job.Id, command.FileName, args, command.WorkingDirectory, job.WorkerLogPath, stoppingToken);
+            string errorSummary = exitCode != 0 ? ReadErrorSummary(job.WorkerLogPath) : "";
             await database.UpdateAsync(db =>
             {
                 BuildJobRecord? storedJob = db.Jobs.FirstOrDefault(item => item.Id == job.Id);
@@ -157,7 +158,9 @@ public sealed class BuildWorkerService(
                 }
                 if (exitCode != 0 && string.IsNullOrWhiteSpace(storedJob.Error))
                 {
-                    storedJob.Error = $"打包工具退出码: {exitCode}";
+                    storedJob.Error = string.IsNullOrWhiteSpace(errorSummary)
+                        ? $"打包工具退出码: {exitCode}"
+                        : errorSummary;
                 }
             });
 
@@ -166,8 +169,8 @@ public sealed class BuildWorkerService(
             {
                 await artifactScanner.ScanAsync(completedJob);
 
-                if (completedJob.Status == BuildStatuses.Succeeded &&
-                    completedJob.NotifyEmails is not null && completedJob.NotifyEmails.Count > 0)
+                if (completedJob.NotifyEmails is not null && completedJob.NotifyEmails.Count > 0 &&
+                    (completedJob.Status == BuildStatuses.Succeeded || completedJob.Status == BuildStatuses.Failed))
                 {
                     string projectName = await database.ReadAsync(db =>
                         db.Projects.FirstOrDefault(project => project.Id == job.ProjectId)?.Name ?? job.ProjectId);
@@ -179,7 +182,7 @@ public sealed class BuildWorkerService(
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "发送打包成功邮件通知失败 (JobId={JobId})", job.Id);
+                        logger.LogWarning(ex, "发送打包邮件通知失败 (JobId={JobId})", job.Id);
                     }
                 }
             }
@@ -210,6 +213,25 @@ public sealed class BuildWorkerService(
                     storedJob.Error = ex.Message;
                 }
             });
+
+            BuildJobRecord? failedJob = await database.ReadAsync(db => db.Jobs.FirstOrDefault(item => item.Id == job.Id));
+            if (failedJob is not null &&
+                failedJob.NotifyEmails is not null && failedJob.NotifyEmails.Count > 0 &&
+                failedJob.Status == BuildStatuses.Failed)
+            {
+                string projectName = await database.ReadAsync(db =>
+                    db.Projects.FirstOrDefault(project => project.Id == job.ProjectId)?.Name ?? job.ProjectId);
+                string configName = await database.ReadAsync(db =>
+                    db.Configs.FirstOrDefault(config => config.Id == job.ConfigId)?.Name ?? job.ConfigId);
+                try
+                {
+                    await emailNotificationService.SendBuildNotificationAsync(failedJob, projectName, configName);
+                }
+                catch (Exception mailEx)
+                {
+                    logger.LogWarning(mailEx, "发送打包失败邮件通知失败 (JobId={JobId})", job.Id);
+                }
+            }
         }
         finally
         {
@@ -406,13 +428,43 @@ public sealed class BuildWorkerService(
             WorkerId = job.WorkerId,
             CreatedAt = job.CreatedAt,
             StartedAt = job.StartedAt,
-            FinishedAt = job.FinishedAt
+            FinishedAt = job.FinishedAt,
+            LogPushOffset = job.LogPushOffset,
+            GatewayCommandId = job.GatewayCommandId,
+            NotifyEmails = job.NotifyEmails
         };
     }
 
     private static string Quote(string value)
     {
         return value.Any(char.IsWhiteSpace) ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
+    }
+
+    private static string ReadErrorSummary(string logPath)
+    {
+        if (!File.Exists(logPath))
+        {
+            return "";
+        }
+
+        try
+        {
+            string[] lines = File.ReadAllLines(logPath);
+            var errorLines = lines
+                .Where(line => line.Contains("[ERROR]", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("失败", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("命令执行失败", StringComparison.OrdinalIgnoreCase))
+                .TakeLast(5)
+                .ToArray();
+            return errorLines.Length > 0
+                ? string.Join(" | ", errorLines)
+                : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static bool IsTerminal(string status)
