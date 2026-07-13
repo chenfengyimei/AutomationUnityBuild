@@ -12,6 +12,7 @@ public sealed class BuildServerDatabase
     public List<AuditLogRecord> AuditLogs { get; set; } = [];
     public List<McpClientRecord> McpClients { get; set; } = [];
     public List<WorkerNodeRecord> Workers { get; set; } = [];
+    public EmailSettingsRecord? EmailSettings { get; set; }
 }
 
 public sealed class UserRecord
@@ -91,6 +92,7 @@ public sealed class BuildJobRecord
 
     public long LogPushOffset { get; set; }
     public string GatewayCommandId { get; set; } = "";
+    public List<string> NotifyEmails { get; set; } = [];
 }
 
 public sealed class BuildArtifactRecord
@@ -264,7 +266,34 @@ public sealed record StartBuildRequest(
     bool SkipXcode = false,
     bool AllowNonMac = false,
     string? ClientRequestId = null,
-    string? Notes = null);
+    string? Notes = null,
+    string[]? NotifyEmails = null);
+
+public sealed class EmailSettingsRecord
+{
+    public string Id { get; set; } = "email-settings";
+    public string SmtpHost { get; set; } = "";
+    public int SmtpPort { get; set; } = 587;
+    public string SmtpUserName { get; set; } = "";
+    public string SmtpPassword { get; set; } = "";
+    public string FromEmail { get; set; } = "";
+    public string FromName { get; set; } = "";
+    public bool UseSsl { get; set; } = true;
+    public bool Enabled { get; set; } = false;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed record EmailSettingsRequest(
+    string SmtpHost,
+    int SmtpPort,
+    string SmtpUserName,
+    string? SmtpPassword,
+    string FromEmail,
+    string? FromName,
+    bool UseSsl,
+    bool Enabled);
+
+public sealed record TestEmailRequest(string ToEmail);
 
 public static class BuildPlatforms
 {

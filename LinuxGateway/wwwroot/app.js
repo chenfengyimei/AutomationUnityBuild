@@ -562,7 +562,7 @@ function renderJobRow(job) {
       <div class="job-title-cell">
         <strong>${escapeHtml(job.projectName)} / ${escapeHtml(job.configName)}</strong>
         <div class="muted small">${escapeHtml(job.nodeName)}${job.branch ? ` / ${escapeHtml(job.branch)}` : ""}</div>
-        ${job.error ? `<div class="error job-error">${escapeHtml(job.error)}</div>` : ""}
+        ${job.error ? `<div class="error job-error ${isGitAuthError(job.error) ? "auth-error-banner" : ""}">${escapeHtml(job.error)}</div>` : ""}
       </div>
     </td>
     <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
@@ -704,7 +704,7 @@ function renderJobDetail(job, artifacts, log) {
     ["Build Number", job.buildNumber || "-"],
     ["演练模式", job.dryRun ? "是" : "否"],
     ["更新时间", new Date(job.updatedAt).toLocaleString()],
-    ["错误", job.error || "-"],
+    ["错误", job.error ? `<span class="${isGitAuthError(job.error) ? "auth-error-banner" : ""}">${escapeHtml(job.error)}</span>` : "-"],
   ].map(([key, value]) => `<div><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</div>`).join("");
   $("artifactsList").innerHTML = renderArtifactsTable(job, artifacts);
   $("jobLog").textContent = log || "暂无日志。";
@@ -1191,4 +1191,20 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function isGitAuthError(text) {
+  if (!text) return false;
+  const patterns = [
+    "Git 认证失败",
+    "Authentication failed",
+    "could not read Username",
+    "could not read Password",
+    "Invalid username or token",
+    "Invalid username or password",
+    "Permission denied (publickey)",
+    "Support for password authentication was removed",
+    "Personal access tokens with read:org",
+  ];
+  return patterns.some((p) => text.includes(p));
 }

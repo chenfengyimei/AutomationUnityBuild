@@ -91,3 +91,6 @@ Desktop.ini
 # *.mdb
 /obj
 /bin
+
+# Codely CLI
+.codely-cli/
