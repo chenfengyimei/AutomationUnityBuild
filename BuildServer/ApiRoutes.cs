@@ -64,6 +64,10 @@ public static class ApiRoutes
         app.MapGet("/api/email-settings", GetEmailSettingsAsync);
         app.MapPut("/api/email-settings", UpdateEmailSettingsAsync);
         app.MapPost("/api/email-settings/test", SendTestEmailAsync);
+        app.MapGet("/api/notification-contacts", ListNotificationContactsAsync);
+        app.MapPost("/api/notification-contacts", CreateNotificationContactAsync);
+        app.MapPut("/api/notification-contacts/{contactId}", UpdateNotificationContactAsync);
+        app.MapDelete("/api/notification-contacts/{contactId}", DeleteNotificationContactAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -123,6 +127,7 @@ public static class ApiRoutes
             configs = db.Configs.OrderBy(config => config.Name).ToList(),
             jobs = db.Jobs.OrderByDescending(job => job.CreatedAt).Take(100).ToList(),
             workers = db.Workers.OrderBy(worker => worker.Name).ToList(),
+            notificationContacts = db.NotificationContacts.OrderBy(c => c.Title).ThenBy(c => c.Email).ToList(),
             settings = new
             {
                 options.DataRoot,
@@ -1096,6 +1101,124 @@ public static class ApiRoutes
         }
 
         return result;
+    }
+
+    private static async Task<IResult> ListNotificationContactsAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+        return Results.Ok(await database.ReadAsync(db => db.NotificationContacts
+            .OrderBy(contact => contact.Title)
+            .ThenBy(contact => contact.Email)
+            .ToList()));
+    }
+
+    private static async Task<IResult> CreateNotificationContactAsync(NotificationContactRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            string title = Required(request.Title, "职位名称");
+            string email = Required(request.Email, "邮箱");
+            if (!IsValidEmail(email))
+            {
+                throw new InvalidOperationException("邮箱格式不正确。");
+            }
+
+            NotificationContactRecord contact = await database.UpdateAsync(db =>
+            {
+                if (db.NotificationContacts.Any(c => string.Equals(c.Email, email, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("该邮箱已存在于通知联系人列表中。");
+                }
+
+                var contact = new NotificationContactRecord
+                {
+                    Id = Ids.New("contact"),
+                    Title = title,
+                    Email = email,
+                    Enabled = request.Enabled,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.NotificationContacts.Add(contact);
+                AuthService.AddAudit(db, user.Id, user.UserName, "contact.create", "contact", contact.Id, $"新增通知联系人 {contact.Title} <{contact.Email}>");
+                return contact;
+            });
+
+            return Results.Ok(contact);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateNotificationContactAsync(string contactId, NotificationContactRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            string title = Required(request.Title, "职位名称");
+            string email = Required(request.Email, "邮箱");
+            if (!IsValidEmail(email))
+            {
+                throw new InvalidOperationException("邮箱格式不正确。");
+            }
+
+            NotificationContactRecord contact = await database.UpdateAsync(db =>
+            {
+                NotificationContactRecord? contact = db.NotificationContacts.FirstOrDefault(c => c.Id == contactId)
+                    ?? throw new FileNotFoundException("联系人不存在。");
+                if (db.NotificationContacts.Any(c => c.Id != contactId && string.Equals(c.Email, email, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException("该邮箱已存在于通知联系人列表中。");
+                }
+
+                contact.Title = title;
+                contact.Email = email;
+                contact.Enabled = request.Enabled;
+                AuthService.AddAudit(db, user.Id, user.UserName, "contact.update", "contact", contact.Id, $"更新通知联系人 {contact.Title} <{contact.Email}>");
+                return contact;
+            });
+
+            return Results.Ok(contact);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteNotificationContactAsync(string contactId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            NotificationContactRecord contact = await database.UpdateAsync(db =>
+            {
+                NotificationContactRecord? contact = db.NotificationContacts.FirstOrDefault(c => c.Id == contactId)
+                    ?? throw new FileNotFoundException("联系人不存在。");
+                db.NotificationContacts.Remove(contact);
+                AuthService.AddAudit(db, user.Id, user.UserName, "contact.delete", "contact", contact.Id, $"删除通知联系人 {contact.Title} <{contact.Email}>");
+                return contact;
+            });
+
+            return Results.Ok(new { deleted = true, contact });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     private static bool IsClientInputError(Exception ex)

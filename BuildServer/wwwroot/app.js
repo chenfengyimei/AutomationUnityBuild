@@ -6,6 +6,7 @@ const state = {
   users: [],
   settings: null,
   emailSettings: null,
+  notificationContacts: [],
   manualConfigPath: "",
   selectedJobId: null,
   pendingConfigDeleteId: null,
@@ -553,6 +554,9 @@ function bindEvents() {
   $("gwTestBtn").addEventListener("click", () => refreshGatewayAgentStatus().catch(showError));
   $("emailSettingsForm").addEventListener("submit", saveEmailSettings);
   $("emailTestBtn").addEventListener("click", sendTestEmail);
+  $("contactForm").addEventListener("submit", saveNotificationContact);
+  $("contactCancelBtn").addEventListener("click", resetContactForm);
+  $("contactsList").addEventListener("click", handleContactsListClick);
 }
 
 function installConfigFieldHelp() {
@@ -665,11 +669,13 @@ function applyDashboard(dashboard) {
   state.configs = dashboard.configs || [];
   state.jobs = dashboard.jobs || [];
   state.settings = dashboard.settings || null;
+  state.notificationContacts = dashboard.notificationContacts || [];
   renderProjects();
   renderConfigsSelects();
   renderJobs();
   renderMetrics();
   renderWorkers(dashboard.workers || []);
+  renderContacts();
   updatePermissionControls();
 }
 
@@ -2149,6 +2155,109 @@ async function sendTestEmail() {
   } finally {
     setButtonBusy("emailTestBtn", false);
   }
+}
+
+function renderContacts() {
+  if (state.notificationContacts.length === 0) {
+    $("contactsList").innerHTML = `<div class="empty-state compact">暂无通知联系人。使用上方表单添加负责人或测试人员邮箱。</div>`;
+    return;
+  }
+
+  $("contactsList").innerHTML = `<div class="table-shell">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>职位名称</th>
+          <th>邮箱</th>
+          <th>状态</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.notificationContacts.map((contact) => `<tr>
+          <td><strong>${escapeHtml(contact.title)}</strong></td>
+          <td>${escapeHtml(contact.email)}</td>
+          <td><span class="status ${contact.enabled ? "Succeeded" : "Canceled"}">${enabledLabel(contact.enabled)}</span></td>
+          <td class="table-actions">
+            <button class="secondary" type="button" data-edit-contact-id="${escapeHtml(contact.id)}">编辑</button>
+            <button class="danger" type="button" data-delete-contact-id="${escapeHtml(contact.id)}">删除</button>
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+async function saveNotificationContact(event) {
+  event.preventDefault();
+  clearMessage();
+  const contactId = $("contactId").value;
+  const isEditing = Boolean(contactId);
+  setButtonBusy("contactSaveBtn", true, isEditing ? "更新中..." : "添加中...");
+  try {
+    const path = isEditing
+      ? `/api/notification-contacts/${encodeURIComponent(contactId)}`
+      : "/api/notification-contacts";
+    await api(path, {
+      method: isEditing ? "PUT" : "POST",
+      body: JSON.stringify({
+        title: $("contactTitle").value,
+        email: $("contactEmail").value,
+        enabled: $("contactEnabled").checked,
+      }),
+    });
+    resetContactForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "联系人已更新。" : "联系人已添加。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("contactSaveBtn", false);
+  }
+}
+
+function handleContactsListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-contact-id]");
+  if (editBtn) {
+    editContact(editBtn.dataset.editContactId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-contact-id]");
+  if (deleteBtn) {
+    deleteNotificationContact(deleteBtn.dataset.deleteContactId);
+  }
+}
+
+function editContact(contactId) {
+  const contact = state.notificationContacts.find((c) => c.id === contactId);
+  if (!contact) return;
+  $("contactId").value = contact.id;
+  $("contactTitle").value = contact.title;
+  $("contactEmail").value = contact.email;
+  $("contactEnabled").checked = Boolean(contact.enabled);
+  $("contactSaveBtn").textContent = "更新联系人";
+  $("contactSaveBtn").dataset.defaultText = "更新联系人";
+  $("contactCancelBtn").classList.remove("hidden");
+  $("contactForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetContactForm() {
+  $("contactForm").reset();
+  $("contactId").value = "";
+  $("contactEnabled").checked = true;
+  $("contactSaveBtn").textContent = "添加联系人";
+  $("contactSaveBtn").dataset.defaultText = "添加联系人";
+  $("contactCancelBtn").classList.add("hidden");
+}
+
+async function deleteNotificationContact(contactId) {
+  await api(`/api/notification-contacts/${encodeURIComponent(contactId)}`, { method: "DELETE" });
+  if ($("contactId").value === contactId) {
+    resetContactForm();
+  }
+  await refreshAll({ showSuccess: false, throwOnError: true });
+  showMessage("联系人已删除。");
 }
 
 function startGatewayAgentPolling() {

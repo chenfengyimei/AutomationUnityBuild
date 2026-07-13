@@ -13,6 +13,16 @@ public sealed class BuildServerDatabase
     public List<McpClientRecord> McpClients { get; set; } = [];
     public List<WorkerNodeRecord> Workers { get; set; } = [];
     public EmailSettingsRecord? EmailSettings { get; set; }
+    public List<NotificationContactRecord> NotificationContacts { get; set; } = [];
+}
+
+public sealed class NotificationContactRecord
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Email { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed class UserRecord
@@ -294,6 +304,8 @@ public sealed record EmailSettingsRequest(
     bool Enabled);
 
 public sealed record TestEmailRequest(string ToEmail);
+
+public sealed record NotificationContactRequest(string Title, string Email, bool Enabled = true);
 
 public static class BuildPlatforms
 {

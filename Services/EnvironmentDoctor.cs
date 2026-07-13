@@ -41,7 +41,15 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
 
         if (_config.IsIos && !_options.SkipXcode)
         {
-            await _processRunner.RunAsync("xcodebuild", ["-version"]);
+            if (!OperatingSystem.IsMacOS() && _options.AllowNonMac)
+            {
+                _logger.Warn("--allow-non-mac：非 macOS 环境，跳过 xcodebuild 版本检查。Xcode 归档/导出步骤将不可用。");
+            }
+            else
+            {
+                await _processRunner.RunAsync("xcodebuild", ["-version"]);
+            }
+
             if (_config.AppStoreConnectUploadEnabled)
             {
                 string apiKeyPath = Path.GetFullPath(PathTools.ExpandHome(_config.AppStoreConnectApiKeyPath));
