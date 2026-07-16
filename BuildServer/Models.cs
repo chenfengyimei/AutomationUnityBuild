@@ -307,6 +307,8 @@ public sealed record TestEmailRequest(string ToEmail);
 
 public sealed record NotificationContactRequest(string Title, string Email, bool Enabled = true);
 
+public sealed record BatchDeleteRequest(string[] JobIds);
+
 public static class BuildPlatforms
 {
     public const string Ios = "ios";

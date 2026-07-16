@@ -68,6 +68,10 @@ public static class ApiRoutes
         app.MapPost("/api/notification-contacts", CreateNotificationContactAsync);
         app.MapPut("/api/notification-contacts/{contactId}", UpdateNotificationContactAsync);
         app.MapDelete("/api/notification-contacts/{contactId}", DeleteNotificationContactAsync);
+        app.MapGet("/api/storage/overview", StorageOverviewAsync);
+        app.MapGet("/api/storage/jobs", StorageJobsAsync);
+        app.MapDelete("/api/storage/jobs/{jobId}", DeleteJobStorageAsync);
+        app.MapPost("/api/storage/cleanup", BatchDeleteStorageAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1219,6 +1223,99 @@ public static class ApiRoutes
         {
             return ApiDiagnostics.ClientError(context, ex);
         }
+    }
+
+    private static async Task<IResult> StorageOverviewAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        return Results.Ok(await database.ReadAsync(db =>
+        {
+            var completedJobs = db.Jobs.Where(job => IsCompleted(job.Status)).ToList();
+            long artifactBytes = db.Artifacts.Sum(a => a.SizeBytes);
+            long logBytes = completedJobs.Sum(job => EstimateLogSize(job));
+            return new
+            {
+                totalJobs = db.Jobs.Count,
+                completedJobs = completedJobs.Count,
+                totalArtifactBytes = artifactBytes,
+                totalLogBytes = logBytes,
+                artifactCount = db.Artifacts.Count,
+                retentionDays = options.RetentionDays,
+                maxArtifactBytes = options.MaxArtifactBytes,
+                dataRoot = options.DataRoot
+            };
+        }));
+    }
+
+    private static async Task<IResult> StorageJobsAsync(HttpContext context, AuthService auth, JsonDatabase database, string? status)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        return Results.Ok(await database.ReadAsync(db =>
+        {
+            return db.Jobs
+                .Where(job => string.IsNullOrWhiteSpace(status) || job.Status == status)
+                .OrderByDescending(job => job.CreatedAt)
+                .Select(job => new
+                {
+                    jobId = job.Id,
+                    projectName = db.Projects.FirstOrDefault(p => p.Id == job.ProjectId)?.Name ?? job.ProjectId,
+                    configName = db.Configs.FirstOrDefault(c => c.Id == job.ConfigId)?.Name ?? job.ConfigId,
+                    status = job.Status,
+                    buildNumber = job.BuildNumber,
+                    platform = job.BuildPlatform,
+                    createdAt = job.CreatedAt,
+                    finishedAt = job.FinishedAt,
+                    artifactRoot = job.ArtifactRoot,
+                    workerLogPath = job.WorkerLogPath,
+                    artifactCount = db.Artifacts.Count(a => a.JobId == job.Id),
+                    artifactBytes = db.Artifacts.Where(a => a.JobId == job.Id).Sum(a => a.SizeBytes),
+                    hasFilesOnDisk = !string.IsNullOrWhiteSpace(job.ArtifactRoot) || !string.IsNullOrWhiteSpace(job.WorkerLogPath)
+                })
+                .ToList();
+        }));
+    }
+
+    private static async Task<IResult> DeleteJobStorageAsync(string jobId, HttpContext context, AuthService auth, StorageCleanupService cleanupService)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        (bool success, string error) = await cleanupService.DeleteJobStorageAsync(jobId, user);
+        return success ? Results.Ok(new { deleted = true }) : Results.NotFound(new { error });
+    }
+
+    private static async Task<IResult> BatchDeleteStorageAsync(BatchDeleteRequest request, HttpContext context, AuthService auth, StorageCleanupService cleanupService)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        (int deleted, List<string> errors) = await cleanupService.BatchDeleteAsync(request.JobIds, user);
+        return Results.Ok(new { deleted, errors });
+    }
+
+    private static long EstimateLogSize(BuildJobRecord job)
+    {
+        try
+        {
+            return File.Exists(job.WorkerLogPath) ? new FileInfo(job.WorkerLogPath).Length : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static bool IsCompleted(string status)
+    {
+        return status is BuildStatuses.Succeeded or BuildStatuses.Failed or BuildStatuses.Canceled;
     }
 
     private static bool IsClientInputError(Exception ex)
