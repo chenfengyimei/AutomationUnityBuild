@@ -7,6 +7,9 @@ const state = {
   settings: null,
   emailSettings: null,
   notificationContacts: [],
+  storageOverview: null,
+  storageJobs: [],
+  selectedStorageJobIds: new Set(),
   manualConfigPath: "",
   selectedJobId: null,
   pendingConfigDeleteId: null,
@@ -556,7 +559,524 @@ function bindEvents() {
   $("emailTestBtn").addEventListener("click", sendTestEmail);
   $("contactForm").addEventListener("submit", saveNotificationContact);
   $("contactCancelBtn").addEventListener("click", resetContactForm);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   $("contactsList").addEventListener("click", handleContactsListClick);
+  $("storageRefreshBtn").addEventListener("click", () => loadStorageData().catch(showError));
+  $("storageStatusFilter").addEventListener("change", () => loadStorageJobs().catch(showError));
+  $("storageSelectAllBtn").addEventListener("click", toggleSelectAllStorageJobs);
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  $("storageDeleteBtn").addEventListener("click", batchDeleteStorage);
+  $("storageJobsList").addEventListener("click", (event) => {
+    if (!event.target.closest) return;
+    const deleteBtn = event.target.closest("[data-delete-storage-id]");
+    if (deleteBtn) {
+      deleteSingleStorageJob(deleteBtn.dataset.deleteStorageId);
+    }
+  });
+  $("storageJobsList").addEventListener("change", (event) => {
+    const checkbox = event.target.closest(".storage-job-checkbox");
+    if (!checkbox) return;
+    const jobId = checkbox.dataset.jobId;
+    if (checkbox.checked) {
+      state.selectedStorageJobIds.add(jobId);
+    } else {
+      state.selectedStorageJobIds.delete(jobId);
+    }
+  });
 }
 
 function installConfigFieldHelp() {
@@ -718,7 +1238,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -733,6 +1253,9 @@ function setTab(tab) {
   }
   if (tab === "settings" && canManageProjects()) {
     loadEmailSettings().catch(showError);
+  }
+  if (tab === "storage" && canManageProjects()) {
+    loadStorageData().catch(showError);
   }
 }
 
@@ -2154,6 +2677,172 @@ async function sendTestEmail() {
     resultEl.textContent = `发送失败：${error.message || error}`;
   } finally {
     setButtonBusy("emailTestBtn", false);
+  }
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  let size = bytes;
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i++;
+  }
+  return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+async function loadStorageData() {
+  await Promise.all([loadStorageOverview(), loadStorageJobs()]);
+}
+
+async function loadStorageOverview() {
+  const overview = await api("/api/storage/overview");
+  state.storageOverview = overview;
+  renderStorageOverview();
+}
+
+async function loadStorageJobs() {
+  const status = $("storageStatusFilter").value;
+  const url = status ? `/api/storage/jobs?status=${encodeURIComponent(status)}` : "/api/storage/jobs";
+  const jobs = await api(url);
+  state.storageJobs = jobs;
+  state.selectedStorageJobIds = new Set();
+  renderStorageJobs();
+}
+
+function renderStorageOverview() {
+  const o = state.storageOverview;
+  if (!o) return;
+  $("storageTotalJobs").textContent = String(o.totalJobs ?? 0);
+  $("storageCompletedJobs").textContent = String(o.completedJobs ?? 0);
+  $("storageArtifactBytes").textContent = formatBytes(o.totalArtifactBytes ?? 0);
+  $("storageLogBytes").textContent = formatBytes(o.totalLogBytes ?? 0);
+  $("storageArtifactCount").textContent = String(o.artifactCount ?? 0);
+  const retention = o.retentionDays > 0 ? `${o.retentionDays} 天` : "未启用";
+  const quota = o.maxArtifactBytes > 0 ? formatBytes(o.maxArtifactBytes) : "不限";
+  $("storagePolicy").textContent = `${retention} / ${quota}`;
+}
+
+function renderStorageJobs() {
+  if (!state.storageJobs || state.storageJobs.length === 0) {
+    $("storageJobsList").innerHTML = `<div class="empty-state">暂无任务产物记录。</div>`;
+    return;
+  }
+
+  $("storageJobsList").innerHTML = `<div class="table-shell">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 40px;"><input type="checkbox" id="storageMasterCheckbox"></th>
+          <th>项目/配置</th>
+          <th>状态</th>
+          <th>平台</th>
+          <th>Build</th>
+          <th>产物大小</th>
+          <th>文件数</th>
+          <th>完成时间</th>
+          <th class="table-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${state.storageJobs.map(renderStorageJobRow).join("")}
+      </tbody>
+    </table>
+  </div>`;
+
+  $("storageMasterCheckbox")?.addEventListener("change", (e) => {
+    if (e.target.checked) {
+      state.storageJobs.forEach((job) => {
+        if (job.hasFilesOnDisk) state.selectedStorageJobIds.add(job.jobId);
+      });
+    } else {
+      state.selectedStorageJobIds.clear();
+    }
+    renderStorageJobs();
+  });
+}
+
+function renderStorageJobRow(job) {
+  const checked = state.selectedStorageJobIds.has(job.jobId);
+  const disabled = job.hasFilesOnDisk ? "" : "disabled title=\"没有磁盘文件可清理\"";
+  return `<tr>
+    <td><input type="checkbox" class="storage-job-checkbox" data-job-id="${escapeHtml(job.jobId)}" ${checked ? "checked" : ""} ${disabled}></td>
+    <td>
+      <div class="job-title-cell">
+        <strong>${escapeHtml(job.projectName)} / ${escapeHtml(job.configName)}</strong>
+      </div>
+    </td>
+    <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
+    <td>${platformBadge(job.platform || "ios")}</td>
+    <td>${escapeHtml(job.buildNumber || "-")}</td>
+    <td>${formatBytes(job.artifactBytes || 0)}</td>
+    <td>${job.artifactCount || 0}</td>
+    <td class="nowrap">${job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"}</td>
+    <td class="table-actions">
+      <button class="danger" type="button" data-delete-storage-id="${escapeHtml(job.jobId)}" ${disabled}>删除</button>
+    </td>
+  </tr>`;
+}
+
+function toggleSelectAllStorageJobs() {
+  const allSelected = state.storageJobs.length > 0 &&
+    state.storageJobs.every((job) => !job.hasFilesOnDisk || state.selectedStorageJobIds.has(job.jobId));
+  if (allSelected) {
+    state.selectedStorageJobIds.clear();
+  } else {
+    state.storageJobs.forEach((job) => {
+      if (job.hasFilesOnDisk) state.selectedStorageJobIds.add(job.jobId);
+    });
+  }
+  renderStorageJobs();
+}
+
+async function batchDeleteStorage() {
+  const jobIds = Array.from(state.selectedStorageJobIds);
+  if (jobIds.length === 0) {
+    showError(new Error("请先勾选要删除的任务。"));
+    return;
+  }
+
+  if (!confirm(`确认删除选中的 ${jobIds.length} 个任务的产物文件和日志？\n任务记录会保留用于审计，但磁盘上的 ipa/apk/日志等文件会被永久删除。`)) {
+    return;
+  }
+
+  setButtonBusy("storageDeleteBtn", true, "删除中...");
+  try {
+    const result = await api("/api/storage/cleanup", {
+      method: "POST",
+      body: JSON.stringify({ jobIds }),
+    });
+    state.selectedStorageJobIds.clear();
+    await loadStorageData();
+    const msg = result.errors && result.errors.length > 0
+      ? `已删除 ${result.deleted} 个任务，${result.errors.length} 个失败：${result.errors.join("; ")}`
+      : `已删除 ${result.deleted} 个任务的产物文件。`;
+    showMessage(msg);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("storageDeleteBtn", false);
+  }
+}
+
+async function deleteSingleStorageJob(jobId) {
+  const job = state.storageJobs.find((j) => j.jobId === jobId);
+  if (!job) return;
+
+  if (!confirm(`确认删除「${job.projectName} / ${job.configName}」(#${job.buildNumber}) 的产物文件和日志？\n任务记录会保留用于审计，但磁盘上的 ipa/apk/日志等文件会被永久删除。`)) {
+    return;
+  }
+
+  try {
+    await api(`/api/storage/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+    state.selectedStorageJobIds.delete(jobId);
+    await loadStorageData();
+    showMessage("产物文件已删除。");
+  } catch (error) {
+    showError(error);
   }
 }
 

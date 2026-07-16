@@ -37,6 +37,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<BuildW
 builder.Services.AddHostedService<MaintenanceService>();
 builder.Services.AddSingleton<AgentCredentialStore>();
 builder.Services.AddSingleton<EmailNotificationService>();
+builder.Services.AddSingleton<StorageCleanupService>();
 builder.Services.AddSingleton<GatewayAgentService>();
 builder.Services.AddSingleton<IGatewayPushChannel>(provider => provider.GetRequiredService<GatewayAgentService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<GatewayAgentService>());

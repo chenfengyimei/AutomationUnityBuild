@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260713e-notify-fix">
+  <link rel="stylesheet" href="/styles.css?v=20260716a-storage">
 </head>
 <body>
   <main id="app">
@@ -34,6 +34,7 @@
         <button id="usersNav" data-tab="users">用户权限</button>
         <button data-tab="help">填写说明</button>
         <button data-tab="settings">项目设置</button>
+        <button data-tab="storage">存储管理</button>
         <button data-tab="gateway">Gateway 连接</button>
         <button id="logoutBtn">退出登录</button>
       </aside>
@@ -552,6 +553,48 @@
           </section>
         </section>
 
+        <section id="storageTab" class="tab hidden">
+          <section class="panel">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">存储管理</p>
+                <h3>存储概览</h3>
+                <p class="muted">查看打包产物和日志的磁盘占用情况，手动清理不需要的历史内容。</p>
+              </div>
+              <button id="storageRefreshBtn" class="secondary" type="button">刷新</button>
+            </header>
+            <div id="storageOverview" class="metrics">
+              <article><span>总任务数</span><strong id="storageTotalJobs">-</strong></article>
+              <article><span>已完成</span><strong id="storageCompletedJobs">-</strong></article>
+              <article><span>产物总大小</span><strong id="storageArtifactBytes">-</strong></article>
+              <article><span>日志大小</span><strong id="storageLogBytes">-</strong></article>
+              <article><span>产物文件数</span><strong id="storageArtifactCount">-</strong></article>
+              <article><span>自动清理策略</span><strong id="storagePolicy">-</strong></article>
+            </div>
+          </section>
+
+          <section class="panel" style="margin-top: 16px;">
+            <header class="section-toolbar">
+              <div>
+                <p class="eyebrow">历史产物</p>
+                <h3>任务产物列表</h3>
+                <p class="muted">勾选要删除的任务，点击"删除选中"清理产物文件和日志。任务记录保留用于审计。</p>
+              </div>
+              <div class="form-actions">
+                <select id="storageStatusFilter">
+                  <option value="">全部状态</option>
+                  <option value="Succeeded">成功</option>
+                  <option value="Failed">失败</option>
+                  <option value="Canceled">已取消</option>
+                </select>
+                <button id="storageSelectAllBtn" class="secondary" type="button">全选</button>
+                <button id="storageDeleteBtn" class="danger" type="button">删除选中</button>
+              </div>
+            </header>
+            <div id="storageJobsList" class="list"></div>
+          </section>
+        </section>
+
         <section id="gatewayTab" class="tab hidden">
           <div class="grid two">
             <section class="panel">
@@ -691,7 +734,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260713e-notify-fix"></script>
-  <script src="/app.js?v=20260713e-notify-fix"></script>
+  <script src="/runtime.js?v=20260716a-storage"></script>
+  <script src="/app.js?v=20260716a-storage"></script>
 </body>
 </html>
