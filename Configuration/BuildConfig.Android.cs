@@ -57,6 +57,7 @@ internal sealed partial class BuildConfig
 
     private string DefaultUnityBuildMethod()
     {
+        if (IsTiktok) return DefaultUnityBuildMethods.Tiktok;
         return IsAndroid ? DefaultUnityBuildMethods.Android : DefaultUnityBuildMethods.Ios;
     }
 

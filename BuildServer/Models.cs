@@ -263,7 +263,13 @@ public sealed record BuildConfigFileRequest(
     bool GooglePlayChangesNotSentForReview = false,
     double? GooglePlayUserFraction = null,
     bool AllowMcpBuild = false,
-    bool OverwriteExisting = false);
+    bool OverwriteExisting = false,
+    string? TiktokAppId = null,
+    string? TiktokAccessToken = null,
+    string? TiktokGameName = null,
+    string? TiktokWebglOutputDirectory = null,
+    bool TiktokUploadEnabled = false,
+    string? TiktokApiEndpoint = null);
 
 public sealed record StartBuildRequest(
     string ProjectId,
@@ -313,11 +319,13 @@ public static class BuildPlatforms
 {
     public const string Ios = "ios";
     public const string Android = "android";
+    public const string Tiktok = "tiktok";
 
     public static bool IsKnown(string value)
     {
         return string.Equals(value, Ios, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(value, Android, StringComparison.OrdinalIgnoreCase);
+               string.Equals(value, Android, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, Tiktok, StringComparison.OrdinalIgnoreCase);
     }
 
     public static string Normalize(string? value)

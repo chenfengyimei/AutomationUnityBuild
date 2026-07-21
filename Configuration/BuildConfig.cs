@@ -164,6 +164,13 @@ internal sealed partial class BuildConfig
         XcodeBuildSettings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Environment ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         ProvisioningProfiles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        TiktokAppId ??= "";
+        TiktokAccessToken ??= "";
+        TiktokGameName ??= "";
+        TiktokWebglOutputDirectory ??= "";
+        TiktokApiEndpoint = string.IsNullOrWhiteSpace(TiktokApiEndpoint)
+            ? "https://open-api.tiktokglobalshop.com"
+            : TiktokApiEndpoint.Trim();
     }
 
     private static List<string> NormalizeRepositoryList(List<string>? values)
@@ -271,6 +278,10 @@ internal sealed partial class BuildConfig
         {
             ValidateAndroid();
         }
+        else if (IsTiktok)
+        {
+            ValidateTiktok();
+        }
         else if (string.Equals(UnityBuildMethod, DefaultUnityBuildMethods.Android, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("buildPlatform=ios 时 unityBuildMethod 不能使用 AndroidBuilder。");
@@ -279,6 +290,7 @@ internal sealed partial class BuildConfig
 
     public bool IsIos => string.Equals(BuildPlatform, BuildPlatforms.Ios, StringComparison.OrdinalIgnoreCase);
     public bool IsAndroid => string.Equals(BuildPlatform, BuildPlatforms.Android, StringComparison.OrdinalIgnoreCase);
+    public bool IsTiktok => string.Equals(BuildPlatform, BuildPlatforms.Tiktok, StringComparison.OrdinalIgnoreCase);
 
     internal void EnsureValid()
     {

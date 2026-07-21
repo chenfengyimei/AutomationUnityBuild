@@ -98,10 +98,18 @@ internal static class Cli
 
     private static int InitTemplateConfig(CliOptions options)
     {
-        string defaultFileName = options.TemplatePlatform == BuildPlatforms.Android ? "build-android.json" : "build-ios.json";
-        string template = options.TemplatePlatform == BuildPlatforms.Android
-            ? SampleFiles.BuildAndroidConfigJson
-            : SampleFiles.BuildIosConfigJson;
+        string defaultFileName = options.TemplatePlatform switch
+        {
+            BuildPlatforms.Android => "build-android.json",
+            BuildPlatforms.Tiktok => "build-tiktok.json",
+            _ => "build-ios.json"
+        };
+        string template = options.TemplatePlatform switch
+        {
+            BuildPlatforms.Android => SampleFiles.BuildAndroidConfigJson,
+            BuildPlatforms.Tiktok => SampleFiles.BuildTiktokConfigJson,
+            _ => SampleFiles.BuildIosConfigJson
+        };
         string path = Path.GetFullPath(options.ConfigWasSpecified ? options.ConfigPath : defaultFileName);
         if (File.Exists(path) && !options.Force)
         {
@@ -149,6 +157,11 @@ internal static class Cli
             if (File.Exists("build-android.json"))
             {
                 return "build-android.json";
+            }
+
+            if (File.Exists("build-tiktok.json"))
+            {
+                return "build-tiktok.json";
             }
 
             return options.ConfigPath;
