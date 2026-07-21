@@ -131,4 +131,53 @@ internal static class SampleFiles
           "environment": {}
         }
         """;
+
+    public const string BuildTiktokConfigJson =
+        """
+        {
+          "configName": "tiktok-release",
+          "buildPlatform": "tiktok",
+          "repositoryUrl": "git@github.com:your-org/your-unity-game.git",
+          "allowedRepositoryUrls": [
+            "git@github.com:your-org/your-unity-game.git"
+          ],
+          "branch": "main",
+          "workspaceRoot": "~/UnityBuildWorkspace",
+          "allowedWorkspaceRoots": [
+            "~/UnityBuildWorkspace"
+          ],
+          "projectDirectoryName": "YourUnityGame",
+          "unityProjectRelativePath": ".",
+
+          "unityVersion": "6000.0.0f1",
+          "unityExecutablePath": "",
+          "unityBuildMethod": "BuildAutomation.TiktokBuilder.Build",
+
+          "artifactsRoot": "~/UnityBuildArtifacts/YourUnityGame-Tiktok",
+          "allowedArtifactsRoots": [
+            "~/UnityBuildArtifacts/YourUnityGame-Tiktok"
+          ],
+          "logsDirectory": "",
+
+          "bundleIdentifier": "com.company.game",
+          "productName": "Your Game",
+          "bundleVersion": "1.0.0",
+          "syncBundleVersionFromUnity": true,
+          "buildNumber": "1",
+          "autoIncrementBuildNumber": true,
+
+          "tiktokAppId": "",
+          "tiktokAccessToken": "",
+          "tiktokGameName": "",
+          "tiktokWebglOutputDirectory": "",
+          "tiktokUploadEnabled": false,
+          "tiktokApiEndpoint": "https://open-api.tiktokglobalshop.com",
+
+          "resetRepository": true,
+          "preserveUnityLibraryOnReset": true,
+          "saveConfigSnapshot": true,
+
+          "environment": {}
+        }
+        """;
 }

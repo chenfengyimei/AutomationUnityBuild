@@ -1471,6 +1471,12 @@ function collectConfigFilePayload() {
       ? parseOptionalNumber($("configGooglePlayUserFraction").value)
       : null,
     overwriteExisting: $("configOverwriteFile").checked,
+    tiktokAppId: $("configTiktokAppId").value || null,
+    tiktokAccessToken: $("configTiktokAccessToken").value || null,
+    tiktokGameName: $("configTiktokGameName").value || null,
+    tiktokWebglOutputDirectory: $("configTiktokWebglOutputDirectory").value || null,
+    tiktokUploadEnabled: $("configTiktokUploadEnabled").checked,
+    tiktokApiEndpoint: $("configTiktokApiEndpoint").value || null,
   };
 }
 
@@ -1580,6 +1586,7 @@ function togglePlatformFields() {
   const platform = $("configBuildPlatform").value || "ios";
   $("iosConfigFields").classList.toggle("hidden", platform !== "ios");
   $("androidConfigFields").classList.toggle("hidden", platform !== "android");
+  $("tiktokConfigFields").classList.toggle("hidden", platform !== "tiktok");
   toggleUploadSections();
 }
 
@@ -1789,6 +1796,12 @@ function fillConfigFormFromJson(content, config) {
   $("configGooglePlayUserFraction").value = content.googlePlayUserFraction ?? "";
   $("configOverwriteFile").checked = true;
   $("configAllowMcp").checked = Boolean(config.allowMcpBuild);
+  $("configTiktokAppId").value = content.tiktokAppId || "";
+  $("configTiktokAccessToken").value = content.tiktokAccessToken || "";
+  $("configTiktokGameName").value = content.tiktokGameName || "";
+  $("configTiktokWebglOutputDirectory").value = content.tiktokWebglOutputDirectory || "";
+  $("configTiktokUploadEnabled").checked = Boolean(content.tiktokUploadEnabled);
+  $("configTiktokApiEndpoint").value = content.tiktokApiEndpoint || "https://open-api.tiktokglobalshop.com";
   togglePlatformFields();
 }
 

@@ -1487,6 +1487,10 @@ public static class ApiRoutes
         {
             AddAndroidConfig(json, request);
         }
+        else if (buildPlatform == BuildPlatforms.Tiktok)
+        {
+            AddTiktokConfig(json, request);
+        }
         else
         {
             AddIosConfig(json, request);
@@ -1628,6 +1632,16 @@ public static class ApiRoutes
         json["googlePlayUploadArtifact"] = googlePlayUploadArtifact;
         json["googlePlayChangesNotSentForReview"] = request.GooglePlayChangesNotSentForReview;
         json["googlePlayUserFraction"] = request.GooglePlayUserFraction;
+    }
+
+    private static void AddTiktokConfig(JsonObject json, BuildConfigFileRequest request)
+    {
+        json["tiktokAppId"] = (request.TiktokAppId ?? "").Trim();
+        json["tiktokAccessToken"] = (request.TiktokAccessToken ?? "").Trim();
+        json["tiktokGameName"] = (request.TiktokGameName ?? "").Trim();
+        json["tiktokWebglOutputDirectory"] = (request.TiktokWebglOutputDirectory ?? "").Trim();
+        json["tiktokUploadEnabled"] = request.TiktokUploadEnabled;
+        json["tiktokApiEndpoint"] = (request.TiktokApiEndpoint ?? "").Trim();
     }
 
     private static void EnsureConfigPathUnique(BuildServerDatabase db, string currentConfigId, string projectId, string configPath)

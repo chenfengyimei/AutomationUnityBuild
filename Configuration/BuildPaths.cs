@@ -22,7 +22,8 @@ internal sealed record BuildPaths(
     string ExportOptionsPlistPath,
     string AndroidOutputDirectory,
     string ApkOutputPath,
-    string AabOutputPath)
+    string AabOutputPath,
+    string TiktokWebglOutputDirectory)
 {
     public static BuildPaths Create(BuildConfig config)
     {
@@ -45,6 +46,7 @@ internal sealed record BuildPaths(
                 : ProjectDirectoryName(config));
         string apkOutputPath = ResolvePath(config.ApkOutputPath, androidOutputDirectory, $"{productFileName}.apk");
         string aabOutputPath = ResolvePath(config.AabOutputPath, androidOutputDirectory, $"{productFileName}.aab");
+        string tiktokWebglOutputDirectory = ResolvePath(config.TiktokWebglOutputDirectory, artifactsRunRoot, "TiktokWebGL");
 
         return new BuildPaths(
             runId,
@@ -68,7 +70,8 @@ internal sealed record BuildPaths(
             exportOptionsPlistPath,
             androidOutputDirectory,
             apkOutputPath,
-            aabOutputPath);
+            aabOutputPath,
+            tiktokWebglOutputDirectory);
     }
 
     private static string ProjectDirectoryName(BuildConfig config)

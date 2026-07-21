@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260716a-storage">
+  <link rel="stylesheet" href="/styles.css?v=20260717a-tiktok">
 </head>
 <body>
   <main id="app">
@@ -137,6 +137,7 @@
                 <select id="configBuildPlatform">
                   <option value="ios">iOS</option>
                   <option value="android">Android APK/AAB</option>
+                  <option value="tiktok">TikTok 小游戏</option>
                 </select>
               </label>
               <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
@@ -297,6 +298,32 @@
                       </label>
                       <label><input id="configGooglePlayChangesNotSentForReview" type="checkbox"> 暂不提交审核</label>
                       <label>灰度比例<input id="configGooglePlayUserFraction" placeholder="0.1 到 1，留空"></label>
+                    </div>
+                  </details>
+                </div>
+
+                <div id="tiktokConfigFields" class="platform-section hidden">
+                  <details class="config-section" open>
+                    <summary>
+                      <span>TikTok 小游戏配置</span>
+                      <small>小游戏 App ID 和上传设置</small>
+                    </summary>
+                    <div class="form-grid">
+                      <label>TikTok App ID<input id="configTiktokAppId" placeholder="TikTok 小游戏 App ID"></label>
+                      <label>Access Token<input id="configTiktokAccessToken" type="password" placeholder="开放平台 Access Token"></label>
+                      <label>游戏名称<input id="configTiktokGameName" placeholder="TikTok 后台显示的游戏名称"></label>
+                      <label>WebGL 输出目录<input id="configTiktokWebglOutputDirectory" placeholder="留空自动生成"></label>
+                      <label>API 端点<input id="configTiktokApiEndpoint" value="https://open-api.tiktokglobalshop.com"></label>
+                    </div>
+                  </details>
+
+                  <details id="tiktokUploadSection" class="config-section optional-section">
+                    <summary>
+                      <span>TikTok 上传</span>
+                      <small>只有需要自动上传 TikTok 时才打开</small>
+                    </summary>
+                    <div class="form-grid">
+                      <label><input id="configTiktokUploadEnabled" type="checkbox"> 上传 TikTok 小游戏</label>
                     </div>
                   </details>
                 </div>
@@ -734,7 +761,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260716a-storage"></script>
-  <script src="/app.js?v=20260716a-storage"></script>
+  <script src="/runtime.js?v=20260717a-tiktok"></script>
+  <script src="/app.js?v=20260717a-tiktok"></script>
 </body>
 </html>
