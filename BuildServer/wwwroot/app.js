@@ -51,6 +51,7 @@ const ROLE_LABELS = {
 const PLATFORM_LABELS = {
   ios: "iOS",
   android: "Android",
+  tiktok: "TikTok",
   auto: "自动",
 };
 
@@ -1562,6 +1563,8 @@ function setConfigFileDefaults() {
   $("configGooglePlayUploadEnabled").checked = false;
   $("configGooglePlayChangesNotSentForReview").checked = false;
   $("configOverwriteFile").checked = false;
+  $("configTiktokUploadEnabled").checked = false;
+  $("configTiktokApiEndpoint").value = "https://open-api.tiktokglobalshop.com";
   toggleUploadSections();
 }
 

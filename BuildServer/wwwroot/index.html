@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260717a-tiktok">
+  <link rel="stylesheet" href="/styles.css?v=20260721a-tiktok-frontend">
 </head>
 <body>
   <main id="app">
@@ -123,6 +123,7 @@
                 <select id="projectDefaultPlatform">
                   <option value="ios">iOS</option>
                   <option value="android">Android</option>
+                  <option value="tiktok">TikTok 小游戏</option>
                 </select>
               </label>
               <label>说明<textarea id="projectDescription" rows="3"></textarea></label>
@@ -485,6 +486,24 @@
               </article>
 
               <article>
+                <h4>TikTok 小游戏字段</h4>
+                <dl>
+                  <dt>TikTok App ID</dt>
+                  <dd>在 TikTok 开放平台创建小游戏后获取的 App ID。</dd>
+                  <dt>Access Token</dt>
+                  <dd>TikTok 开放平台的访问令牌，用于 API 上传鉴权。敏感信息，请妥善保管。</dd>
+                  <dt>游戏名称</dt>
+                  <dd>TikTok 后台显示的游戏名称，上传时用于标识。</dd>
+                  <dt>WebGL 输出目录</dt>
+                  <dd>Unity WebGL 构建产物输出目录。留空时自动放到本次产物目录下的 <code>TiktokWebGL</code> 文件夹。</dd>
+                  <dt>API 端点</dt>
+                  <dd>TikTok 开放平台 API 地址，默认 <code>https://open-api.tiktokglobalshop.com</code>，一般不需要修改。</dd>
+                  <dt>上传 TikTok 小游戏</dt>
+                  <dd>勾选后，打包完成会自动将 WebGL 产物打包为 ZIP 并上传到 TikTok 开放平台。需要先填写 App ID 和 Access Token。</dd>
+                </dl>
+              </article>
+
+              <article>
                 <h4>Google Play 上传</h4>
                 <dl>
                   <dt>上传 Google Play</dt>
@@ -761,7 +780,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260717a-tiktok"></script>
-  <script src="/app.js?v=20260717a-tiktok"></script>
+  <script src="/runtime.js?v=20260721a-tiktok-frontend"></script>
+  <script src="/app.js?v=20260721a-tiktok-frontend"></script>
 </body>
 </html>
