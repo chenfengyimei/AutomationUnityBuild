@@ -282,9 +282,10 @@ internal sealed partial class BuildConfig
         {
             ValidateTiktok();
         }
-        else if (string.Equals(UnityBuildMethod, DefaultUnityBuildMethods.Android, StringComparison.Ordinal))
+        else if (string.Equals(UnityBuildMethod, DefaultUnityBuildMethods.Android, StringComparison.Ordinal) ||
+                 string.Equals(UnityBuildMethod, DefaultUnityBuildMethods.Tiktok, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("buildPlatform=ios 时 unityBuildMethod 不能使用 AndroidBuilder。");
+            throw new InvalidOperationException("buildPlatform=ios 时 unityBuildMethod 不能使用 AndroidBuilder 或 TiktokBuilder。");
         }
     }
 
