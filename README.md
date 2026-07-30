@@ -15,6 +15,7 @@
 ## 项目仓库
 
 - **Gitee**: https://gitee.com/chenfengloveyuri/automation-unity-build-ios
+- **GitHub**: https://github.com/chenfengyimei/-AutomationUnityBuild
 
 ---
 
