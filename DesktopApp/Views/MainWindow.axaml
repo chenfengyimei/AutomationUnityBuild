@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DesktopApp.ViewModels"
+        xmlns:views="using:DesktopApp.Views"
+        x:Class="DesktopApp.Views.MainWindow"
+        Title="Unity 自动化打包工具 - 桌面版"
+        Width="1200" Height="780"
+        MinWidth="900" MinHeight="600"
+        WindowState="Maximized">
+
+  <Grid ColumnDefinitions="200,*">
+    <Border Grid.Column="0" Classes="sidebar">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0" Margin="16,20,16,16">
+          <TextBlock Text="Unity 自动化" Foreground="#94A3B8" FontSize="11"/>
+          <TextBlock Text="打包工具" Foreground="White" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+          <Button Classes="nav" Content="📦 打包任务" Click="OnNavClick" Tag="build" Name="navBuild" IsVisible="{Binding ShowBuildPage}"/>
+          <Button Classes="nav" Content="⚙️ 配置管理" Click="OnNavClick" Tag="config" Name="navConfig"/>
+          <Button Classes="nav" Content="🔍 环境检查" Click="OnNavClick" Tag="doctor" Name="navDoctor"/>
+          <Button Classes="nav" Content="📂 产物浏览" Click="OnNavClick" Tag="artifacts" Name="navArtifacts"/>
+          <Button Classes="nav" Content="🗂️ 存储管理" Click="OnNavClick" Tag="storage" Name="navStorage"/>
+          <Button Classes="nav" Content="📧 邮件通知" Click="OnNavClick" Tag="email" Name="navEmail"/>
+          <Button Classes="nav" Content="💡 帮助说明" Click="OnNavClick" Tag="help" Name="navHelp"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Margin="16,8">
+          <TextBlock Text="{Binding VersionText}" Foreground="#64748B" FontSize="10"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" />
+  </Grid>
+
+</Window>

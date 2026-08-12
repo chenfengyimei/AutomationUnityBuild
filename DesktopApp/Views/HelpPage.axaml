@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.HelpPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="16">
+      <TextBlock Classes="page-title" Text="系统说明" />
+      <TextBlock Classes="page-subtitle" Text="了解如何使用桌面版打包工具" />
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="推荐流程" FontWeight="Bold" />
+          <TextBlock Text="1. 在「配置管理」中创建或选择配置文件" FontSize="13" />
+          <TextBlock Text="2. 到「环境检查」确认 Git、Unity 等就绪" FontSize="13" />
+          <TextBlock Text="3. 到「打包任务」先用 dry-run 演练，再正式打包" FontSize="13" />
+          <TextBlock Text="4. 打包完成后在「产物浏览」查看结果" FontSize="13" />
+          <TextBlock Text="5. 定期在「存储管理」清理不需要的历史产物" FontSize="13" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="配置文件" FontWeight="Bold" />
+          <TextBlock Text="配置文件是 JSON 格式，位于当前工作目录或 configs/ 子目录下。" FontSize="13" Foreground="#475569" />
+          <TextBlock Text="支持三种平台：iOS、Android、TikTok 小游戏。" FontSize="13" Foreground="#475569" />
+          <TextBlock Text="可以在「配置管理」页面新建模板，或手动编辑 JSON。" FontSize="13" Foreground="#475569" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="打包选项" FontWeight="Bold" />
+          <TextBlock Text="• dry-run：只打印命令，不真正执行" FontSize="13" />
+          <TextBlock Text="• 跳过 Git：不拉取代码，使用本地已有仓库" FontSize="13" />
+          <TextBlock Text="• 跳过 Unity：不执行 Unity 构建" FontSize="13" />
+          <TextBlock Text="• 跳过 Xcode：不执行 Xcode archive/export（仅 iOS）" FontSize="13" />
+          <TextBlock Text="• 允许非 Mac：在 Windows 上也能运行（用于调试）" FontSize="13" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="常见排查" FontWeight="Bold" />
+          <TextBlock Text="• 先用 dry-run 看路径和参数是否正确" FontSize="13" />
+          <TextBlock Text="• 失败时看日志输出中的错误信息" FontSize="13" />
+          <TextBlock Text="• iOS 打包必须在 Mac 上执行" FontSize="13" />
+          <TextBlock Text="• Android/TikTok 在 Windows 和 Mac 上都可以" FontSize="13" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="关于" FontWeight="Bold" />
+          <TextBlock Text="桌面版打包工具 — 基于 AutomationUnityBuildIOS 核心。" FontSize="13" Foreground="#64748B" />
+          <TextBlock Text="Avalonia UI + .NET 8 跨平台桌面应用。" FontSize="13" Foreground="#64748B" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.EmailSettingsPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="16">
+
+      <StackPanel>
+        <TextBlock Classes="page-title" Text="邮件通知" />
+        <TextBlock Classes="page-subtitle" Text="配置 SMTP 发信账号，打包完成后自动发送通知邮件" />
+      </StackPanel>
+
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Text="SMTP 设置" FontWeight="Bold" Margin="0,0,0,8" />
+          <Grid ColumnDefinitions="*,*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="SMTP 主机" />
+              <TextBox Text="{Binding SmtpHost}" Watermark="smtp.exmail.qq.com" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="端口" />
+              <TextBox Text="{Binding SmtpPort}" Watermark="465" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="启用 SSL/TLS" />
+              <CheckBox IsChecked="{Binding UseSsl}" Content="SSL" Margin="0,4,0,0" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="SMTP 用户名" />
+              <TextBox Text="{Binding SmtpUserName}" Watermark="bot@example.com" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="SMTP 密码" />
+              <TextBox Text="{Binding SmtpPassword}" Watermark="留空不修改" PasswordChar="*" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="发信邮箱" />
+              <TextBox Text="{Binding FromEmail}" Watermark="bot@example.com" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="发信人名称" />
+              <TextBox Text="{Binding FromName}" Watermark="BuildServer" />
+            </StackPanel>
+          </Grid>
+          <CheckBox IsChecked="{Binding Enabled}" Content="启用邮件通知" Margin="0,4,0,0" />
+          <Button Classes="primary" Content="💾 保存设置" Click="Save_Click" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Text="发送测试邮件" FontWeight="Bold" />
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="收件邮箱" />
+              <TextBox Text="{Binding TestEmailTo}" Watermark="someone@example.com" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+              <Button Classes="secondary" Content="📮 发送测试邮件" Click="TestEmail_Click" IsEnabled="{Binding !IsBusy}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Text="通知联系人" FontWeight="Bold" />
+          <TextBlock Text="打包时自动向以下联系人发送通知" FontSize="12" Foreground="#64748B" />
+          <Grid ColumnDefinitions="*,*,Auto" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="职位名称" />
+              <TextBox Name="contactTitle" Watermark="负责人" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="邮箱" />
+              <TextBox Name="contactEmail" Watermark="someone@example.com" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
+              <Button Classes="secondary" Content="添加" Click="AddContact_Click" />
+            </StackPanel>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Contacts}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#F1F5F9" CornerRadius="4" Padding="12,6" Margin="0,2">
+                  <Grid ColumnDefinitions="*,*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="Medium" />
+                    <TextBlock Grid.Column="1" Text="{Binding Email}" Foreground="#475569" />
+                    <Button Grid.Column="2" Classes="secondary" Content="删除" Click="RemoveContact_Click" Tag="{Binding}" FontSize="11" Padding="8,2" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Text="{Binding StatusMessage}" FontWeight="Medium" />
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

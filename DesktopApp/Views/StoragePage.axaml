@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.StoragePage">
+  <Grid RowDefinitions="Auto,Auto,*">
+    <StackPanel Grid.Row="0" Margin="24,20,24,0" Spacing="8">
+      <TextBlock Classes="page-title" Text="存储管理" />
+      <TextBlock Classes="page-subtitle" Text="清理不需要的历史产物目录，释放磁盘空间" />
+
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="配置:" VerticalAlignment="Center" FontWeight="Medium" />
+        <ComboBox ItemsSource="{Binding Configs}" SelectedItem="{Binding SelectedConfig}" MinWidth="300">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding DisplayText}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Classes="secondary" Content="刷新" Click="Refresh_Click" />
+        <Button Classes="danger" Content="🗑 批量删除选中" Click="DeleteSelected_Click" />
+      </StackPanel>
+    </StackPanel>
+
+    <WrapPanel Grid.Row="1" Margin="24,8,24,8">
+      <Border Classes="metric">
+        <StackPanel>
+          <TextBlock Classes="metric-label" Text="历史目录数" />
+          <TextBlock Classes="metric-value" Text="{Binding TotalFolders}" />
+        </StackPanel>
+      </Border>
+      <Border Classes="metric">
+        <StackPanel>
+          <TextBlock Classes="metric-label" Text="总占用" />
+          <TextBlock Classes="metric-value" Text="{Binding TotalDisplay}" Foreground="#DC2626" />
+        </StackPanel>
+      </Border>
+      <Border Classes="metric">
+        <StackPanel>
+          <TextBlock Classes="metric-label" Text="产物根目录" />
+          <TextBlock Text="{Binding ArtifactsRoot}" FontSize="11" Foreground="#475569" />
+        </StackPanel>
+      </Border>
+    </WrapPanel>
+
+    <Border Grid.Row="2" Margin="24,0,24,16" Classes="card">
+      <DataGrid ItemsSource="{Binding RunFolders}" AutoGenerateColumns="False" CanUserSortColumns="True"
+                HeadersVisibility="All" GridLinesVisibility="Horizontal" BorderThickness="1" BorderBrush="#E2E8F0">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="目录名" Binding="{Binding Name}" Width="200" />
+          <DataGridTextColumn Header="创建时间" Binding="{Binding Created}" Width="180" />
+          <DataGridTextColumn Header="文件数" Binding="{Binding FileCount}" Width="80" />
+          <DataGridTextColumn Header="占用大小" Binding="{Binding DisplaySize}" Width="100" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+  </Grid>
+</UserControl>

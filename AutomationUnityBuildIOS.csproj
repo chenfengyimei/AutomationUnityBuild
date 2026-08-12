@@ -11,16 +11,20 @@
     <Compile Remove="BuildServer\**\*.cs" />
     <Compile Remove="LinuxGateway\**\*.cs" />
     <Compile Remove="AutomationUnityBuildIOS.Tests\**\*.cs" />
+    <Compile Remove="DesktopApp\**\*.cs" />
     <Content Remove="BuildServer\**\*" />
     <Content Remove="LinuxGateway\**\*" />
     <Content Remove="AutomationUnityBuildIOS.Tests\**\*" />
+    <Content Remove="DesktopApp\**\*" />
     <None Remove="BuildServer\**\*" />
     <None Remove="LinuxGateway\**\*" />
     <None Remove="AutomationUnityBuildIOS.Tests\**\*" />
+    <None Remove="DesktopApp\**\*" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="AutomationUnityBuildIOS.Tests" />
+    <InternalsVisibleTo Include="DesktopApp" />
   </ItemGroup>
 
 </Project>
