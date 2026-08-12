@@ -178,7 +178,7 @@ const CONFIG_FIELD_HELP = {
   configBundleIdentifier: {
     title: "Bundle Identifier",
     subtitle: "应用包名，也就是唯一身份。",
-    body: "iOS 和 Android 都需要它。一般格式是 com.company.game，比如 com.company.savacat。",
+    body: "iOS 和 Android 都需要它。一般格式是 com.company.game，比如 com.yourcompany.yourgame。",
     tips: ["必须和 Apple Developer / App Store Connect / Google Play 上创建的 App 保持一致。", "不要包含空格、中文或下划线。"]
   },
   configBuildNumber: {

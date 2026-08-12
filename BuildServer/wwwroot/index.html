@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260721a-tiktok-frontend">
+  <link rel="stylesheet" href="/styles.css?v=20260812-security-desensitize">
 </head>
 <body>
   <main id="app">
@@ -523,7 +523,7 @@
                 <h4>LinuxGateway 设备填写</h4>
                 <dl>
                   <dt>BuildServer 地址</dt>
-                  <dd>填 Mac/Windows 本地 BuildServer 的外部可访问地址，例如 <code>http://your-server-ip:8090</code>。</dd>
+                  <dd>填 Mac/Windows 本地 BuildServer 的外部可访问地址，例如 <code>http://&lt;your-buildserver-ip&gt;:8090</code>。</dd>
                   <dt>Gateway Token</dt>
                   <dd>填该设备启动 BuildServer 时控制台打印的 Gateway Token。未手动设置 <code>BUILD_SERVER_GATEWAY_TOKEN</code> 时，服务会自动生成并保存到 <code>initial-gateway-token.txt</code>。</dd>
                   <dt>平台勾选</dt>
@@ -780,7 +780,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260721a-tiktok-frontend"></script>
-  <script src="/app.js?v=20260721a-tiktok-frontend"></script>
+  <script src="/runtime.js?v=20260812-security-desensitize"></script>
+  <script src="/app.js?v=20260812-security-desensitize"></script>
 </body>
 </html>
