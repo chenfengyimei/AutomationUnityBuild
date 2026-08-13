@@ -244,13 +244,16 @@ button.danger:hover {
 }
 
 .file-upload-inline {
-  margin-top: 4px;
+  margin-top: 0;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .file-upload-btn {
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 10px;
   font-size: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .page-header {
