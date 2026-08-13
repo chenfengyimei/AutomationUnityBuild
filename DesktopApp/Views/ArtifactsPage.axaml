@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:DesktopApp.Controls"
              x:Class="DesktopApp.Views.ArtifactsPage">
   <Grid RowDefinitions="Auto,*">
     <StackPanel Grid.Row="0" Margin="24,20,24,0" Spacing="8">
@@ -56,7 +57,7 @@
 
         <Grid ColumnDefinitions="*,Auto">
           <Grid Grid.Column="0">
-            <TextBox Classes="log-output" Text="{Binding LogPreview}" AcceptsReturn="True" />
+            <ctrl:ImeTextBox Classes="log-output" Text="{Binding LogPreview}" AcceptsReturn="True" />
           </Grid>
           <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="8">
             <Button Classes="secondary" Content="打开目录" Click="OpenDir_Click" />

@@ -30,9 +30,13 @@ public sealed class NotificationContactRecord
 public sealed class ProjectProfileRecord
 {
     public string Id { get; set; } = "";
+    public string ProjectRecordId { get; set; } = "";
     public string Name { get; set; } = "";
     public string RepositoryUrl { get; set; } = "";
     public string DefaultBranch { get; set; } = "main";
+    public List<string> AllowedBranches { get; set; } = ["main"];
+    public string DefaultBuildPlatform { get; set; } = BuildPlatforms.Ios;
+    public string Description { get; set; } = "";
     public string ProjectDirectoryName { get; set; } = "";
     public string UnityProjectRelativePath { get; set; } = ".";
     public string UnityVersion { get; set; } = "";
@@ -365,6 +369,9 @@ public sealed record ProjectProfileRequest(
     string Name,
     string? RepositoryUrl = null,
     string? DefaultBranch = null,
+    string[]? AllowedBranches = null,
+    string? DefaultBuildPlatform = null,
+    string? Description = null,
     string? ProjectDirectoryName = null,
     string? UnityProjectRelativePath = null,
     string? UnityVersion = null,

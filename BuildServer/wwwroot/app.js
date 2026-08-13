@@ -485,7 +485,6 @@ function bindEvents() {
   $("loginForm").addEventListener("submit", login);
   $("logoutBtn").addEventListener("click", logout);
   $("refreshBtn").addEventListener("click", refreshAll);
-  $("projectForm").addEventListener("submit", createProject);
   $("configForm").addEventListener("submit", createConfig);
   $("buildForm").addEventListener("submit", startBuild);
   $("userForm").addEventListener("submit", saveUser);
@@ -3209,6 +3208,9 @@ async function saveProjectProfile(event) {
         name: $("projectProfileName").value,
         repositoryUrl: $("projectProfileRepo").value || null,
         defaultBranch: $("projectProfileBranch").value || null,
+        allowedBranches: ($("projectProfileAllowedBranches").value || "").split(",").map((item) => item.trim()).filter(Boolean),
+        defaultBuildPlatform: $("projectProfileDefaultPlatform").value,
+        description: $("projectProfileDescription").value || null,
         projectDirectoryName: $("projectProfileDirName").value || null,
         unityProjectRelativePath: $("projectProfileUnityPath").value || null,
         unityVersion: $("projectProfileUnityVersion").value || null,
@@ -3221,7 +3223,7 @@ async function saveProjectProfile(event) {
     });
     resetProjectProfileForm();
     await refreshAll({ showSuccess: false, throwOnError: true });
-    showMessage(isEditing ? "项目模板已更新。" : "项目模板已保存。");
+    showMessage(isEditing ? "项目已更新。" : "项目已保存。");
   } catch (error) {
     showError(error);
   } finally {
@@ -3249,6 +3251,9 @@ function editProjectProfile(profileId) {
   $("projectProfileName").value = profile.name || "";
   $("projectProfileRepo").value = profile.repositoryUrl || "";
   $("projectProfileBranch").value = profile.defaultBranch || "main";
+  $("projectProfileAllowedBranches").value = (profile.allowedBranches || ["main"]).join(",");
+  $("projectProfileDefaultPlatform").value = profile.defaultBuildPlatform || "ios";
+  $("projectProfileDescription").value = profile.description || "";
   $("projectProfileDirName").value = profile.projectDirectoryName || "";
   $("projectProfileUnityPath").value = profile.unityProjectRelativePath || ".";
   $("projectProfileUnityVersion").value = profile.unityVersion || "";
@@ -3257,8 +3262,8 @@ function editProjectProfile(profileId) {
   $("projectProfileArtifacts").value = profile.artifactsRoot || "~/UnityBuildArtifacts";
   $("projectProfileProductName").value = profile.productName || "";
   $("projectProfileBundleId").value = profile.bundleIdentifier || "";
-  $("projectProfileFormTitle").textContent = "编辑项目模板";
-  $("projectProfileSaveBtn").textContent = "更新模板";
+  $("projectProfileFormTitle").textContent = "编辑项目";
+  $("projectProfileSaveBtn").textContent = "更新项目";
   $("projectProfileCancelBtn").classList.remove("hidden");
   $("projectProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -3267,21 +3272,23 @@ function resetProjectProfileForm() {
   $("projectProfileForm").reset();
   $("projectProfileId").value = "";
   $("projectProfileBranch").value = "main";
+  $("projectProfileAllowedBranches").value = "main";
+  $("projectProfileDefaultPlatform").value = "ios";
   $("projectProfileUnityPath").value = ".";
   $("projectProfileWorkspace").value = "~/UnityBuildWorkspace";
   $("projectProfileArtifacts").value = "~/UnityBuildArtifacts";
-  $("projectProfileFormTitle").textContent = "新增项目模板";
-  $("projectProfileSaveBtn").textContent = "保存模板";
+  $("projectProfileFormTitle").textContent = "新增项目";
+  $("projectProfileSaveBtn").textContent = "保存项目";
   $("projectProfileCancelBtn").classList.add("hidden");
 }
 
 async function deleteProjectProfile(profileId) {
-  if (!confirm("确认删除这个项目模板？")) return;
+  if (!confirm("确认删除这个项目？关联的配置和任务记录会保留，但项目将从列表移除。")) return;
   try {
     await api(`/api/project-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
     if ($("projectProfileId").value === profileId) resetProjectProfileForm();
     await refreshAll({ showSuccess: false, throwOnError: true });
-    showMessage("项目模板已删除。");
+    showMessage("项目已删除。");
   } catch (error) {
     showError(error);
   }
@@ -3289,7 +3296,7 @@ async function deleteProjectProfile(profileId) {
 
 function renderProjectProfiles() {
   if (state.projectProfiles.length === 0) {
-    $("projectProfilesList").innerHTML = `<div class="empty-state compact">暂无项目模板。使用左侧表单添加。</div>`;
+    $("projectProfilesList").innerHTML = `<div class="empty-state compact">暂无项目。使用左侧表单添加。</div>`;
     return;
   }
 
@@ -3306,8 +3313,10 @@ function renderProjectProfiles() {
     </header>
     <dl class="project-meta">
       <div><dt>默认分支</dt><dd>${escapeHtml(p.defaultBranch || "-")}</dd></div>
+      <div><dt>默认平台</dt><dd>${platformBadge(p.defaultBuildPlatform || "ios")}</dd></div>
       <div><dt>Unity 版本</dt><dd>${escapeHtml(p.unityVersion || "-")}</dd></div>
       <div><dt>Bundle ID</dt><dd>${escapeHtml(p.bundleIdentifier || "-")}</dd></div>
+      <div><dt>Workspace</dt><dd>${escapeHtml(p.workspaceRoot || "-")}</dd></div>
     </dl>
   </article>`).join("");
 }

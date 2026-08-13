@@ -135,6 +135,7 @@ public static class ApiRoutes
 
     private static async Task<object> DashboardSnapshotAsync(JsonDatabase database, BuildServerOptions options)
     {
+        await EnsureProjectProfilesImportedAsync(database);
         return await database.ReadAsync(db => new
         {
             projects = db.Projects.OrderBy(project => project.Name).ToList(),
@@ -153,6 +154,37 @@ public static class ApiRoutes
                 options.MaxArtifactBytes,
                 ConfigRoot = options.AllowedConfigRoots.FirstOrDefault() ?? ""
             }
+        });
+    }
+
+    private static async Task EnsureProjectProfilesImportedAsync(JsonDatabase database)
+    {
+        await database.UpdateAsync(db =>
+        {
+            foreach (ProjectRecord project in db.Projects)
+            {
+                if (db.ProjectProfiles.Any(p => p.ProjectRecordId == project.Id))
+                {
+                    continue;
+                }
+
+                db.ProjectProfiles.Add(new ProjectProfileRecord
+                {
+                    Id = Ids.New("pp"),
+                    ProjectRecordId = project.Id,
+                    Name = project.Name,
+                    RepositoryUrl = project.RepositoryUrl,
+                    DefaultBranch = project.DefaultBranch,
+                    AllowedBranches = project.AllowedBranches,
+                    DefaultBuildPlatform = project.DefaultBuildPlatform,
+                    Description = project.Description,
+                    WorkspaceRoot = project.WorkspaceRoot,
+                    ArtifactsRoot = project.ArtifactsRoot,
+                    CreatedAt = project.CreatedAt
+                });
+            }
+
+            return true;
         });
     }
 
@@ -1323,7 +1355,7 @@ public static class ApiRoutes
         return Results.Ok(await database.ReadAsync(db => db.ProjectProfiles.OrderBy(p => p.Name).ToList()));
     }
 
-    private static async Task<IResult> CreateProjectProfileAsync(ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> CreateProjectProfileAsync(ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -1333,25 +1365,52 @@ public static class ApiRoutes
         {
             ProjectProfileRecord profile = await database.UpdateAsync(db =>
             {
+                string repoUrl = ValidateGitUrl(Required(request.RepositoryUrl, "Git 仓库"), options);
+                string workspaceRoot = ValidatePathUnderAllowedRoots(
+                    string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim(),
+                    options.AllowedWorkspaceRoots, "工作区目录");
+                string artifactsRoot = ValidatePathUnderAllowedRoots(
+                    string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim(),
+                    options.AllowedArtifactsRoots, "产物目录");
+
+                var project = new ProjectRecord
+                {
+                    Id = Ids.New("prj"),
+                    Name = Required(request.Name, "项目名称"),
+                    RepositoryUrl = repoUrl,
+                    DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim(),
+                    AllowedBranches = request.AllowedBranches?.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? ["main"],
+                    WorkspaceRoot = workspaceRoot,
+                    ArtifactsRoot = artifactsRoot,
+                    DefaultBuildPlatform = NormalizeBuildPlatform(request.DefaultBuildPlatform),
+                    Description = request.Description ?? "",
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.Projects.Add(project);
+
                 var profile = new ProjectProfileRecord
                 {
                     Id = Ids.New("pp"),
-                    Name = Required(request.Name, "模板名称"),
-                    RepositoryUrl = request.RepositoryUrl ?? "",
-                    DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim(),
+                    ProjectRecordId = project.Id,
+                    Name = project.Name,
+                    RepositoryUrl = project.RepositoryUrl,
+                    DefaultBranch = project.DefaultBranch,
+                    AllowedBranches = project.AllowedBranches,
+                    DefaultBuildPlatform = project.DefaultBuildPlatform,
+                    Description = project.Description,
                     ProjectDirectoryName = request.ProjectDirectoryName ?? "",
                     UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim(),
                     UnityVersion = request.UnityVersion ?? "",
                     UnityExecutablePath = request.UnityExecutablePath ?? "",
                     UnityBuildMethod = request.UnityBuildMethod ?? "",
-                    WorkspaceRoot = string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim(),
-                    ArtifactsRoot = string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim(),
+                    WorkspaceRoot = project.WorkspaceRoot,
+                    ArtifactsRoot = project.ArtifactsRoot,
                     ProductName = request.ProductName ?? "",
                     BundleIdentifier = request.BundleIdentifier ?? "",
                     CreatedAt = DateTimeOffset.Now
                 };
                 db.ProjectProfiles.Add(profile);
-                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.create", "project-profile", profile.Id, $"创建项目模板 {profile.Name}");
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.create", "project-profile", profile.Id, $"创建项目 {profile.Name}");
                 return profile;
             });
             return Results.Ok(profile);
@@ -1362,7 +1421,7 @@ public static class ApiRoutes
         }
     }
 
-    private static async Task<IResult> UpdateProjectProfileAsync(string profileId, ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> UpdateProjectProfileAsync(string profileId, ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -1373,20 +1432,46 @@ public static class ApiRoutes
             ProjectProfileRecord profile = await database.UpdateAsync(db =>
             {
                 ProjectProfileRecord? profile = db.ProjectProfiles.FirstOrDefault(p => p.Id == profileId)
-                    ?? throw new FileNotFoundException("项目模板不存在。");
-                profile.Name = Required(request.Name, "模板名称");
-                profile.RepositoryUrl = request.RepositoryUrl ?? "";
+                    ?? throw new FileNotFoundException("项目不存在。");
+
+                string repoUrl = ValidateGitUrl(Required(request.RepositoryUrl, "Git 仓库"), options);
+                string workspaceRoot = ValidatePathUnderAllowedRoots(
+                    string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim(),
+                    options.AllowedWorkspaceRoots, "工作区目录");
+                string artifactsRoot = ValidatePathUnderAllowedRoots(
+                    string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim(),
+                    options.AllowedArtifactsRoots, "产物目录");
+
+                profile.Name = Required(request.Name, "项目名称");
+                profile.RepositoryUrl = repoUrl;
                 profile.DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim();
+                profile.AllowedBranches = request.AllowedBranches?.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? ["main"];
+                profile.DefaultBuildPlatform = NormalizeBuildPlatform(request.DefaultBuildPlatform);
+                profile.Description = request.Description ?? "";
                 profile.ProjectDirectoryName = request.ProjectDirectoryName ?? "";
                 profile.UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim();
                 profile.UnityVersion = request.UnityVersion ?? "";
                 profile.UnityExecutablePath = request.UnityExecutablePath ?? "";
                 profile.UnityBuildMethod = request.UnityBuildMethod ?? "";
-                profile.WorkspaceRoot = string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim();
-                profile.ArtifactsRoot = string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim();
+                profile.WorkspaceRoot = workspaceRoot;
+                profile.ArtifactsRoot = artifactsRoot;
                 profile.ProductName = request.ProductName ?? "";
                 profile.BundleIdentifier = request.BundleIdentifier ?? "";
-                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.update", "project-profile", profile.Id, $"更新项目模板 {profile.Name}");
+
+                ProjectRecord? project = db.Projects.FirstOrDefault(p => p.Id == profile.ProjectRecordId);
+                if (project is not null)
+                {
+                    project.Name = profile.Name;
+                    project.RepositoryUrl = repoUrl;
+                    project.DefaultBranch = profile.DefaultBranch;
+                    project.AllowedBranches = profile.AllowedBranches;
+                    project.DefaultBuildPlatform = profile.DefaultBuildPlatform;
+                    project.Description = profile.Description;
+                    project.WorkspaceRoot = workspaceRoot;
+                    project.ArtifactsRoot = artifactsRoot;
+                }
+
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.update", "project-profile", profile.Id, $"更新项目 {profile.Name}");
                 return profile;
             });
             return Results.Ok(profile);
@@ -1408,9 +1493,24 @@ public static class ApiRoutes
             ProjectProfileRecord profile = await database.UpdateAsync(db =>
             {
                 ProjectProfileRecord? profile = db.ProjectProfiles.FirstOrDefault(p => p.Id == profileId)
-                    ?? throw new FileNotFoundException("项目模板不存在。");
+                    ?? throw new FileNotFoundException("项目不存在。");
+
+                if (db.Jobs.Any(job => job.ProjectId == profile.ProjectRecordId && (job.Status == BuildStatuses.Queued || job.Status == BuildStatuses.Running)))
+                {
+                    throw new InvalidOperationException("这个项目还有排队中或运行中的任务，不能删除。");
+                }
+
+                if (!string.IsNullOrEmpty(profile.ProjectRecordId))
+                {
+                    ProjectRecord? project = db.Projects.FirstOrDefault(p => p.Id == profile.ProjectRecordId);
+                    if (project is not null)
+                    {
+                        db.Projects.Remove(project);
+                    }
+                }
+
                 db.ProjectProfiles.Remove(profile);
-                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.delete", "project-profile", profile.Id, $"删除项目模板 {profile.Name}");
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.delete", "project-profile", profile.Id, $"删除项目 {profile.Name}");
                 return profile;
             });
             return Results.Ok(new { deleted = true, profile });

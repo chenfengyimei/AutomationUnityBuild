@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:DesktopApp.Controls"
              x:Class="DesktopApp.Views.CertificatePage">
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="24,20" Spacing="12">
@@ -48,7 +49,7 @@
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="模板名称" />
-              <TextBox Text="{Binding EditProfile.Name}" Watermark="例如：正式环境签名证书" />
+              <ctrl:ImeTextBox Text="{Binding EditProfile.Name}" Watermark="例如：正式环境签名证书" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="备注（可选）" />
@@ -69,7 +70,7 @@
             <Grid ColumnDefinitions="*,*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Apple Team ID" />
-                <TextBox Text="{Binding EditProfile.TeamId}" Watermark="ABCDE12345" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.TeamId}" Watermark="ABCDE12345" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Export Method" />
@@ -82,21 +83,21 @@
               </StackPanel>
               <StackPanel Grid.Column="2" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Deployment Target" />
-                <TextBox Text="{Binding EditProfile.IosDeploymentTarget}" Watermark="13.0" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.IosDeploymentTarget}" Watermark="13.0" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="*,*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="ASC API Key 路径" />
-                <TextBox Text="{Binding EditProfile.AppStoreConnectApiKeyPath}" Watermark=".p8 路径" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AppStoreConnectApiKeyPath}" Watermark=".p8 路径" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="API Key ID" />
-                <TextBox Text="{Binding EditProfile.AppStoreConnectApiKeyId}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AppStoreConnectApiKeyId}" />
               </StackPanel>
               <StackPanel Grid.Column="2" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Issuer ID" />
-                <TextBox Text="{Binding EditProfile.AppStoreConnectApiIssuerId}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AppStoreConnectApiIssuerId}" />
               </StackPanel>
             </Grid>
             <CheckBox Content="上传 App Store Connect / TestFlight" IsChecked="{Binding EditProfile.AppStoreConnectUploadEnabled}" />
@@ -108,31 +109,31 @@
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Keystore 路径" />
-                <TextBox Text="{Binding EditProfile.AndroidKeystoreName}" Watermark="keystore 路径" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AndroidKeystoreName}" Watermark="keystore 路径" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Key Alias" />
-                <TextBox Text="{Binding EditProfile.AndroidKeyaliasName}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AndroidKeyaliasName}" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Keystore 密码" />
-                <TextBox Text="{Binding EditProfile.AndroidKeystorePass}" PasswordChar="*" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AndroidKeystorePass}" PasswordChar="*" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Key Alias 密码" />
-                <TextBox Text="{Binding EditProfile.AndroidKeyaliasPass}" PasswordChar="*" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.AndroidKeyaliasPass}" PasswordChar="*" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Google Play Package" />
-                <TextBox Text="{Binding EditProfile.GooglePlayPackageName}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.GooglePlayPackageName}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Service Account JSON" />
-                <TextBox Text="{Binding EditProfile.GooglePlayServiceAccountJsonPath}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.GooglePlayServiceAccountJsonPath}" />
               </StackPanel>
             </Grid>
             <CheckBox Content="上传 Google Play" IsChecked="{Binding EditProfile.GooglePlayUploadEnabled}" />
@@ -144,21 +145,21 @@
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="TikTok App ID" />
-                <TextBox Text="{Binding EditProfile.TiktokAppId}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.TiktokAppId}" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="游戏名称" />
-                <TextBox Text="{Binding EditProfile.TiktokGameName}" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.TiktokGameName}" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
                 <TextBlock Classes="FieldLabel" Text="Access Token" />
-                <TextBox Text="{Binding EditProfile.TiktokAccessToken}" PasswordChar="*" Watermark="开放平台 Access Token" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.TiktokAccessToken}" PasswordChar="*" Watermark="开放平台 Access Token" />
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="API 端点" />
-                <TextBox Text="{Binding EditProfile.TiktokApiEndpoint}" Watermark="https://open-api.tiktokglobalshop.com" />
+                <ctrl:ImeTextBox Text="{Binding EditProfile.TiktokApiEndpoint}" Watermark="https://open-api.tiktokglobalshop.com" />
               </StackPanel>
             </Grid>
             <CheckBox Content="上传 TikTok 小游戏" IsChecked="{Binding EditProfile.TiktokUploadEnabled}" />

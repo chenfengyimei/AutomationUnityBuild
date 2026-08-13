@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-profile-management">
+  <link rel="stylesheet" href="/styles.css?v=20260813-project-merge">
 </head>
 <body>
   <main id="app">
@@ -112,27 +112,7 @@
         </section>
 
         <section id="projectsTab" class="tab hidden">
-          <div class="grid two">
-            <form id="projectForm" class="panel">
-              <h3>新增项目</h3>
-              <label>项目名<input id="projectName" required></label>
-              <label>Git 仓库<input id="projectRepo" placeholder="git@github.com:org/game.git" required></label>
-              <label>默认分支<input id="projectBranch" value="main"></label>
-              <label>允许分支<input id="projectAllowedBranches" value="main" placeholder="main,release/*"></label>
-              <label>Workspace Root<input id="projectWorkspace" value="~/UnityBuildWorkspace"></label>
-              <label>Artifacts Root<input id="projectArtifacts" value="~/UnityBuildArtifacts"></label>
-              <label>默认平台
-                <select id="projectDefaultPlatform">
-                  <option value="ios">iOS</option>
-                  <option value="android">Android</option>
-                  <option value="tiktok">TikTok 小游戏</option>
-                </select>
-              </label>
-              <label>说明<textarea id="projectDescription" rows="3"></textarea></label>
-              <button id="projectSaveBtn" type="submit">保存项目</button>
-            </form>
-
-            <form id="configForm" class="panel">
+          <form id="configForm" class="panel">
               <h3 id="configFormTitle">新增配置</h3>
               <div id="quickFillArea" class="quick-fill-area">
                 <p class="eyebrow">快速填充模板</p>
@@ -354,7 +334,6 @@
                 <button id="configDeleteBtn" class="danger hidden" type="button">删除配置</button>
               </div>
             </form>
-          </div>
           <section class="panel projects-panel">
             <header class="section-toolbar">
               <div>
@@ -370,22 +349,35 @@
         <section id="projectProfilesTab" class="tab hidden">
           <div class="grid two">
             <form id="projectProfileForm" class="panel">
-              <h3 id="projectProfileFormTitle">新增项目模板</h3>
-              <p class="muted">保存常用的项目信息，新建配置时一键填充，避免重复填写仓库地址、Unity 版本等。</p>
+              <h3 id="projectProfileFormTitle">新增项目</h3>
+              <p class="muted">管理项目信息，新建配置时选择项目即可自动填充仓库地址、Unity 版本等字段。</p>
               <input id="projectProfileId" type="hidden">
-              <label>模板名称<input id="projectProfileName" placeholder="例如：主力项目" required></label>
-              <label>Git 仓库<input id="projectProfileRepo" placeholder="git@github.com:org/game.git"></label>
-              <label>默认分支<input id="projectProfileBranch" value="main"></label>
-              <label>仓库目录名<input id="projectProfileDirName" placeholder="留空自动推断"></label>
-              <label>Unity 工程相对路径<input id="projectProfileUnityPath" value="."></label>
-              <label>Unity 版本<input id="projectProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
-              <label>Unity 完整路径<input id="projectProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
-              <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace"></label>
-              <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts"></label>
-              <label>Product Name<input id="projectProfileProductName" placeholder="游戏名称"></label>
-              <label>Bundle Identifier<input id="projectProfileBundleId" placeholder="com.company.game"></label>
+              <label>项目名称<input id="projectProfileName" placeholder="例如：主力项目" required></label>
+              <label>Git 仓库<input id="projectProfileRepo" placeholder="git@github.com:org/game.git" required></label>
+              <div class="form-grid">
+                <label>默认分支<input id="projectProfileBranch" value="main"></label>
+                <label>允许分支<input id="projectProfileAllowedBranches" value="main" placeholder="main,release/*"></label>
+                <label>默认平台
+                  <select id="projectProfileDefaultPlatform">
+                    <option value="ios">iOS</option>
+                    <option value="android">Android</option>
+                    <option value="tiktok">TikTok 小游戏</option>
+                  </select>
+                </label>
+                <label>仓库目录名<input id="projectProfileDirName" placeholder="留空自动推断"></label>
+              </div>
+              <label>说明<textarea id="projectProfileDescription" rows="2"></textarea></label>
+              <div class="form-grid">
+                <label>Unity 工程相对路径<input id="projectProfileUnityPath" value="."></label>
+                <label>Unity 版本<input id="projectProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
+                <label>Unity 完整路径<input id="projectProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
+                <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace"></label>
+                <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts"></label>
+                <label>Product Name<input id="projectProfileProductName" placeholder="游戏名称"></label>
+                <label>Bundle Identifier<input id="projectProfileBundleId" placeholder="com.company.game"></label>
+              </div>
               <div class="form-actions">
-                <button id="projectProfileSaveBtn" type="submit">保存模板</button>
+                <button id="projectProfileSaveBtn" type="submit">保存项目</button>
                 <button id="projectProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
               </div>
             </form>
@@ -393,9 +385,9 @@
             <section class="panel">
               <header class="section-toolbar">
                 <div>
-                  <p class="eyebrow">模板登记</p>
-                  <h3>已有项目模板</h3>
-                  <p class="muted">新建配置时选择对应模板即可一键填充项目相关字段。</p>
+                  <p class="eyebrow">项目登记</p>
+                  <h3>已有项目</h3>
+                  <p class="muted">新建配置时选择项目即可自动填充仓库地址、Unity 版本等字段。</p>
                 </div>
               </header>
               <div id="projectProfilesList" class="list"></div>
@@ -923,7 +915,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-profile-management"></script>
-  <script src="/app.js?v=20260813-profile-management"></script>
+  <script src="/runtime.js?v=20260813-project-merge"></script>
+  <script src="/app.js?v=20260813-project-merge"></script>
 </body>
 </html>

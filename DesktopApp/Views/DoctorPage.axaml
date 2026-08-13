@@ -1,5 +1,6 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:DesktopApp.Controls"
              x:Class="DesktopApp.Views.DoctorPage">
   <Grid RowDefinitions="Auto,*">
     <StackPanel Grid.Row="0" Margin="24,20,24,0" Spacing="8">
@@ -23,7 +24,7 @@
     </StackPanel>
 
     <Border Grid.Row="1" Margin="24,8,24,16" CornerRadius="8" BorderBrush="#334155" BorderThickness="1" Background="#0F172A">
-      <TextBox Classes="log-output" Text="{Binding LogText}" Margin="2" />
+      <ctrl:ImeTextBox Classes="log-output" Text="{Binding LogText}" Margin="2" />
     </Border>
   </Grid>
 </UserControl>
