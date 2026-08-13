@@ -9,6 +9,7 @@ const state = {
   notificationContacts: [],
   projectProfiles: [],
   certificateProfiles: [],
+  signingProfiles: [],
   storageOverview: null,
   storageJobs: [],
   selectedStorageJobIds: new Set(),
@@ -568,6 +569,10 @@ function bindEvents() {
   $("certProfileCancelBtn").addEventListener("click", resetCertProfileForm);
   $("certProfilesList").addEventListener("click", handleCertProfilesListClick);
   $("certProfilePlatform").addEventListener("change", toggleCertProfilePlatformFields);
+  $("signingProfileForm").addEventListener("submit", saveSigningProfile);
+  $("signingProfileCancelBtn").addEventListener("click", resetSigningProfileForm);
+  $("signingProfilesList").addEventListener("click", handleSigningProfilesListClick);
+  $("signingProfilePlatform").addEventListener("change", toggleSigningProfilePlatformFields);
 
 
 
@@ -1201,6 +1206,7 @@ function applyDashboard(dashboard) {
   state.notificationContacts = dashboard.notificationContacts || [];
   state.projectProfiles = dashboard.projectProfiles || [];
   state.certificateProfiles = dashboard.certificateProfiles || [];
+  state.signingProfiles = dashboard.signingProfiles || [];
   renderProjects();
   renderConfigsSelects();
   renderJobs();
@@ -1210,6 +1216,7 @@ function applyDashboard(dashboard) {
   renderQuickFillDropdowns();
   renderProjectProfiles();
   renderCertProfiles();
+  renderSigningProfiles();
   updatePermissionControls();
 }
 
@@ -1252,7 +1259,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", certProfiles: "证书管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -3142,6 +3149,11 @@ function autoFillProjectFields(projectId) {
 }
 
 function renderQuickFillDropdowns() {
+  const signingOptions = ['<option value="">不使用</option>']
+    .concat(state.signingProfiles.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`))
+    .join("");
+  $("quickFillSigning").innerHTML = signingOptions;
+
   const certOptions = ['<option value="">不使用</option>']
     .concat(state.certificateProfiles.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`))
     .join("");
@@ -3149,37 +3161,51 @@ function renderQuickFillDropdowns() {
 }
 
 function applyQuickFill() {
+  const signingId = $("quickFillSigning").value;
   const certId = $("quickFillCert").value;
-  if (!certId) {
-    showMessage("请先选择证书模板。");
-    return;
+  let filled = [];
+
+  if (signingId) {
+    const signing = state.signingProfiles.find((s) => s.id === signingId);
+    if (signing) {
+      if (signing.teamId) $("configTeamId").value = signing.teamId;
+      if (signing.exportMethod) $("configExportMethod").value = signing.exportMethod;
+      if (signing.signingStyle) $("configSigningStyle").value = signing.signingStyle;
+      if (signing.iosDeploymentTarget) $("configIosDeploymentTarget").value = signing.iosDeploymentTarget;
+      if (signing.androidKeystoreName) $("configAndroidKeystoreName").value = signing.androidKeystoreName;
+      if (signing.androidKeystorePass) $("configAndroidKeystorePass").value = signing.androidKeystorePass;
+      if (signing.androidKeyaliasName) $("configAndroidKeyaliasName").value = signing.androidKeyaliasName;
+      if (signing.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = signing.androidKeyaliasPass;
+      filled.push("签名模板");
+    }
   }
 
-  const cert = state.certificateProfiles.find((c) => c.id === certId);
-  if (!cert) return;
+  if (certId) {
+    const cert = state.certificateProfiles.find((c) => c.id === certId);
+    if (cert) {
+      if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
+      if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
+      if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
+      $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
+      if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
+      if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
+      if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
+      $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
+      if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
+      if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
+      if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
+      if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
+      $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
+      toggleUploadSections();
+      filled.push("证书模板");
+    }
+  }
 
-  if (cert.teamId) $("configTeamId").value = cert.teamId;
-  if (cert.iosDeploymentTarget) $("configIosDeploymentTarget").value = cert.iosDeploymentTarget;
-  if (cert.exportMethod) $("configExportMethod").value = cert.exportMethod;
-  if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
-  if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
-  if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
-  $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
-  if (cert.androidKeystoreName) $("configAndroidKeystoreName").value = cert.androidKeystoreName;
-  if (cert.androidKeystorePass) $("configAndroidKeystorePass").value = cert.androidKeystorePass;
-  if (cert.androidKeyaliasName) $("configAndroidKeyaliasName").value = cert.androidKeyaliasName;
-  if (cert.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = cert.androidKeyaliasPass;
-  if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
-  if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
-  if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
-  $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
-  if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
-  if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
-  if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
-  if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
-  $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
-  toggleUploadSections();
-  showMessage(`已从证书模板「${cert.name}」填充签名信息。请检查并按需调整。`);
+  if (filled.length) {
+    showMessage(`已填充：${filled.join("、")}。请检查并按需调整。`);
+  } else {
+    showMessage("请至少选择一个签名或证书模板。");
+  }
 }
 
 // ---- Project Profiles ----
@@ -3336,17 +3362,10 @@ async function saveCertProfile(event) {
       body: JSON.stringify({
         name: $("certProfileName").value,
         platform: $("certProfilePlatform").value,
-        teamId: $("certProfileTeamId").value || null,
-        exportMethod: $("certProfileExportMethod").value,
-        iosDeploymentTarget: $("certProfileIosTarget").value || null,
         appStoreConnectApiKeyPath: $("certProfileApiKeyPath").value || null,
         appStoreConnectApiKeyId: $("certProfileApiKeyId").value || null,
         appStoreConnectApiIssuerId: $("certProfileIssuerId").value || null,
         appStoreConnectUploadEnabled: $("certProfileAscUpload").checked,
-        androidKeystoreName: $("certProfileKeystoreName").value || null,
-        androidKeystorePass: $("certProfileKeystorePass").value || null,
-        androidKeyaliasName: $("certProfileKeyaliasName").value || null,
-        androidKeyaliasPass: $("certProfileKeyaliasPass").value || null,
         googlePlayUploadEnabled: $("certProfileGpUpload").checked,
         googlePlayPackageName: $("certProfileGpPackage").value || null,
         googlePlayServiceAccountJsonPath: $("certProfileGpServiceJson").value || null,
@@ -3387,17 +3406,10 @@ function editCertProfile(profileId) {
   $("certProfileId").value = profile.id;
   $("certProfileName").value = profile.name || "";
   $("certProfilePlatform").value = profile.platform || "ios";
-  $("certProfileTeamId").value = profile.teamId || "";
-  $("certProfileExportMethod").value = profile.exportMethod || "development";
-  $("certProfileIosTarget").value = profile.iosDeploymentTarget || "";
   $("certProfileApiKeyPath").value = profile.appStoreConnectApiKeyPath || "";
   $("certProfileApiKeyId").value = profile.appStoreConnectApiKeyId || "";
   $("certProfileIssuerId").value = profile.appStoreConnectApiIssuerId || "";
   $("certProfileAscUpload").checked = Boolean(profile.appStoreConnectUploadEnabled);
-  $("certProfileKeystoreName").value = profile.androidKeystoreName || "";
-  $("certProfileKeystorePass").value = profile.androidKeystorePass || "";
-  $("certProfileKeyaliasName").value = profile.androidKeyaliasName || "";
-  $("certProfileKeyaliasPass").value = profile.androidKeyaliasPass || "";
   $("certProfileGpPackage").value = profile.googlePlayPackageName || "";
   $("certProfileGpServiceJson").value = profile.googlePlayServiceAccountJsonPath || "";
   $("certProfileGpTrack").value = profile.googlePlayTrack || "internal";
@@ -3418,7 +3430,6 @@ function resetCertProfileForm() {
   $("certProfileForm").reset();
   $("certProfileId").value = "";
   $("certProfilePlatform").value = "ios";
-  $("certProfileExportMethod").value = "development";
   $("certProfileGpTrack").value = "internal";
   $("certProfileTiktokEndpoint").value = "https://open-api.tiktokglobalshop.com";
   $("certProfileFormTitle").textContent = "新增证书模板";
@@ -3457,9 +3468,135 @@ function renderCertProfiles() {
       </div>
     </header>
     <dl class="project-meta">
-      <div><dt>Team ID</dt><dd>${escapeHtml(c.teamId || "-")}</dd></div>
-      <div><dt>Keystore</dt><dd>${escapeHtml(c.androidKeystoreName || "-")}</dd></div>
+      <div><dt>ASC 上传</dt><dd>${c.appStoreConnectUploadEnabled ? "启用" : "-"}</dd></div>
+      <div><dt>Google Play</dt><dd>${c.googlePlayUploadEnabled ? "启用" : "-"}</dd></div>
       <div><dt>TikTok App ID</dt><dd>${escapeHtml(c.tiktokAppId || "-")}</dd></div>
+    </dl>
+  </article>`).join("");
+}
+
+// ---- Signing Profiles ----
+
+function toggleSigningProfilePlatformFields() {
+  const platform = $("signingProfilePlatform").value;
+  const showAll = platform === "all";
+  $("signingProfileIosFields").classList.toggle("hidden", !showAll && platform !== "ios");
+  $("signingProfileAndroidFields").classList.toggle("hidden", !showAll && platform !== "android");
+}
+
+async function saveSigningProfile(event) {
+  event.preventDefault();
+  clearMessage();
+  const profileId = $("signingProfileId").value;
+  const isEditing = Boolean(profileId);
+  setButtonBusy("signingProfileSaveBtn", true, isEditing ? "更新中..." : "保存中...");
+  try {
+    const path = isEditing ? `/api/signing-profiles/${encodeURIComponent(profileId)}` : "/api/signing-profiles";
+    const method = isEditing ? "PUT" : "POST";
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        name: $("signingProfileName").value,
+        platform: $("signingProfilePlatform").value,
+        teamId: $("signingProfileTeamId").value || null,
+        exportMethod: $("signingProfileExportMethod").value,
+        signingStyle: $("signingProfileSigningStyle").value,
+        iosDeploymentTarget: $("signingProfileIosTarget").value || null,
+        androidKeystoreName: $("signingProfileKeystoreName").value || null,
+        androidKeystorePass: $("signingProfileKeystorePass").value || null,
+        androidKeyaliasName: $("signingProfileKeyaliasName").value || null,
+        androidKeyaliasPass: $("signingProfileKeyaliasPass").value || null,
+      }),
+    });
+    resetSigningProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "签名模板已更新。" : "签名模板已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("signingProfileSaveBtn", false);
+  }
+}
+
+function handleSigningProfilesListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-sp-id]");
+  if (editBtn) {
+    editSigningProfile(editBtn.dataset.editSpId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-sp-id]");
+  if (deleteBtn) {
+    deleteSigningProfile(deleteBtn.dataset.deleteSpId);
+  }
+}
+
+function editSigningProfile(profileId) {
+  const profile = state.signingProfiles.find((s) => s.id === profileId);
+  if (!profile) return;
+  $("signingProfileId").value = profile.id;
+  $("signingProfileName").value = profile.name || "";
+  $("signingProfilePlatform").value = profile.platform || "ios";
+  $("signingProfileTeamId").value = profile.teamId || "";
+  $("signingProfileExportMethod").value = profile.exportMethod || "development";
+  $("signingProfileSigningStyle").value = profile.signingStyle || "automatic";
+  $("signingProfileIosTarget").value = profile.iosDeploymentTarget || "";
+  $("signingProfileKeystoreName").value = profile.androidKeystoreName || "";
+  $("signingProfileKeystorePass").value = profile.androidKeystorePass || "";
+  $("signingProfileKeyaliasName").value = profile.androidKeyaliasName || "";
+  $("signingProfileKeyaliasPass").value = profile.androidKeyaliasPass || "";
+  $("signingProfileFormTitle").textContent = "编辑签名模板";
+  $("signingProfileSaveBtn").textContent = "更新模板";
+  $("signingProfileCancelBtn").classList.remove("hidden");
+  toggleSigningProfilePlatformFields();
+  $("signingProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetSigningProfileForm() {
+  $("signingProfileForm").reset();
+  $("signingProfileId").value = "";
+  $("signingProfilePlatform").value = "ios";
+  $("signingProfileExportMethod").value = "development";
+  $("signingProfileSigningStyle").value = "automatic";
+  $("signingProfileFormTitle").textContent = "新增签名模板";
+  $("signingProfileSaveBtn").textContent = "保存模板";
+  $("signingProfileCancelBtn").classList.add("hidden");
+  toggleSigningProfilePlatformFields();
+}
+
+async function deleteSigningProfile(profileId) {
+  if (!confirm("确认删除这个签名模板？")) return;
+  try {
+    await api(`/api/signing-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    if ($("signingProfileId").value === profileId) resetSigningProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("签名模板已删除。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderSigningProfiles() {
+  if (state.signingProfiles.length === 0) {
+    $("signingProfilesList").innerHTML = `<div class="empty-state compact">暂无签名模板。使用左侧表单添加。</div>`;
+    return;
+  }
+
+  $("signingProfilesList").innerHTML = state.signingProfiles.map((s) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(s.name)}</strong>
+        <div class="muted small">${platformLabel(s.platform || "ios")}</div>
+      </div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-edit-sp-id="${escapeHtml(s.id)}">编辑</button>
+        <button class="danger" type="button" data-delete-sp-id="${escapeHtml(s.id)}">删除</button>
+      </div>
+    </header>
+    <dl class="project-meta">
+      <div><dt>Team ID</dt><dd>${escapeHtml(s.teamId || "-")}</dd></div>
+      <div><dt>Export Method</dt><dd>${escapeHtml(s.exportMethod || "-")}</dd></div>
+      <div><dt>Keystore</dt><dd>${escapeHtml(s.androidKeystoreName || "-")}</dd></div>
     </dl>
   </article>`).join("");
 }

@@ -82,6 +82,11 @@ public static class ApiRoutes
         app.MapPost("/api/certificate-profiles", CreateCertificateProfileAsync);
         app.MapPut("/api/certificate-profiles/{profileId}", UpdateCertificateProfileAsync);
         app.MapDelete("/api/certificate-profiles/{profileId}", DeleteCertificateProfileAsync);
+
+        app.MapGet("/api/signing-profiles", ListSigningProfilesAsync);
+        app.MapPost("/api/signing-profiles", CreateSigningProfileAsync);
+        app.MapPut("/api/signing-profiles/{profileId}", UpdateSigningProfileAsync);
+        app.MapDelete("/api/signing-profiles/{profileId}", DeleteSigningProfileAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -145,6 +150,7 @@ public static class ApiRoutes
             notificationContacts = db.NotificationContacts.OrderBy(c => c.Title).ThenBy(c => c.Email).ToList(),
             projectProfiles = db.ProjectProfiles.OrderBy(p => p.Name).ToList(),
             certificateProfiles = db.CertificateProfiles.OrderBy(c => c.Name).ToList(),
+            signingProfiles = db.SigningProfiles.OrderBy(s => s.Name).ToList(),
             settings = new
             {
                 options.DataRoot,
@@ -1546,17 +1552,10 @@ public static class ApiRoutes
                     Id = Ids.New("cp"),
                     Name = Required(request.Name, "模板名称"),
                     Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant(),
-                    TeamId = request.TeamId ?? "",
-                    ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim(),
-                    IosDeploymentTarget = request.IosDeploymentTarget ?? "",
                     AppStoreConnectApiKeyPath = request.AppStoreConnectApiKeyPath ?? "",
                     AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "",
                     AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "",
                     AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled,
-                    AndroidKeystoreName = request.AndroidKeystoreName ?? "",
-                    AndroidKeystorePass = request.AndroidKeystorePass ?? "",
-                    AndroidKeyaliasName = request.AndroidKeyaliasName ?? "",
-                    AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "",
                     GooglePlayUploadEnabled = request.GooglePlayUploadEnabled,
                     GooglePlayPackageName = request.GooglePlayPackageName ?? "",
                     GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "",
@@ -1594,17 +1593,10 @@ public static class ApiRoutes
                     ?? throw new FileNotFoundException("证书模板不存在。");
                 profile.Name = Required(request.Name, "模板名称");
                 profile.Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant();
-                profile.TeamId = request.TeamId ?? "";
-                profile.ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim();
-                profile.IosDeploymentTarget = request.IosDeploymentTarget ?? "";
                 profile.AppStoreConnectApiKeyPath = request.AppStoreConnectApiKeyPath ?? "";
                 profile.AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "";
                 profile.AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "";
                 profile.AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled;
-                profile.AndroidKeystoreName = request.AndroidKeystoreName ?? "";
-                profile.AndroidKeystorePass = request.AndroidKeystorePass ?? "";
-                profile.AndroidKeyaliasName = request.AndroidKeyaliasName ?? "";
-                profile.AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "";
                 profile.GooglePlayUploadEnabled = request.GooglePlayUploadEnabled;
                 profile.GooglePlayPackageName = request.GooglePlayPackageName ?? "";
                 profile.GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "";
@@ -1639,6 +1631,110 @@ public static class ApiRoutes
                     ?? throw new FileNotFoundException("证书模板不存在。");
                 db.CertificateProfiles.Remove(profile);
                 AuthService.AddAudit(db, user.Id, user.UserName, "cert-profile.delete", "cert-profile", profile.Id, $"删除证书模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    // ---- Signing Profiles ----
+
+    private static async Task<IResult> ListSigningProfilesAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+        return Results.Ok(await database.ReadAsync(db => db.SigningProfiles.OrderBy(s => s.Name).ToList()));
+    }
+
+    private static async Task<IResult> CreateSigningProfileAsync(SigningProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            SigningProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                var profile = new SigningProfileRecord
+                {
+                    Id = Ids.New("sp"),
+                    Name = Required(request.Name, "模板名称"),
+                    Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant(),
+                    TeamId = request.TeamId ?? "",
+                    ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim(),
+                    SigningStyle = string.IsNullOrWhiteSpace(request.SigningStyle) ? "automatic" : request.SigningStyle.Trim(),
+                    IosDeploymentTarget = request.IosDeploymentTarget ?? "",
+                    AndroidKeystoreName = request.AndroidKeystoreName ?? "",
+                    AndroidKeystorePass = request.AndroidKeystorePass ?? "",
+                    AndroidKeyaliasName = request.AndroidKeyaliasName ?? "",
+                    AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "",
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.SigningProfiles.Add(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "signing-profile.create", "signing-profile", profile.Id, $"创建签名模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateSigningProfileAsync(string profileId, SigningProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            SigningProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                SigningProfileRecord? profile = db.SigningProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("签名模板不存在。");
+                profile.Name = Required(request.Name, "模板名称");
+                profile.Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant();
+                profile.TeamId = request.TeamId ?? "";
+                profile.ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim();
+                profile.SigningStyle = string.IsNullOrWhiteSpace(request.SigningStyle) ? "automatic" : request.SigningStyle.Trim();
+                profile.IosDeploymentTarget = request.IosDeploymentTarget ?? "";
+                profile.AndroidKeystoreName = request.AndroidKeystoreName ?? "";
+                profile.AndroidKeystorePass = request.AndroidKeystorePass ?? "";
+                profile.AndroidKeyaliasName = request.AndroidKeyaliasName ?? "";
+                profile.AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "";
+                AuthService.AddAudit(db, user.Id, user.UserName, "signing-profile.update", "signing-profile", profile.Id, $"更新签名模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteSigningProfileAsync(string profileId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            SigningProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                SigningProfileRecord? profile = db.SigningProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("签名模板不存在。");
+                db.SigningProfiles.Remove(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "signing-profile.delete", "signing-profile", profile.Id, $"删除签名模板 {profile.Name}");
                 return profile;
             });
             return Results.Ok(new { deleted = true, profile });

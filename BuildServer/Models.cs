@@ -16,6 +16,7 @@ public sealed class BuildServerDatabase
     public List<NotificationContactRecord> NotificationContacts { get; set; } = [];
     public List<ProjectProfileRecord> ProjectProfiles { get; set; } = [];
     public List<CertificateProfileRecord> CertificateProfiles { get; set; } = [];
+    public List<SigningProfileRecord> SigningProfiles { get; set; } = [];
 }
 
 public sealed class NotificationContactRecord
@@ -54,17 +55,10 @@ public sealed class CertificateProfileRecord
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Platform { get; set; } = "ios";
-    public string TeamId { get; set; } = "";
-    public string ExportMethod { get; set; } = "development";
-    public string IosDeploymentTarget { get; set; } = "";
     public string AppStoreConnectApiKeyPath { get; set; } = "";
     public string AppStoreConnectApiKeyId { get; set; } = "";
     public string AppStoreConnectApiIssuerId { get; set; } = "";
     public bool AppStoreConnectUploadEnabled { get; set; }
-    public string AndroidKeystoreName { get; set; } = "";
-    public string AndroidKeystorePass { get; set; } = "";
-    public string AndroidKeyaliasName { get; set; } = "";
-    public string AndroidKeyaliasPass { get; set; } = "";
     public bool GooglePlayUploadEnabled { get; set; }
     public string GooglePlayPackageName { get; set; } = "";
     public string GooglePlayServiceAccountJsonPath { get; set; } = "";
@@ -74,6 +68,22 @@ public sealed class CertificateProfileRecord
     public string TiktokGameName { get; set; } = "";
     public string TiktokApiEndpoint { get; set; } = "https://open-api.tiktokglobalshop.com";
     public bool TiktokUploadEnabled { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class SigningProfileRecord
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Platform { get; set; } = "ios";
+    public string TeamId { get; set; } = "";
+    public string ExportMethod { get; set; } = "development";
+    public string SigningStyle { get; set; } = "automatic";
+    public string IosDeploymentTarget { get; set; } = "";
+    public string AndroidKeystoreName { get; set; } = "";
+    public string AndroidKeystorePass { get; set; } = "";
+    public string AndroidKeyaliasName { get; set; } = "";
+    public string AndroidKeyaliasPass { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
@@ -385,17 +395,10 @@ public sealed record ProjectProfileRequest(
 public sealed record CertificateProfileRequest(
     string Name,
     string? Platform = "ios",
-    string? TeamId = null,
-    string? ExportMethod = "development",
-    string? IosDeploymentTarget = null,
     string? AppStoreConnectApiKeyPath = null,
     string? AppStoreConnectApiKeyId = null,
     string? AppStoreConnectApiIssuerId = null,
     bool AppStoreConnectUploadEnabled = false,
-    string? AndroidKeystoreName = null,
-    string? AndroidKeystorePass = null,
-    string? AndroidKeyaliasName = null,
-    string? AndroidKeyaliasPass = null,
     bool GooglePlayUploadEnabled = false,
     string? GooglePlayPackageName = null,
     string? GooglePlayServiceAccountJsonPath = null,
@@ -405,6 +408,18 @@ public sealed record CertificateProfileRequest(
     string? TiktokGameName = null,
     string? TiktokApiEndpoint = "https://open-api.tiktokglobalshop.com",
     bool TiktokUploadEnabled = false);
+
+public sealed record SigningProfileRequest(
+    string Name,
+    string? Platform = "ios",
+    string? TeamId = null,
+    string? ExportMethod = "development",
+    string? SigningStyle = "automatic",
+    string? IosDeploymentTarget = null,
+    string? AndroidKeystoreName = null,
+    string? AndroidKeystorePass = null,
+    string? AndroidKeyaliasName = null,
+    string? AndroidKeyaliasPass = null);
 
 public sealed record BatchDeleteRequest(string[] JobIds);
 
