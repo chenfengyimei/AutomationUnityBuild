@@ -36,15 +36,19 @@ public sealed class SelfUpdateService(
     public async Task<UpdateCheckResult> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
         string currentVersion = GetCurrentVersion();
-        string source = string.IsNullOrWhiteSpace(options.UpdateSource) ? "gitee" : options.UpdateSource.Trim().ToLowerInvariant();
 
-        ReleaseInfo release = source switch
-        {
-            "github" => await FetchGitHubLatestReleaseAsync(cancellationToken),
-            _ => await FetchGiteeLatestReleaseAsync(cancellationToken)
-        };
+        // 同时查询 Gitee 和 GitHub，取版本号更新的那个
+        Task<ReleaseInfo> giteeTask = TryFetchAsync(FetchGiteeLatestReleaseAsync, "gitee", cancellationToken);
+        Task<ReleaseInfo> githubTask = TryFetchAsync(FetchGitHubLatestReleaseAsync, "github", cancellationToken);
+        await Task.WhenAll(giteeTask, githubTask);
 
-        string latestTag = release.TagName ?? "";
+        ReleaseInfo giteeRelease = await giteeTask;
+        ReleaseInfo githubRelease = await githubTask;
+
+        // 选择 tag 更新的那个作为主结果
+        (ReleaseInfo primary, string primarySource, ReleaseInfo? secondary, string? secondarySource) = PickLatestRelease(giteeRelease, githubRelease);
+
+        string latestTag = primary.TagName ?? "";
         bool updateAvailable = !string.IsNullOrWhiteSpace(latestTag) &&
                                !string.Equals(currentVersion, latestTag, StringComparison.OrdinalIgnoreCase) &&
                                !string.Equals(currentVersion, "unknown", StringComparison.OrdinalIgnoreCase);
@@ -52,13 +56,45 @@ public sealed class SelfUpdateService(
         return new UpdateCheckResult(
             currentVersion,
             latestTag,
-            release.Name ?? "",
-            release.Body ?? "",
-            release.AssetDownloadUrl ?? "",
-            release.AssetName ?? "",
-            release.AssetSize,
+            primary.Name ?? "",
+            primary.Body ?? "",
+            primary.AssetDownloadUrl ?? "",
+            primary.AssetName ?? "",
+            primary.AssetSize,
             updateAvailable,
-            source);
+            primarySource,
+            giteeRelease.TagName,
+            giteeRelease.AssetDownloadUrl,
+            githubRelease.TagName,
+            githubRelease.AssetDownloadUrl,
+            secondary?.TagName,
+            secondary?.AssetDownloadUrl,
+            secondarySource);
+    }
+
+    public UpdateCheckResult SelectSource(UpdateCheckResult result, string preferredSource)
+    {
+        // 前端指定从 gitee 或 github 下载，切换主下载源
+        bool isGitee = preferredSource == "gitee";
+        string? version = isGitee ? result.GiteeVersion : result.GithubVersion;
+        string? downloadUrl = isGitee ? result.GiteeDownloadUrl : result.GithubDownloadUrl;
+
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+        {
+            throw new InvalidOperationException($"源 {preferredSource} 没有可用的更新包。");
+        }
+
+        bool updateAvailable = !string.IsNullOrWhiteSpace(version) &&
+                               !string.Equals(result.CurrentVersion, version, StringComparison.OrdinalIgnoreCase) &&
+                               !string.Equals(result.CurrentVersion, "unknown", StringComparison.OrdinalIgnoreCase);
+
+        return result with
+        {
+            LatestVersion = version ?? result.LatestVersion,
+            AssetDownloadUrl = downloadUrl,
+            UpdateAvailable = updateAvailable,
+            Source = preferredSource
+        };
     }
 
     public async Task<UpdateApplyResult> ApplyUpdateAsync(UpdateCheckResult checkResult, CancellationToken cancellationToken = default)
@@ -141,6 +177,79 @@ public sealed class SelfUpdateService(
         return new UpdateApplyResult(true, scriptPath, backupDir, checkResult.LatestVersion);
     }
 
+    private async Task<ReleaseInfo> TryFetchAsync(Func<CancellationToken, Task<ReleaseInfo>> fetch, string sourceName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await fetch(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "从 {Source} 检查更新失败", sourceName);
+            return new ReleaseInfo(null, null, null, null, null, 0);
+        }
+    }
+
+    private static (ReleaseInfo primary, string primarySource, ReleaseInfo? secondary, string? secondarySource) PickLatestRelease(ReleaseInfo gitee, ReleaseInfo github)
+    {
+        bool giteeHas = !string.IsNullOrWhiteSpace(gitee.TagName);
+        bool githubHas = !string.IsNullOrWhiteSpace(github.TagName);
+
+        if (giteeHas && githubHas)
+        {
+            // 比较 tag：如果一致优先 gitee（国内更快），否则取更大的
+            if (string.Equals(gitee.TagName, github.TagName, StringComparison.OrdinalIgnoreCase))
+            {
+                return (gitee, "gitee", github, "github");
+            }
+            return CompareVersions(gitee.TagName!, github.TagName!) >= 0
+                ? (gitee, "gitee", github, "github")
+                : (github, "github", gitee, "gitee");
+        }
+
+        if (giteeHas) return (gitee, "gitee", null, null);
+        if (githubHas) return (github, "github", null, null);
+        return (gitee, "gitee", null, null);
+    }
+
+    private static int CompareVersions(string left, string right)
+    {
+        int[] leftNumbers = ExtractVersionNumbers(left);
+        int[] rightNumbers = ExtractVersionNumbers(right);
+        int length = Math.Max(leftNumbers.Length, rightNumbers.Length);
+        for (int i = 0; i < length; i++)
+        {
+            int l = i < leftNumbers.Length ? leftNumbers[i] : 0;
+            int r = i < rightNumbers.Length ? rightNumbers[i] : 0;
+            if (l != r) return l.CompareTo(r);
+        }
+        return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int[] ExtractVersionNumbers(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return [];
+        List<int> numbers = [];
+        int current = 0;
+        bool reading = false;
+        foreach (char c in value)
+        {
+            if (char.IsDigit(c))
+            {
+                current = current * 10 + (c - '0');
+                reading = true;
+            }
+            else if (reading)
+            {
+                numbers.Add(current);
+                current = 0;
+                reading = false;
+            }
+        }
+        if (reading) numbers.Add(current);
+        return numbers.ToArray();
+    }
+
     private async Task<ReleaseInfo> FetchGiteeLatestReleaseAsync(CancellationToken cancellationToken)
     {
         string url = $"https://gitee.com/api/v5/repos/{options.UpdateRepoOwner}/{options.UpdateRepoName}/releases/latest";
@@ -175,7 +284,9 @@ public sealed class SelfUpdateService(
 
     private async Task<ReleaseInfo> FetchGitHubLatestReleaseAsync(CancellationToken cancellationToken)
     {
-        string url = $"https://api.github.com/repos/{options.UpdateRepoOwner}/{options.UpdateRepoName}/releases/latest";
+        string owner = string.IsNullOrWhiteSpace(options.UpdateGithubRepoOwner) ? options.UpdateRepoOwner : options.UpdateGithubRepoOwner;
+        string repo = string.IsNullOrWhiteSpace(options.UpdateGithubRepoName) ? options.UpdateRepoName : options.UpdateGithubRepoName;
+        string url = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
         logger.LogInformation("正在从 GitHub 检查最新 Release: {Url}", url);
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -313,7 +424,14 @@ public sealed record UpdateCheckResult(
     string AssetName,
     long AssetSize,
     bool UpdateAvailable,
-    string Source);
+    string Source,
+    string? GiteeVersion,
+    string? GiteeDownloadUrl,
+    string? GithubVersion,
+    string? GithubDownloadUrl,
+    string? SecondaryVersion,
+    string? SecondaryDownloadUrl,
+    string? SecondarySource);
 
 public sealed record UpdateApplyResult(
     bool Success,

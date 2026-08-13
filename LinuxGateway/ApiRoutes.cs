@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LinuxGateway.Persistence;
 using LinuxGateway.Reverse;
 using LinuxGateway.Security;
@@ -749,6 +750,19 @@ public static class ApiRoutes
             if (!checkResult.UpdateAvailable)
             {
                 return Results.Ok(new { success = false, message = "当前已是最新版本，无需更新。" });
+            }
+
+            // 前端可通过 body.source 指定从哪个源下载（gitee/github），默认使用 CheckForUpdateAsync 返回的主源
+            string? preferredSource = null;
+            if (context.Request.ContentLength > 0)
+            {
+                JsonNode? body = await context.Request.ReadFromJsonAsync<JsonNode>();
+                preferredSource = body?["source"]?.ToString()?.Trim().ToLowerInvariant();
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferredSource))
+            {
+                checkResult = updateService.SelectSource(checkResult, preferredSource);
             }
 
             UpdateApplyResult result = await updateService.ApplyUpdateAsync(checkResult);

@@ -1503,3 +1503,45 @@ a {
   overflow-y: auto;
   font-family: inherit;
 }
+
+.source-list {
+  margin-top: 16px;
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-top: 8px;
+  background: var(--panel-soft, #f8fbff);
+  border-radius: 8px;
+  border: 1px solid var(--line, #d8dee8);
+}
+
+.source-row strong {
+  min-width: 70px;
+  font-size: 14px;
+  color: var(--text, #172033);
+}
+
+.source-btn {
+  margin-left: auto;
+  padding: 4px 14px;
+  font-size: 13px;
+  border: 1px solid var(--primary, #1f6feb);
+  color: var(--primary, #1f6feb);
+  background: var(--primary-soft, #eaf2ff);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.source-btn:hover {
+  background: var(--primary, #1f6feb);
+  color: #fff;
+}
+
+.source-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

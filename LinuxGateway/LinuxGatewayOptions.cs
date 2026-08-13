@@ -11,6 +11,8 @@ public sealed class LinuxGatewayOptions
     public string UpdateRepoOwner { get; set; } = "chenfengloveyuri";
     public string UpdateRepoName { get; set; } = "automation-unity-build-ios";
     public string UpdateSource { get; set; } = "gitee";
+    public string UpdateGithubRepoOwner { get; set; } = "chenfengyimei";
+    public string UpdateGithubRepoName { get; set; } = "AutomationUnityBuild";
 
     public static LinuxGatewayOptions Load(IConfiguration configuration, IWebHostEnvironment environment)
     {
@@ -27,6 +29,8 @@ public sealed class LinuxGatewayOptions
         options.UpdateRepoOwner = Env("LINUX_GATEWAY_UPDATE_REPO_OWNER", options.UpdateRepoOwner);
         options.UpdateRepoName = Env("LINUX_GATEWAY_UPDATE_REPO_NAME", options.UpdateRepoName);
         options.UpdateSource = Env("LINUX_GATEWAY_UPDATE_SOURCE", options.UpdateSource).Trim().ToLowerInvariant();
+        options.UpdateGithubRepoOwner = Env("LINUX_GATEWAY_UPDATE_GITHUB_REPO_OWNER", options.UpdateGithubRepoOwner);
+        options.UpdateGithubRepoName = Env("LINUX_GATEWAY_UPDATE_GITHUB_REPO_NAME", options.UpdateGithubRepoName);
 
         if (string.IsNullOrWhiteSpace(options.DataRoot))
         {

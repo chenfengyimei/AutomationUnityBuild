@@ -51,6 +51,7 @@ const state = {
   activeTab: "overview",
   events: null,
   jobDetailTimer: null,
+  updateCheckResult: null,
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -91,7 +92,14 @@ function bindEvents() {
   $("generateTokenBtn").addEventListener("click", generateEnrollmentToken);
   $("copyEnrollBtn").addEventListener("click", copyEnrollConfig);
   $("checkUpdateBtn").addEventListener("click", checkForUpdate);
-  $("applyUpdateBtn").addEventListener("click", applyUpdate);
+  $("applyUpdateBtn").addEventListener("click", () => {
+    const source = state.updateCheckResult?.source || "gitee";
+    applyUpdate(source);
+  });
+  $("releaseNotes").addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-source]");
+    if (btn) applyUpdate(btn.dataset.source);
+  });
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
   });
@@ -185,16 +193,23 @@ function stopDashboardEvents() {
 async function checkForUpdate() {
   clearError();
   setButtonBusy("checkUpdateBtn", true, "检查中...");
-  $("updateMessage").textContent = "正在从远程仓库检查最新版本...";
+  $("updateMessage").textContent = "正在同时从 Gitee 和 GitHub 检查最新版本...";
   try {
     const result = await api("/api/system/update/check");
+    state.updateCheckResult = result;
     $("currentVersion").textContent = result.currentVersion || "unknown";
     $("latestVersion").textContent = result.latestVersion || "无";
+
+    const giteeVer = result.giteeVersion || "无";
+    const githubVer = result.githubVersion || "无";
+    const giteeOk = result.giteeVersion && result.giteeDownloadUrl;
+    const githubOk = result.githubVersion && result.githubDownloadUrl;
+
     if (result.updateAvailable) {
       $("updateStatus").textContent = "有新版本可用";
       $("updateStatus").className = "status Succeeded";
       $("applyUpdateBtn").classList.remove("hidden");
-      $("updateMessage").textContent = `发现新版本 ${result.latestVersion}，点击「立即更新」下载并应用。`;
+      $("updateMessage").textContent = `发现新版本 ${result.latestVersion}（来源: ${result.source}），点击「立即更新」下载并应用。`;
     } else if (result.latestVersion) {
       $("updateStatus").textContent = "已是最新版本";
       $("updateStatus").className = "status Succeeded";
@@ -204,9 +219,15 @@ async function checkForUpdate() {
       $("updateStatus").textContent = "未找到 Release";
       $("updateStatus").className = "status Failed";
       $("applyUpdateBtn").classList.add("hidden");
-      $("updateMessage").textContent = "仓库还没有发布 Release，请先在 Gitee/GitHub 上创建 Release 并上传 linux-gateway-*.tar.gz。";
+      $("updateMessage").textContent = "两个仓库都没有发布 Release，请先在 Gitee/GitHub 上创建 Release 并上传 linux-gateway-*.tar.gz。";
     }
-    $("releaseNotes").innerHTML = formatReleaseNotes(result.releaseNotes, result.releaseName, result.latestVersion, result.assetSize, result.source);
+
+    let sourceInfo = `<div class="source-row"><strong>Gitee</strong><span class="version-badge">${escapeHtml(giteeVer)}</span>${giteeOk ? `<button class="source-btn" data-source="gitee">从此源更新</button>` : `<span class="hint">无可用包</span>`}</div>`;
+    sourceInfo += `<div class="source-row"><strong>GitHub</strong><span class="version-badge">${escapeHtml(githubVer)}</span>${githubOk ? `<button class="source-btn" data-source="github">从此源更新</button>` : `<span class="hint">无可用包</span>`}</div>`;
+
+    $("releaseNotes").innerHTML =
+      formatReleaseNotes(result.releaseNotes, result.releaseName, result.latestVersion, result.assetSize, result.source) +
+      `<div class="source-list"><p class="eyebrow">更新源</p>${sourceInfo}</div>`;
   } catch (error) {
     showError(error);
     $("updateMessage").textContent = "检查更新失败：" + (error.message || error);
@@ -230,14 +251,18 @@ function formatReleaseNotes(notes, releaseName, latestVersion, assetSize, source
   return html;
 }
 
-async function applyUpdate() {
-  if (!confirm("确认开始更新？服务将在几秒后重启，期间会短暂不可用。")) return;
+async function applyUpdate(preferredSource) {
+  const sourceLabel = preferredSource === "github" ? "GitHub" : "Gitee";
+  if (!confirm(`确认从 ${sourceLabel} 下载并应用更新？服务将在几秒后重启，期间会短暂不可用。`)) return;
   clearError();
   setButtonBusy("applyUpdateBtn", true, "更新中...");
   setButtonBusy("checkUpdateBtn", true, "更新中...");
-  $("updateMessage").textContent = "正在下载更新包并准备应用，服务将在几秒后重启...";
+  $("updateMessage").textContent = `正在从 ${sourceLabel} 下载更新包并准备应用，服务将在几秒后重启...`;
   try {
-    const result = await api("/api/system/update/apply", { method: "POST" });
+    const result = await api("/api/system/update/apply", {
+      method: "POST",
+      body: JSON.stringify({ source: preferredSource }),
+    });
     if (result.success === false) {
       $("updateMessage").textContent = result.message || "无需更新。";
       setButtonBusy("applyUpdateBtn", false);
@@ -249,6 +274,7 @@ async function applyUpdate() {
     $("updateStatus").className = "status Running";
     $("applyUpdateBtn").disabled = true;
     $("checkUpdateBtn").disabled = true;
+    document.querySelectorAll(".source-btn").forEach(btn => btn.disabled = true);
     setTimeout(() => {
       $("updateMessage").textContent = "服务应该正在重启中。请等待约 10 秒后刷新页面。如果未自动恢复，请检查服务器日志。";
     }, 5000);
