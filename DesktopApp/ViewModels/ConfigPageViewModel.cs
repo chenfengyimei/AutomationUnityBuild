@@ -191,38 +191,29 @@ public class ConfigPageViewModel : ViewModelBase
             return;
         }
         var c = SelectedCertificateProfile;
-        // iOS
-        if (IsEditIos)
-        {
-            if (!string.IsNullOrEmpty(c.TeamId)) EditConfig.TeamId = c.TeamId;
-            if (!string.IsNullOrEmpty(c.ExportMethod)) EditConfig.ExportMethod = c.ExportMethod;
-            if (!string.IsNullOrEmpty(c.IosDeploymentTarget)) EditConfig.IosDeploymentTarget = c.IosDeploymentTarget;
-            if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyPath)) EditConfig.AppStoreConnectApiKeyPath = c.AppStoreConnectApiKeyPath;
-            if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyId)) EditConfig.AppStoreConnectApiKeyId = c.AppStoreConnectApiKeyId;
-            if (!string.IsNullOrEmpty(c.AppStoreConnectApiIssuerId)) EditConfig.AppStoreConnectApiIssuerId = c.AppStoreConnectApiIssuerId;
-            EditConfig.AppStoreConnectUploadEnabled = c.AppStoreConnectUploadEnabled;
-        }
-        // Android
-        if (IsEditAndroid)
-        {
-            if (!string.IsNullOrEmpty(c.AndroidKeystoreName)) EditConfig.AndroidKeystoreName = c.AndroidKeystoreName;
-            if (!string.IsNullOrEmpty(c.AndroidKeystorePass)) EditConfig.AndroidKeystorePass = c.AndroidKeystorePass;
-            if (!string.IsNullOrEmpty(c.AndroidKeyaliasName)) EditConfig.AndroidKeyaliasName = c.AndroidKeyaliasName;
-            if (!string.IsNullOrEmpty(c.AndroidKeyaliasPass)) EditConfig.AndroidKeyaliasPass = c.AndroidKeyaliasPass;
-            if (!string.IsNullOrEmpty(c.GooglePlayPackageName)) EditConfig.GooglePlayPackageName = c.GooglePlayPackageName;
-            if (!string.IsNullOrEmpty(c.GooglePlayServiceAccountJsonPath)) EditConfig.GooglePlayServiceAccountJsonPath = c.GooglePlayServiceAccountJsonPath;
-            if (!string.IsNullOrEmpty(c.GooglePlayTrack)) EditConfig.GooglePlayTrack = c.GooglePlayTrack;
-            EditConfig.GooglePlayUploadEnabled = c.GooglePlayUploadEnabled;
-        }
-        // TikTok
-        if (IsEditTiktok)
-        {
-            if (!string.IsNullOrEmpty(c.TiktokAppId)) EditConfig.TiktokAppId = c.TiktokAppId;
-            if (!string.IsNullOrEmpty(c.TiktokAccessToken)) EditConfig.TiktokAccessToken = c.TiktokAccessToken;
-            if (!string.IsNullOrEmpty(c.TiktokGameName)) EditConfig.TiktokGameName = c.TiktokGameName;
-            if (!string.IsNullOrEmpty(c.TiktokApiEndpoint)) EditConfig.TiktokApiEndpoint = c.TiktokApiEndpoint;
-            EditConfig.TiktokUploadEnabled = c.TiktokUploadEnabled;
-        }
+        // iOS — 始终填充，不按平台过滤
+        if (!string.IsNullOrEmpty(c.TeamId)) EditConfig.TeamId = c.TeamId;
+        if (!string.IsNullOrEmpty(c.ExportMethod)) EditConfig.ExportMethod = c.ExportMethod;
+        if (!string.IsNullOrEmpty(c.IosDeploymentTarget)) EditConfig.IosDeploymentTarget = c.IosDeploymentTarget;
+        if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyPath)) EditConfig.AppStoreConnectApiKeyPath = c.AppStoreConnectApiKeyPath;
+        if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyId)) EditConfig.AppStoreConnectApiKeyId = c.AppStoreConnectApiKeyId;
+        if (!string.IsNullOrEmpty(c.AppStoreConnectApiIssuerId)) EditConfig.AppStoreConnectApiIssuerId = c.AppStoreConnectApiIssuerId;
+        EditConfig.AppStoreConnectUploadEnabled = c.AppStoreConnectUploadEnabled;
+        // Android — 始终填充
+        if (!string.IsNullOrEmpty(c.AndroidKeystoreName)) EditConfig.AndroidKeystoreName = c.AndroidKeystoreName;
+        if (!string.IsNullOrEmpty(c.AndroidKeystorePass)) EditConfig.AndroidKeystorePass = c.AndroidKeystorePass;
+        if (!string.IsNullOrEmpty(c.AndroidKeyaliasName)) EditConfig.AndroidKeyaliasName = c.AndroidKeyaliasName;
+        if (!string.IsNullOrEmpty(c.AndroidKeyaliasPass)) EditConfig.AndroidKeyaliasPass = c.AndroidKeyaliasPass;
+        if (!string.IsNullOrEmpty(c.GooglePlayPackageName)) EditConfig.GooglePlayPackageName = c.GooglePlayPackageName;
+        if (!string.IsNullOrEmpty(c.GooglePlayServiceAccountJsonPath)) EditConfig.GooglePlayServiceAccountJsonPath = c.GooglePlayServiceAccountJsonPath;
+        if (!string.IsNullOrEmpty(c.GooglePlayTrack)) EditConfig.GooglePlayTrack = c.GooglePlayTrack;
+        EditConfig.GooglePlayUploadEnabled = c.GooglePlayUploadEnabled;
+        // TikTok — 始终填充
+        if (!string.IsNullOrEmpty(c.TiktokAppId)) EditConfig.TiktokAppId = c.TiktokAppId;
+        if (!string.IsNullOrEmpty(c.TiktokAccessToken)) EditConfig.TiktokAccessToken = c.TiktokAccessToken;
+        if (!string.IsNullOrEmpty(c.TiktokGameName)) EditConfig.TiktokGameName = c.TiktokGameName;
+        if (!string.IsNullOrEmpty(c.TiktokApiEndpoint)) EditConfig.TiktokApiEndpoint = c.TiktokApiEndpoint;
+        EditConfig.TiktokUploadEnabled = c.TiktokUploadEnabled;
         StatusMessage = $"✅ 已从证书模板「{c.Name}」填充签名信息。";
     }
 

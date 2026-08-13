@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260812-security-desensitize">
+  <link rel="stylesheet" href="/styles.css?v=20260813-profile-management">
 </head>
 <body>
   <main id="app">
@@ -29,6 +29,8 @@
         </div>
         <button data-tab="builds" class="active">打包任务</button>
         <button data-tab="projects">项目配置</button>
+        <button data-tab="projectProfiles">项目管理</button>
+        <button data-tab="certProfiles">证书管理</button>
         <button data-tab="workers">Worker 节点</button>
         <button data-tab="audit">审计日志</button>
         <button id="usersNav" data-tab="users">用户权限</button>
@@ -132,6 +134,22 @@
 
             <form id="configForm" class="panel">
               <h3 id="configFormTitle">新增配置</h3>
+              <div id="quickFillArea" class="quick-fill-area">
+                <p class="eyebrow">快速填充模板</p>
+                <div class="quick-fill-row">
+                  <label>项目模板
+                    <select id="quickFillProject">
+                      <option value="">不使用</option>
+                    </select>
+                  </label>
+                  <label>证书模板
+                    <select id="quickFillCert">
+                      <option value="">不使用</option>
+                    </select>
+                  </label>
+                  <button id="quickFillBtn" class="secondary" type="button">一键填充</button>
+                </div>
+              </div>
               <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>打包平台
@@ -347,6 +365,131 @@
             </header>
             <div id="projectsList" class="list"></div>
           </section>
+        </section>
+
+        <section id="projectProfilesTab" class="tab hidden">
+          <div class="grid two">
+            <form id="projectProfileForm" class="panel">
+              <h3 id="projectProfileFormTitle">新增项目模板</h3>
+              <p class="muted">保存常用的项目信息，新建配置时一键填充，避免重复填写仓库地址、Unity 版本等。</p>
+              <input id="projectProfileId" type="hidden">
+              <label>模板名称<input id="projectProfileName" placeholder="例如：主力项目" required></label>
+              <label>Git 仓库<input id="projectProfileRepo" placeholder="git@github.com:org/game.git"></label>
+              <label>默认分支<input id="projectProfileBranch" value="main"></label>
+              <label>仓库目录名<input id="projectProfileDirName" placeholder="留空自动推断"></label>
+              <label>Unity 工程相对路径<input id="projectProfileUnityPath" value="."></label>
+              <label>Unity 版本<input id="projectProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
+              <label>Unity 完整路径<input id="projectProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
+              <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace"></label>
+              <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts"></label>
+              <label>Product Name<input id="projectProfileProductName" placeholder="游戏名称"></label>
+              <label>Bundle Identifier<input id="projectProfileBundleId" placeholder="com.company.game"></label>
+              <div class="form-actions">
+                <button id="projectProfileSaveBtn" type="submit">保存模板</button>
+                <button id="projectProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">模板登记</p>
+                  <h3>已有项目模板</h3>
+                  <p class="muted">新建配置时选择对应模板即可一键填充项目相关字段。</p>
+                </div>
+              </header>
+              <div id="projectProfilesList" class="list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="certProfilesTab" class="tab hidden">
+          <div class="grid two">
+            <form id="certProfileForm" class="panel">
+              <h3 id="certProfileFormTitle">新增证书模板</h3>
+              <p class="muted">保存常用的签名/密钥信息，新建配置时一键填充，避免重复填写 Team ID、Keystore 路径等。</p>
+              <input id="certProfileId" type="hidden">
+              <label>模板名称<input id="certProfileName" placeholder="例如：iOS 正式签名" required></label>
+              <label>适用平台
+                <select id="certProfilePlatform">
+                  <option value="ios">iOS</option>
+                  <option value="android">Android</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="all">全部</option>
+                </select>
+              </label>
+              <div id="certProfileIosFields" class="platform-section">
+                <details class="config-section" open>
+                  <summary><span>iOS 签名</span><small>Team ID、导出方式、App Store Connect</small></summary>
+                  <div class="form-grid">
+                    <label>Apple Team ID<input id="certProfileTeamId" placeholder="ABCDE12345"></label>
+                    <label>Export Method
+                      <select id="certProfileExportMethod">
+                        <option value="development">开发测试</option>
+                        <option value="ad-hoc">Ad Hoc</option>
+                        <option value="app-store">App Store</option>
+                        <option value="enterprise">企业分发</option>
+                      </select>
+                    </label>
+                    <label>iOS Deployment Target<input id="certProfileIosTarget" placeholder="13.0"></label>
+                    <label>API Key .p8 路径<input id="certProfileApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey.p8"></label>
+                    <label>API Key ID<input id="certProfileApiKeyId"></label>
+                    <label>Issuer ID<input id="certProfileIssuerId"></label>
+                    <label><input id="certProfileAscUpload" type="checkbox"> 上传 App Store Connect</label>
+                  </div>
+                </details>
+              </div>
+              <div id="certProfileAndroidFields" class="platform-section hidden">
+                <details class="config-section" open>
+                  <summary><span>Android 签名</span><small>Keystore 和 Google Play 上传</small></summary>
+                  <div class="form-grid">
+                    <label>Keystore 路径<input id="certProfileKeystoreName" placeholder="/Users/buildbot/keys/game.keystore"></label>
+                    <label>Keystore 密码<input id="certProfileKeystorePass" type="password"></label>
+                    <label>Key Alias<input id="certProfileKeyaliasName"></label>
+                    <label>Key Alias 密码<input id="certProfileKeyaliasPass" type="password"></label>
+                    <label>Google Play Package<input id="certProfileGpPackage" placeholder="com.company.game"></label>
+                    <label>Service Account JSON<input id="certProfileGpServiceJson" placeholder="/Users/buildbot/secrets/google-play.json"></label>
+                    <label>Google Play Track
+                      <select id="certProfileGpTrack">
+                        <option value="internal">内部测试</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="beta">Beta</option>
+                        <option value="production">正式</option>
+                      </select>
+                    </label>
+                    <label><input id="certProfileGpUpload" type="checkbox"> 上传 Google Play</label>
+                  </div>
+                </details>
+              </div>
+              <div id="certProfileTiktokFields" class="platform-section hidden">
+                <details class="config-section" open>
+                  <summary><span>TikTok 配置</span><small>App ID、Access Token 和上传</small></summary>
+                  <div class="form-grid">
+                    <label>TikTok App ID<input id="certProfileTiktokAppId"></label>
+                    <label>Access Token<input id="certProfileTiktokToken" type="password"></label>
+                    <label>游戏名称<input id="certProfileTiktokGameName"></label>
+                    <label>API 端点<input id="certProfileTiktokEndpoint" value="https://open-api.tiktokglobalshop.com"></label>
+                    <label><input id="certProfileTiktokUpload" type="checkbox"> 上传 TikTok</label>
+                  </div>
+                </details>
+              </div>
+              <div class="form-actions">
+                <button id="certProfileSaveBtn" type="submit">保存模板</button>
+                <button id="certProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">模板登记</p>
+                  <h3>已有证书模板</h3>
+                  <p class="muted">新建配置时选择对应模板即可一键填充签名和密钥相关字段。</p>
+                </div>
+              </header>
+              <div id="certProfilesList" class="list"></div>
+            </section>
+          </div>
         </section>
 
         <section id="workersTab" class="tab hidden">
@@ -780,7 +923,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260812-security-desensitize"></script>
-  <script src="/app.js?v=20260812-security-desensitize"></script>
+  <script src="/runtime.js?v=20260813-profile-management"></script>
+  <script src="/app.js?v=20260813-profile-management"></script>
 </body>
 </html>

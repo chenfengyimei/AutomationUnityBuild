@@ -7,6 +7,8 @@ const state = {
   settings: null,
   emailSettings: null,
   notificationContacts: [],
+  projectProfiles: [],
+  certificateProfiles: [],
   storageOverview: null,
   storageJobs: [],
   selectedStorageJobIds: new Set(),
@@ -560,6 +562,15 @@ function bindEvents() {
   $("emailTestBtn").addEventListener("click", sendTestEmail);
   $("contactForm").addEventListener("submit", saveNotificationContact);
   $("contactCancelBtn").addEventListener("click", resetContactForm);
+
+  $("quickFillBtn").addEventListener("click", applyQuickFill);
+  $("projectProfileForm").addEventListener("submit", saveProjectProfile);
+  $("projectProfileCancelBtn").addEventListener("click", resetProjectProfileForm);
+  $("projectProfilesList").addEventListener("click", handleProjectProfilesListClick);
+  $("certProfileForm").addEventListener("submit", saveCertProfile);
+  $("certProfileCancelBtn").addEventListener("click", resetCertProfileForm);
+  $("certProfilesList").addEventListener("click", handleCertProfilesListClick);
+  $("certProfilePlatform").addEventListener("change", toggleCertProfilePlatformFields);
 
 
 
@@ -1191,12 +1202,17 @@ function applyDashboard(dashboard) {
   state.jobs = dashboard.jobs || [];
   state.settings = dashboard.settings || null;
   state.notificationContacts = dashboard.notificationContacts || [];
+  state.projectProfiles = dashboard.projectProfiles || [];
+  state.certificateProfiles = dashboard.certificateProfiles || [];
   renderProjects();
   renderConfigsSelects();
   renderJobs();
   renderMetrics();
   renderWorkers(dashboard.workers || []);
   renderContacts();
+  renderQuickFillDropdowns();
+  renderProjectProfiles();
+  renderCertProfiles();
   updatePermissionControls();
 }
 
@@ -1239,7 +1255,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", certProfiles: "证书管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -3107,6 +3123,345 @@ async function disconnectGateway() {
   } finally {
     setButtonBusy("gwDisconnectBtn", false);
   }
+}
+
+// ---- Quick Fill ----
+
+function renderQuickFillDropdowns() {
+  const projectOptions = ['<option value="">不使用</option>']
+    .concat(state.projectProfiles.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`))
+    .join("");
+  $("quickFillProject").innerHTML = projectOptions;
+
+  const certOptions = ['<option value="">不使用</option>']
+    .concat(state.certificateProfiles.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`))
+    .join("");
+  $("quickFillCert").innerHTML = certOptions;
+}
+
+function applyQuickFill() {
+  const projectId = $("quickFillProject").value;
+  const certId = $("quickFillCert").value;
+  let filled = [];
+
+  if (projectId) {
+    const profile = state.projectProfiles.find((p) => p.id === projectId);
+    if (profile) {
+      if (profile.repositoryUrl) $("configProjectDirectoryName").value = deriveRepoFolderName(profile.repositoryUrl) || profile.projectDirectoryName || "";
+      if (profile.unityProjectRelativePath) $("configUnityRelativePath").value = profile.unityProjectRelativePath;
+      if (profile.unityVersion) $("configUnityVersion").value = profile.unityVersion;
+      if (profile.unityExecutablePath) $("configUnityExecutablePath").value = profile.unityExecutablePath;
+      if (profile.productName) $("configProductName").value = profile.productName;
+      if (profile.bundleIdentifier) $("configBundleIdentifier").value = profile.bundleIdentifier;
+      filled.push("项目模板");
+    }
+  }
+
+  if (certId) {
+    const cert = state.certificateProfiles.find((c) => c.id === certId);
+    if (cert) {
+      if (cert.teamId) $("configTeamId").value = cert.teamId;
+      if (cert.iosDeploymentTarget) $("configIosDeploymentTarget").value = cert.iosDeploymentTarget;
+      if (cert.exportMethod) $("configExportMethod").value = cert.exportMethod;
+      if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
+      if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
+      if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
+      $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
+      if (cert.androidKeystoreName) $("configAndroidKeystoreName").value = cert.androidKeystoreName;
+      if (cert.androidKeystorePass) $("configAndroidKeystorePass").value = cert.androidKeystorePass;
+      if (cert.androidKeyaliasName) $("configAndroidKeyaliasName").value = cert.androidKeyaliasName;
+      if (cert.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = cert.androidKeyaliasPass;
+      if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
+      if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
+      if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
+      $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
+      if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
+      if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
+      if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
+      if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
+      $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
+      toggleUploadSections();
+      filled.push("证书模板");
+    }
+  }
+
+  if (filled.length) {
+    showMessage(`已填充：${filled.join("、")}。请检查并按需调整。`);
+  } else {
+    showMessage("请至少选择一个模板。");
+  }
+}
+
+// ---- Project Profiles ----
+
+async function saveProjectProfile(event) {
+  event.preventDefault();
+  clearMessage();
+  const profileId = $("projectProfileId").value;
+  const isEditing = Boolean(profileId);
+  setButtonBusy("projectProfileSaveBtn", true, isEditing ? "更新中..." : "保存中...");
+  try {
+    const path = isEditing ? `/api/project-profiles/${encodeURIComponent(profileId)}` : "/api/project-profiles";
+    const method = isEditing ? "PUT" : "POST";
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        name: $("projectProfileName").value,
+        repositoryUrl: $("projectProfileRepo").value || null,
+        defaultBranch: $("projectProfileBranch").value || null,
+        projectDirectoryName: $("projectProfileDirName").value || null,
+        unityProjectRelativePath: $("projectProfileUnityPath").value || null,
+        unityVersion: $("projectProfileUnityVersion").value || null,
+        unityExecutablePath: $("projectProfileUnityExe").value || null,
+        workspaceRoot: $("projectProfileWorkspace").value || null,
+        artifactsRoot: $("projectProfileArtifacts").value || null,
+        productName: $("projectProfileProductName").value || null,
+        bundleIdentifier: $("projectProfileBundleId").value || null,
+      }),
+    });
+    resetProjectProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "项目模板已更新。" : "项目模板已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("projectProfileSaveBtn", false);
+  }
+}
+
+function handleProjectProfilesListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-pp-id]");
+  if (editBtn) {
+    editProjectProfile(editBtn.dataset.editPpId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-pp-id]");
+  if (deleteBtn) {
+    deleteProjectProfile(deleteBtn.dataset.deletePpId);
+  }
+}
+
+function editProjectProfile(profileId) {
+  const profile = state.projectProfiles.find((p) => p.id === profileId);
+  if (!profile) return;
+  $("projectProfileId").value = profile.id;
+  $("projectProfileName").value = profile.name || "";
+  $("projectProfileRepo").value = profile.repositoryUrl || "";
+  $("projectProfileBranch").value = profile.defaultBranch || "main";
+  $("projectProfileDirName").value = profile.projectDirectoryName || "";
+  $("projectProfileUnityPath").value = profile.unityProjectRelativePath || ".";
+  $("projectProfileUnityVersion").value = profile.unityVersion || "";
+  $("projectProfileUnityExe").value = profile.unityExecutablePath || "";
+  $("projectProfileWorkspace").value = profile.workspaceRoot || "~/UnityBuildWorkspace";
+  $("projectProfileArtifacts").value = profile.artifactsRoot || "~/UnityBuildArtifacts";
+  $("projectProfileProductName").value = profile.productName || "";
+  $("projectProfileBundleId").value = profile.bundleIdentifier || "";
+  $("projectProfileFormTitle").textContent = "编辑项目模板";
+  $("projectProfileSaveBtn").textContent = "更新模板";
+  $("projectProfileCancelBtn").classList.remove("hidden");
+  $("projectProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetProjectProfileForm() {
+  $("projectProfileForm").reset();
+  $("projectProfileId").value = "";
+  $("projectProfileBranch").value = "main";
+  $("projectProfileUnityPath").value = ".";
+  $("projectProfileWorkspace").value = "~/UnityBuildWorkspace";
+  $("projectProfileArtifacts").value = "~/UnityBuildArtifacts";
+  $("projectProfileFormTitle").textContent = "新增项目模板";
+  $("projectProfileSaveBtn").textContent = "保存模板";
+  $("projectProfileCancelBtn").classList.add("hidden");
+}
+
+async function deleteProjectProfile(profileId) {
+  if (!confirm("确认删除这个项目模板？")) return;
+  try {
+    await api(`/api/project-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    if ($("projectProfileId").value === profileId) resetProjectProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("项目模板已删除。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderProjectProfiles() {
+  if (state.projectProfiles.length === 0) {
+    $("projectProfilesList").innerHTML = `<div class="empty-state compact">暂无项目模板。使用左侧表单添加。</div>`;
+    return;
+  }
+
+  $("projectProfilesList").innerHTML = state.projectProfiles.map((p) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(p.name)}</strong>
+        <div class="muted small">${escapeHtml(p.repositoryUrl || "-")}</div>
+      </div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-edit-pp-id="${escapeHtml(p.id)}">编辑</button>
+        <button class="danger" type="button" data-delete-pp-id="${escapeHtml(p.id)}">删除</button>
+      </div>
+    </header>
+    <dl class="project-meta">
+      <div><dt>默认分支</dt><dd>${escapeHtml(p.defaultBranch || "-")}</dd></div>
+      <div><dt>Unity 版本</dt><dd>${escapeHtml(p.unityVersion || "-")}</dd></div>
+      <div><dt>Bundle ID</dt><dd>${escapeHtml(p.bundleIdentifier || "-")}</dd></div>
+    </dl>
+  </article>`).join("");
+}
+
+// ---- Certificate Profiles ----
+
+function toggleCertProfilePlatformFields() {
+  const platform = $("certProfilePlatform").value;
+  const showAll = platform === "all";
+  $("certProfileIosFields").classList.toggle("hidden", !showAll && platform !== "ios");
+  $("certProfileAndroidFields").classList.toggle("hidden", !showAll && platform !== "android");
+  $("certProfileTiktokFields").classList.toggle("hidden", !showAll && platform !== "tiktok");
+}
+
+async function saveCertProfile(event) {
+  event.preventDefault();
+  clearMessage();
+  const profileId = $("certProfileId").value;
+  const isEditing = Boolean(profileId);
+  setButtonBusy("certProfileSaveBtn", true, isEditing ? "更新中..." : "保存中...");
+  try {
+    const path = isEditing ? `/api/certificate-profiles/${encodeURIComponent(profileId)}` : "/api/certificate-profiles";
+    const method = isEditing ? "PUT" : "POST";
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        name: $("certProfileName").value,
+        platform: $("certProfilePlatform").value,
+        teamId: $("certProfileTeamId").value || null,
+        exportMethod: $("certProfileExportMethod").value,
+        iosDeploymentTarget: $("certProfileIosTarget").value || null,
+        appStoreConnectApiKeyPath: $("certProfileApiKeyPath").value || null,
+        appStoreConnectApiKeyId: $("certProfileApiKeyId").value || null,
+        appStoreConnectApiIssuerId: $("certProfileIssuerId").value || null,
+        appStoreConnectUploadEnabled: $("certProfileAscUpload").checked,
+        androidKeystoreName: $("certProfileKeystoreName").value || null,
+        androidKeystorePass: $("certProfileKeystorePass").value || null,
+        androidKeyaliasName: $("certProfileKeyaliasName").value || null,
+        androidKeyaliasPass: $("certProfileKeyaliasPass").value || null,
+        googlePlayUploadEnabled: $("certProfileGpUpload").checked,
+        googlePlayPackageName: $("certProfileGpPackage").value || null,
+        googlePlayServiceAccountJsonPath: $("certProfileGpServiceJson").value || null,
+        googlePlayTrack: $("certProfileGpTrack").value,
+        tiktokAppId: $("certProfileTiktokAppId").value || null,
+        tiktokAccessToken: $("certProfileTiktokToken").value || null,
+        tiktokGameName: $("certProfileTiktokGameName").value || null,
+        tiktokApiEndpoint: $("certProfileTiktokEndpoint").value || "https://open-api.tiktokglobalshop.com",
+        tiktokUploadEnabled: $("certProfileTiktokUpload").checked,
+      }),
+    });
+    resetCertProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "证书模板已更新。" : "证书模板已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("certProfileSaveBtn", false);
+  }
+}
+
+function handleCertProfilesListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-cp-id]");
+  if (editBtn) {
+    editCertProfile(editBtn.dataset.editCpId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-cp-id]");
+  if (deleteBtn) {
+    deleteCertProfile(deleteBtn.dataset.deleteCpId);
+  }
+}
+
+function editCertProfile(profileId) {
+  const profile = state.certificateProfiles.find((c) => c.id === profileId);
+  if (!profile) return;
+  $("certProfileId").value = profile.id;
+  $("certProfileName").value = profile.name || "";
+  $("certProfilePlatform").value = profile.platform || "ios";
+  $("certProfileTeamId").value = profile.teamId || "";
+  $("certProfileExportMethod").value = profile.exportMethod || "development";
+  $("certProfileIosTarget").value = profile.iosDeploymentTarget || "";
+  $("certProfileApiKeyPath").value = profile.appStoreConnectApiKeyPath || "";
+  $("certProfileApiKeyId").value = profile.appStoreConnectApiKeyId || "";
+  $("certProfileIssuerId").value = profile.appStoreConnectApiIssuerId || "";
+  $("certProfileAscUpload").checked = Boolean(profile.appStoreConnectUploadEnabled);
+  $("certProfileKeystoreName").value = profile.androidKeystoreName || "";
+  $("certProfileKeystorePass").value = profile.androidKeystorePass || "";
+  $("certProfileKeyaliasName").value = profile.androidKeyaliasName || "";
+  $("certProfileKeyaliasPass").value = profile.androidKeyaliasPass || "";
+  $("certProfileGpPackage").value = profile.googlePlayPackageName || "";
+  $("certProfileGpServiceJson").value = profile.googlePlayServiceAccountJsonPath || "";
+  $("certProfileGpTrack").value = profile.googlePlayTrack || "internal";
+  $("certProfileGpUpload").checked = Boolean(profile.googlePlayUploadEnabled);
+  $("certProfileTiktokAppId").value = profile.tiktokAppId || "";
+  $("certProfileTiktokToken").value = profile.tiktokAccessToken || "";
+  $("certProfileTiktokGameName").value = profile.tiktokGameName || "";
+  $("certProfileTiktokEndpoint").value = profile.tiktokApiEndpoint || "https://open-api.tiktokglobalshop.com";
+  $("certProfileTiktokUpload").checked = Boolean(profile.tiktokUploadEnabled);
+  $("certProfileFormTitle").textContent = "编辑证书模板";
+  $("certProfileSaveBtn").textContent = "更新模板";
+  $("certProfileCancelBtn").classList.remove("hidden");
+  toggleCertProfilePlatformFields();
+  $("certProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetCertProfileForm() {
+  $("certProfileForm").reset();
+  $("certProfileId").value = "";
+  $("certProfilePlatform").value = "ios";
+  $("certProfileExportMethod").value = "development";
+  $("certProfileGpTrack").value = "internal";
+  $("certProfileTiktokEndpoint").value = "https://open-api.tiktokglobalshop.com";
+  $("certProfileFormTitle").textContent = "新增证书模板";
+  $("certProfileSaveBtn").textContent = "保存模板";
+  $("certProfileCancelBtn").classList.add("hidden");
+  toggleCertProfilePlatformFields();
+}
+
+async function deleteCertProfile(profileId) {
+  if (!confirm("确认删除这个证书模板？")) return;
+  try {
+    await api(`/api/certificate-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    if ($("certProfileId").value === profileId) resetCertProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("证书模板已删除。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderCertProfiles() {
+  if (state.certificateProfiles.length === 0) {
+    $("certProfilesList").innerHTML = `<div class="empty-state compact">暂无证书模板。使用左侧表单添加。</div>`;
+    return;
+  }
+
+  $("certProfilesList").innerHTML = state.certificateProfiles.map((c) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(c.name)}</strong>
+        <div class="muted small">${platformLabel(c.platform || "ios")}</div>
+      </div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-edit-cp-id="${escapeHtml(c.id)}">编辑</button>
+        <button class="danger" type="button" data-delete-cp-id="${escapeHtml(c.id)}">删除</button>
+      </div>
+    </header>
+    <dl class="project-meta">
+      <div><dt>Team ID</dt><dd>${escapeHtml(c.teamId || "-")}</dd></div>
+      <div><dt>Keystore</dt><dd>${escapeHtml(c.androidKeystoreName || "-")}</dd></div>
+      <div><dt>TikTok App ID</dt><dd>${escapeHtml(c.tiktokAppId || "-")}</dd></div>
+    </dl>
+  </article>`).join("");
 }
 
 init();

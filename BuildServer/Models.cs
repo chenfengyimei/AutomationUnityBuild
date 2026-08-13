@@ -14,6 +14,8 @@ public sealed class BuildServerDatabase
     public List<WorkerNodeRecord> Workers { get; set; } = [];
     public EmailSettingsRecord? EmailSettings { get; set; }
     public List<NotificationContactRecord> NotificationContacts { get; set; } = [];
+    public List<ProjectProfileRecord> ProjectProfiles { get; set; } = [];
+    public List<CertificateProfileRecord> CertificateProfiles { get; set; } = [];
 }
 
 public sealed class NotificationContactRecord
@@ -22,6 +24,52 @@ public sealed class NotificationContactRecord
     public string Title { get; set; } = "";
     public string Email { get; set; } = "";
     public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class ProjectProfileRecord
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string RepositoryUrl { get; set; } = "";
+    public string DefaultBranch { get; set; } = "main";
+    public string ProjectDirectoryName { get; set; } = "";
+    public string UnityProjectRelativePath { get; set; } = ".";
+    public string UnityVersion { get; set; } = "";
+    public string UnityExecutablePath { get; set; } = "";
+    public string UnityBuildMethod { get; set; } = "";
+    public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
+    public string ArtifactsRoot { get; set; } = "~/UnityBuildArtifacts";
+    public string ProductName { get; set; } = "";
+    public string BundleIdentifier { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class CertificateProfileRecord
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Platform { get; set; } = "ios";
+    public string TeamId { get; set; } = "";
+    public string ExportMethod { get; set; } = "development";
+    public string IosDeploymentTarget { get; set; } = "";
+    public string AppStoreConnectApiKeyPath { get; set; } = "";
+    public string AppStoreConnectApiKeyId { get; set; } = "";
+    public string AppStoreConnectApiIssuerId { get; set; } = "";
+    public bool AppStoreConnectUploadEnabled { get; set; }
+    public string AndroidKeystoreName { get; set; } = "";
+    public string AndroidKeystorePass { get; set; } = "";
+    public string AndroidKeyaliasName { get; set; } = "";
+    public string AndroidKeyaliasPass { get; set; } = "";
+    public bool GooglePlayUploadEnabled { get; set; }
+    public string GooglePlayPackageName { get; set; } = "";
+    public string GooglePlayServiceAccountJsonPath { get; set; } = "";
+    public string GooglePlayTrack { get; set; } = "internal";
+    public string TiktokAppId { get; set; } = "";
+    public string TiktokAccessToken { get; set; } = "";
+    public string TiktokGameName { get; set; } = "";
+    public string TiktokApiEndpoint { get; set; } = "https://open-api.tiktokglobalshop.com";
+    public bool TiktokUploadEnabled { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
@@ -312,6 +360,44 @@ public sealed record EmailSettingsRequest(
 public sealed record TestEmailRequest(string ToEmail);
 
 public sealed record NotificationContactRequest(string Title, string Email, bool Enabled = true);
+
+public sealed record ProjectProfileRequest(
+    string Name,
+    string? RepositoryUrl = null,
+    string? DefaultBranch = null,
+    string? ProjectDirectoryName = null,
+    string? UnityProjectRelativePath = null,
+    string? UnityVersion = null,
+    string? UnityExecutablePath = null,
+    string? UnityBuildMethod = null,
+    string? WorkspaceRoot = null,
+    string? ArtifactsRoot = null,
+    string? ProductName = null,
+    string? BundleIdentifier = null);
+
+public sealed record CertificateProfileRequest(
+    string Name,
+    string? Platform = "ios",
+    string? TeamId = null,
+    string? ExportMethod = "development",
+    string? IosDeploymentTarget = null,
+    string? AppStoreConnectApiKeyPath = null,
+    string? AppStoreConnectApiKeyId = null,
+    string? AppStoreConnectApiIssuerId = null,
+    bool AppStoreConnectUploadEnabled = false,
+    string? AndroidKeystoreName = null,
+    string? AndroidKeystorePass = null,
+    string? AndroidKeyaliasName = null,
+    string? AndroidKeyaliasPass = null,
+    bool GooglePlayUploadEnabled = false,
+    string? GooglePlayPackageName = null,
+    string? GooglePlayServiceAccountJsonPath = null,
+    string? GooglePlayTrack = "internal",
+    string? TiktokAppId = null,
+    string? TiktokAccessToken = null,
+    string? TiktokGameName = null,
+    string? TiktokApiEndpoint = "https://open-api.tiktokglobalshop.com",
+    bool TiktokUploadEnabled = false);
 
 public sealed record BatchDeleteRequest(string[] JobIds);
 

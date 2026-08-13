@@ -48,10 +48,10 @@
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="模板名称" />
-              <TextBox Text="{Binding EditProfile.Name}" Watermark="例如：iOS 开发证书" />
+              <TextBox Text="{Binding EditProfile.Name}" Watermark="例如：正式环境签名证书" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="适用平台" />
+              <TextBlock Classes="FieldLabel" Text="备注（可选）" />
               <ComboBox SelectedItem="{Binding EditProfile.Platform}">
                 <ComboBoxItem Content="ios" />
                 <ComboBoxItem Content="android" />
@@ -61,8 +61,10 @@
             </StackPanel>
           </Grid>
 
+          <TextBlock Text="以下所有平台的字段均可填写，按需填入即可，留空的不影响其他平台" FontSize="12" Foreground="#64748B" Margin="0,4,0,4" />
+
           <!-- iOS fields -->
-          <StackPanel Spacing="6" IsVisible="{Binding IsEditIos}">
+          <StackPanel Spacing="6">
             <TextBlock Text="iOS 签名配置" FontWeight="Bold" Foreground="#2563EB" />
             <Grid ColumnDefinitions="*,*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
@@ -101,7 +103,7 @@
           </StackPanel>
 
           <!-- Android fields -->
-          <StackPanel Spacing="6" IsVisible="{Binding IsEditAndroid}">
+          <StackPanel Spacing="6">
             <TextBlock Text="Android 签名配置" FontWeight="Bold" Foreground="#16A34A" />
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
@@ -137,7 +139,7 @@
           </StackPanel>
 
           <!-- TikTok fields -->
-          <StackPanel Spacing="6" IsVisible="{Binding IsEditTiktok}">
+          <StackPanel Spacing="6">
             <TextBlock Text="TikTok 小游戏配置" FontWeight="Bold" Foreground="#000000" />
             <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">

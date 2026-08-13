@@ -72,6 +72,16 @@ public static class ApiRoutes
         app.MapGet("/api/storage/jobs", StorageJobsAsync);
         app.MapDelete("/api/storage/jobs/{jobId}", DeleteJobStorageAsync);
         app.MapPost("/api/storage/cleanup", BatchDeleteStorageAsync);
+
+        app.MapGet("/api/project-profiles", ListProjectProfilesAsync);
+        app.MapPost("/api/project-profiles", CreateProjectProfileAsync);
+        app.MapPut("/api/project-profiles/{profileId}", UpdateProjectProfileAsync);
+        app.MapDelete("/api/project-profiles/{profileId}", DeleteProjectProfileAsync);
+
+        app.MapGet("/api/certificate-profiles", ListCertificateProfilesAsync);
+        app.MapPost("/api/certificate-profiles", CreateCertificateProfileAsync);
+        app.MapPut("/api/certificate-profiles/{profileId}", UpdateCertificateProfileAsync);
+        app.MapDelete("/api/certificate-profiles/{profileId}", DeleteCertificateProfileAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -132,6 +142,8 @@ public static class ApiRoutes
             jobs = db.Jobs.OrderByDescending(job => job.CreatedAt).Take(100).ToList(),
             workers = db.Workers.OrderBy(worker => worker.Name).ToList(),
             notificationContacts = db.NotificationContacts.OrderBy(c => c.Title).ThenBy(c => c.Email).ToList(),
+            projectProfiles = db.ProjectProfiles.OrderBy(p => p.Name).ToList(),
+            certificateProfiles = db.CertificateProfiles.OrderBy(c => c.Name).ToList(),
             settings = new
             {
                 options.DataRoot,
@@ -1299,6 +1311,242 @@ public static class ApiRoutes
 
         (int deleted, List<string> errors) = await cleanupService.BatchDeleteAsync(request.JobIds, user);
         return Results.Ok(new { deleted, errors });
+    }
+
+    // ---- Project Profiles ----
+
+    private static async Task<IResult> ListProjectProfilesAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+        return Results.Ok(await database.ReadAsync(db => db.ProjectProfiles.OrderBy(p => p.Name).ToList()));
+    }
+
+    private static async Task<IResult> CreateProjectProfileAsync(ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            ProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                var profile = new ProjectProfileRecord
+                {
+                    Id = Ids.New("pp"),
+                    Name = Required(request.Name, "模板名称"),
+                    RepositoryUrl = request.RepositoryUrl ?? "",
+                    DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim(),
+                    ProjectDirectoryName = request.ProjectDirectoryName ?? "",
+                    UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim(),
+                    UnityVersion = request.UnityVersion ?? "",
+                    UnityExecutablePath = request.UnityExecutablePath ?? "",
+                    UnityBuildMethod = request.UnityBuildMethod ?? "",
+                    WorkspaceRoot = string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim(),
+                    ArtifactsRoot = string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim(),
+                    ProductName = request.ProductName ?? "",
+                    BundleIdentifier = request.BundleIdentifier ?? "",
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.ProjectProfiles.Add(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.create", "project-profile", profile.Id, $"创建项目模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateProjectProfileAsync(string profileId, ProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            ProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                ProjectProfileRecord? profile = db.ProjectProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("项目模板不存在。");
+                profile.Name = Required(request.Name, "模板名称");
+                profile.RepositoryUrl = request.RepositoryUrl ?? "";
+                profile.DefaultBranch = string.IsNullOrWhiteSpace(request.DefaultBranch) ? "main" : request.DefaultBranch.Trim();
+                profile.ProjectDirectoryName = request.ProjectDirectoryName ?? "";
+                profile.UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim();
+                profile.UnityVersion = request.UnityVersion ?? "";
+                profile.UnityExecutablePath = request.UnityExecutablePath ?? "";
+                profile.UnityBuildMethod = request.UnityBuildMethod ?? "";
+                profile.WorkspaceRoot = string.IsNullOrWhiteSpace(request.WorkspaceRoot) ? "~/UnityBuildWorkspace" : request.WorkspaceRoot.Trim();
+                profile.ArtifactsRoot = string.IsNullOrWhiteSpace(request.ArtifactsRoot) ? "~/UnityBuildArtifacts" : request.ArtifactsRoot.Trim();
+                profile.ProductName = request.ProductName ?? "";
+                profile.BundleIdentifier = request.BundleIdentifier ?? "";
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.update", "project-profile", profile.Id, $"更新项目模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteProjectProfileAsync(string profileId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            ProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                ProjectProfileRecord? profile = db.ProjectProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("项目模板不存在。");
+                db.ProjectProfiles.Remove(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "project-profile.delete", "project-profile", profile.Id, $"删除项目模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    // ---- Certificate Profiles ----
+
+    private static async Task<IResult> ListCertificateProfilesAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+        return Results.Ok(await database.ReadAsync(db => db.CertificateProfiles.OrderBy(c => c.Name).ToList()));
+    }
+
+    private static async Task<IResult> CreateCertificateProfileAsync(CertificateProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            CertificateProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                var profile = new CertificateProfileRecord
+                {
+                    Id = Ids.New("cp"),
+                    Name = Required(request.Name, "模板名称"),
+                    Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant(),
+                    TeamId = request.TeamId ?? "",
+                    ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim(),
+                    IosDeploymentTarget = request.IosDeploymentTarget ?? "",
+                    AppStoreConnectApiKeyPath = request.AppStoreConnectApiKeyPath ?? "",
+                    AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "",
+                    AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "",
+                    AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled,
+                    AndroidKeystoreName = request.AndroidKeystoreName ?? "",
+                    AndroidKeystorePass = request.AndroidKeystorePass ?? "",
+                    AndroidKeyaliasName = request.AndroidKeyaliasName ?? "",
+                    AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "",
+                    GooglePlayUploadEnabled = request.GooglePlayUploadEnabled,
+                    GooglePlayPackageName = request.GooglePlayPackageName ?? "",
+                    GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "",
+                    GooglePlayTrack = string.IsNullOrWhiteSpace(request.GooglePlayTrack) ? "internal" : request.GooglePlayTrack.Trim(),
+                    TiktokAppId = request.TiktokAppId ?? "",
+                    TiktokAccessToken = request.TiktokAccessToken ?? "",
+                    TiktokGameName = request.TiktokGameName ?? "",
+                    TiktokApiEndpoint = string.IsNullOrWhiteSpace(request.TiktokApiEndpoint) ? "https://open-api.tiktokglobalshop.com" : request.TiktokApiEndpoint.Trim(),
+                    TiktokUploadEnabled = request.TiktokUploadEnabled,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.CertificateProfiles.Add(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "cert-profile.create", "cert-profile", profile.Id, $"创建证书模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateCertificateProfileAsync(string profileId, CertificateProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            CertificateProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                CertificateProfileRecord? profile = db.CertificateProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("证书模板不存在。");
+                profile.Name = Required(request.Name, "模板名称");
+                profile.Platform = string.IsNullOrWhiteSpace(request.Platform) ? "ios" : request.Platform.Trim().ToLowerInvariant();
+                profile.TeamId = request.TeamId ?? "";
+                profile.ExportMethod = string.IsNullOrWhiteSpace(request.ExportMethod) ? "development" : request.ExportMethod.Trim();
+                profile.IosDeploymentTarget = request.IosDeploymentTarget ?? "";
+                profile.AppStoreConnectApiKeyPath = request.AppStoreConnectApiKeyPath ?? "";
+                profile.AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "";
+                profile.AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "";
+                profile.AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled;
+                profile.AndroidKeystoreName = request.AndroidKeystoreName ?? "";
+                profile.AndroidKeystorePass = request.AndroidKeystorePass ?? "";
+                profile.AndroidKeyaliasName = request.AndroidKeyaliasName ?? "";
+                profile.AndroidKeyaliasPass = request.AndroidKeyaliasPass ?? "";
+                profile.GooglePlayUploadEnabled = request.GooglePlayUploadEnabled;
+                profile.GooglePlayPackageName = request.GooglePlayPackageName ?? "";
+                profile.GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "";
+                profile.GooglePlayTrack = string.IsNullOrWhiteSpace(request.GooglePlayTrack) ? "internal" : request.GooglePlayTrack.Trim();
+                profile.TiktokAppId = request.TiktokAppId ?? "";
+                profile.TiktokAccessToken = request.TiktokAccessToken ?? "";
+                profile.TiktokGameName = request.TiktokGameName ?? "";
+                profile.TiktokApiEndpoint = string.IsNullOrWhiteSpace(request.TiktokApiEndpoint) ? "https://open-api.tiktokglobalshop.com" : request.TiktokApiEndpoint.Trim();
+                profile.TiktokUploadEnabled = request.TiktokUploadEnabled;
+                AuthService.AddAudit(db, user.Id, user.UserName, "cert-profile.update", "cert-profile", profile.Id, $"更新证书模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteCertificateProfileAsync(string profileId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            CertificateProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                CertificateProfileRecord? profile = db.CertificateProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("证书模板不存在。");
+                db.CertificateProfiles.Remove(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "cert-profile.delete", "cert-profile", profile.Id, $"删除证书模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     private static long EstimateLogSize(BuildJobRecord job)
