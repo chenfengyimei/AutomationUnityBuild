@@ -98,6 +98,9 @@ public static class ApiRoutes
 
         app.MapPost("/api/config-files/upload", UploadConfigFileAsync);
         app.MapPost("/api/secrets/upload", UploadSecretFileAsync);
+
+        app.MapGet("/api/automation-tool", GetAutomationToolAsync);
+        app.MapPut("/api/automation-tool", UpdateAutomationToolAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1016,6 +1019,95 @@ public static class ApiRoutes
             options.MaxArtifactBytes,
             ConfigRoot = options.AllowedConfigRoots.FirstOrDefault() ?? ""
         });
+    }
+
+    private static async Task<IResult> GetAutomationToolAsync(
+        HttpContext context,
+        AuthService auth,
+        JsonDatabase database,
+        BuildServerOptions options,
+        IWebHostEnvironment environment)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+
+        AutomationToolSettingsRecord? settings = await database.ReadAsync(db => db.AutomationToolSettings);
+        List<CliCandidate> candidates = AutomationToolLocator.DetectAllCandidates(options, environment);
+        AutomationCommand? activeCommand = AutomationToolLocator.TryLocateWithSettings(settings, options, environment);
+
+        return Results.Ok(new
+        {
+            mode = settings?.Mode ?? "auto",
+            manualPath = settings?.ManualPath ?? "",
+            updatedAt = settings?.UpdatedAt,
+            candidates,
+            activePath = activeCommand?.FileName ?? "",
+            activeWorkingDirectory = activeCommand?.WorkingDirectory ?? "",
+            isActiveDll = activeCommand is not null &&
+                          activeCommand.PrefixArgs.Count > 0 &&
+                          string.Equals(activeCommand.FileName, "dotnet", StringComparison.OrdinalIgnoreCase),
+            found = activeCommand is not null
+        });
+    }
+
+    private static async Task<IResult> UpdateAutomationToolAsync(
+        AutomationToolRequest request,
+        HttpContext context,
+        AuthService auth,
+        JsonDatabase database,
+        BuildServerOptions options,
+        IWebHostEnvironment environment)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.IsAdmin(user)) return Results.Forbid();
+
+        try
+        {
+            string mode = string.IsNullOrWhiteSpace(request.Mode) ? "auto" : request.Mode.Trim().ToLowerInvariant();
+            if (mode != "auto" && mode != "manual")
+            {
+                throw new InvalidOperationException("模式必须是 auto 或 manual。");
+            }
+
+            string manualPath = (request.ManualPath ?? "").Trim();
+
+            AutomationToolSettingsRecord saved = await database.UpdateAsync(db =>
+            {
+                AutomationToolSettingsRecord? existing = db.AutomationToolSettings;
+                AutomationToolSettingsRecord settings = existing ?? new AutomationToolSettingsRecord { Id = "automation-tool" };
+
+                settings.Mode = mode;
+                settings.ManualPath = mode == "manual" ? manualPath : "";
+                settings.UpdatedAt = DateTimeOffset.Now;
+
+                db.AutomationToolSettings = settings;
+                AuthService.AddAudit(db, user.Id, user.UserName, "automation-tool.update", "settings", "automation-tool",
+                    $"更新 CLI 设置 mode={settings.Mode} manualPath={settings.ManualPath}");
+                return settings;
+            });
+
+            List<CliCandidate> candidates = AutomationToolLocator.DetectAllCandidates(options, environment);
+            AutomationCommand? activeCommand = AutomationToolLocator.TryLocateWithSettings(saved, options, environment);
+
+            return Results.Ok(new
+            {
+                mode = saved.Mode,
+                manualPath = saved.ManualPath,
+                updatedAt = saved.UpdatedAt,
+                candidates,
+                activePath = activeCommand?.FileName ?? "",
+                activeWorkingDirectory = activeCommand?.WorkingDirectory ?? "",
+                isActiveDll = activeCommand is not null &&
+                              activeCommand.PrefixArgs.Count > 0 &&
+                              string.Equals(activeCommand.FileName, "dotnet", StringComparison.OrdinalIgnoreCase),
+                found = activeCommand is not null
+            });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     private static async Task<IResult> GetEmailSettingsAsync(HttpContext context, AuthService auth, JsonDatabase database)

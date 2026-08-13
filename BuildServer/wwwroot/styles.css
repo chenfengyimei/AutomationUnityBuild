@@ -1802,3 +1802,110 @@ pre {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* ---- CLI Tool Settings ---- */
+.cli-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+.cli-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.cli-status-label {
+  min-width: 80px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.cli-path-code {
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+.cli-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cli-badge-ok {
+  background: #e6f7ee;
+  color: var(--ok);
+  border: 1px solid #b7e8c8;
+}
+.cli-badge-error {
+  background: #fff0ef;
+  color: var(--danger);
+  border: 1px solid #f4c7c3;
+}
+.cli-badge-unknown {
+  background: #f0f4f8;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.cli-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cli-candidate-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cli-candidate-item:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.cli-candidate-item.is-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.cli-candidate-item.is-missing {
+  opacity: 0.55;
+}
+.cli-candidate-radio {
+  flex-shrink: 0;
+}
+.cli-candidate-path {
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  word-break: break-all;
+  flex: 1;
+}
+.cli-candidate-type {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: var(--line);
+  color: var(--muted);
+}
+.cli-candidate-exists {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ok);
+}
+.cli-candidate-missing {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--danger);
+}

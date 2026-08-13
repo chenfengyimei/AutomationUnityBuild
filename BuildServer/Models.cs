@@ -18,6 +18,15 @@ public sealed class BuildServerDatabase
     public List<CertificateProfileRecord> CertificateProfiles { get; set; } = [];
     public List<SigningProfileRecord> SigningProfiles { get; set; } = [];
     public List<UnityProjectProfileRecord> UnityProjectProfiles { get; set; } = [];
+    public AutomationToolSettingsRecord? AutomationToolSettings { get; set; }
+}
+
+public sealed class AutomationToolSettingsRecord
+{
+    public string Id { get; set; } = "automation-tool";
+    public string Mode { get; set; } = "auto";
+    public string ManualPath { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
 }
 
 public sealed class NotificationContactRecord
@@ -436,6 +445,8 @@ public sealed record SigningProfileRequest(
     string? AndroidKeyaliasPass = null);
 
 public sealed record BatchDeleteRequest(string[] JobIds);
+
+public sealed record AutomationToolRequest(string Mode, string? ManualPath = null);
 
 public static class BuildPlatforms
 {

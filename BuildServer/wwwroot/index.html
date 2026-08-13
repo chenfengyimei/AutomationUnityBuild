@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-developer-mode">
+  <link rel="stylesheet" href="/styles.css?v=20260813-cli-tool">
 </head>
 <body>
   <main id="app">
@@ -171,7 +171,7 @@
                 </label>
               </div>
               <div id="configPathLabel" class="hidden">
-                <label>已有配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
+                <label>已有配置文件路径<input id="configPath" placeholder="服务器上配置文件的绝对路径"></label>
                 <div style="margin-bottom: 14px;">
                   <input id="uploadConfigInput" type="file" accept=".json" style="margin-bottom: 8px;">
                   <button id="uploadConfigBtn" class="secondary" type="button">上传到服务器</button>
@@ -196,9 +196,9 @@
                     <small>Unity 项目位置和编辑器路径</small>
                   </summary>
                   <div class="form-grid">
-                    <label>Unity 工程相对路径<input id="configUnityRelativePath" value="."></label>
+                    <label>Unity 工程相对路径<input id="configUnityRelativePath" value="." placeholder="相对于仓库根目录，如 . 或 Client"></label>
                     <label>Unity 版本<input id="configUnityVersion" placeholder="2022.3.62f2c1"></label>
-                    <label>Unity 完整路径<input id="configUnityExecutablePath" placeholder="留空使用 Unity 版本推导"></label>
+                    <label>Unity 完整路径<input id="configUnityExecutablePath" placeholder="绝对路径，留空自动从版本推导"></label>
                   </div>
                 </details>
 
@@ -260,7 +260,7 @@
                           <option value="app-store">提交 App Store 审核</option>
                         </select>
                       </label>
-                      <label>API Key .p8 路径<input id="configAppStoreConnectApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey_XXXXXXXXXX.p8"></label>
+                      <label>API Key .p8 路径<input id="configAppStoreConnectApiKeyPath" placeholder="绝对路径，如 ~/Secrets/AuthKey_XXXXXXXXXX.p8"></label>
                       <label>API Key ID<input id="configAppStoreConnectApiKeyId" placeholder="ABCDE12345"></label>
                       <label>Issuer ID<input id="configAppStoreConnectApiIssuerId" placeholder="App Store Connect Issuer ID"></label>
                     </div>
@@ -295,7 +295,7 @@
                       <small>正式 APK/AAB 才需要填写 Keystore</small>
                     </summary>
                     <div class="form-grid">
-                      <label>Keystore 路径<input id="configAndroidKeystoreName" placeholder="/Users/buildbot/keys/game.keystore"></label>
+                      <label>Keystore 路径<input id="configAndroidKeystoreName" placeholder="绝对路径，如 ~/Secrets/game.keystore"></label>
                       <label>Keystore 密码<input id="configAndroidKeystorePass" type="password"></label>
                       <label>Key Alias<input id="configAndroidKeyaliasName"></label>
                       <label>Key Alias 密码<input id="configAndroidKeyaliasPass" type="password"></label>
@@ -312,7 +312,7 @@
                     </div>
                     <div id="googlePlayAdvancedFields" class="form-grid optional-fields hidden">
                       <label>Google Play Package<input id="configGooglePlayPackageName" placeholder="默认使用 Bundle Identifier"></label>
-                      <label>Service Account JSON<input id="configGooglePlayServiceAccountJsonPath" placeholder="/Users/buildbot/secrets/google-play.json"></label>
+                      <label>Service Account JSON<input id="configGooglePlayServiceAccountJsonPath" placeholder="绝对路径，如 ~/Secrets/google-play.json"></label>
                       <label>Track
                         <select id="configGooglePlayTrack">
                           <option value="internal">内部测试</option>
@@ -407,8 +407,8 @@
                   </select>
                 </label>
                 <label>仓库目录名<input id="projectProfileDirName" placeholder="留空自动推断"></label>
-                <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace"></label>
-                <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts"></label>
+                <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace" placeholder="~/UnityBuildWorkspace（支持 ~ 表示用户目录）"></label>
+                <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts" placeholder="~/UnityBuildArtifacts（支持 ~ 表示用户目录）"></label>
               </div>
               <label>说明<textarea id="projectProfileDescription" rows="2"></textarea></label>
               <div class="form-actions">
@@ -438,9 +438,9 @@
               <input id="unityProfileId" type="hidden">
               <label>模板名称<input id="unityProfileName" placeholder="例如：Unity 2022 主力工程" required></label>
               <div class="form-grid">
-                <label>Unity 工程相对路径<input id="unityProfileUnityPath" value="."></label>
+                <label>Unity 工程相对路径<input id="unityProfileUnityPath" value="." placeholder="相对于仓库根目录，如 . 或 Client"></label>
                 <label>Unity 版本<input id="unityProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
-                <label>Unity 完整路径<input id="unityProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
+                <label>Unity 完整路径<input id="unityProfileUnityExe" placeholder="绝对路径，如 /Applications/Unity/Hub/.../Unity.exe，留空自动推导"></label>
                 <label>Unity Build Method<input id="unityProfileBuildMethod" placeholder="留空自动推导"></label>
                 <label>Product Name<input id="unityProfileProductName" placeholder="游戏名称"></label>
                 <label>Bundle Identifier<input id="unityProfileBundleId" placeholder="com.company.game"></label>
@@ -483,7 +483,7 @@
                 <details class="config-section" open>
                   <summary><span>App Store Connect 上传</span><small>API Key 和上传目标</small></summary>
                   <div class="form-grid">
-                    <label>API Key .p8 路径<input id="certProfileApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey.p8"></label>
+                    <label>API Key .p8 路径<input id="certProfileApiKeyPath" placeholder="绝对路径，如 ~/Secrets/AuthKey.p8"></label>
                     <label>API Key ID<input id="certProfileApiKeyId"></label>
                     <label>Issuer ID<input id="certProfileIssuerId"></label>
                     <label>上传目标
@@ -501,7 +501,7 @@
                   <summary><span>Google Play 上传</span><small>Service Account 和发布轨道</small></summary>
                   <div class="form-grid">
                     <label>Google Play Package<input id="certProfileGpPackage" placeholder="com.company.game"></label>
-                    <label>Service Account JSON<input id="certProfileGpServiceJson" placeholder="/Users/buildbot/secrets/google-play.json"></label>
+                    <label>Service Account JSON<input id="certProfileGpServiceJson" placeholder="绝对路径，如 ~/Secrets/google-play.json"></label>
                     <label>Google Play Track
                       <select id="certProfileGpTrack">
                         <option value="internal">内部测试</option>
@@ -586,7 +586,7 @@
                 <details class="config-section" open>
                   <summary><span>Android 签名</span><small>Keystore 和 Key Alias</small></summary>
                   <div class="form-grid">
-                    <label>Keystore 路径<input id="signingProfileKeystoreName" placeholder="/Users/buildbot/keys/game.keystore"></label>
+                    <label>Keystore 路径<input id="signingProfileKeystoreName" placeholder="绝对路径，如 ~/Secrets/game.keystore"></label>
                     <label>Keystore 密码<input id="signingProfileKeystorePass" type="password"></label>
                     <label>Key Alias<input id="signingProfileKeyaliasName"></label>
                     <label>Key Alias 密码<input id="signingProfileKeyaliasPass" type="password"></label>
@@ -741,9 +741,9 @@
                   <dt>允许分支</dt>
                   <dd>限制可打包分支，例如 <code>main</code>、<code>release/*</code>。多个用逗号隔开。</dd>
                   <dt>Workspace Root</dt>
-                  <dd>打包机本地拉代码目录，例如 Mac 的 <code>~/UnityBuildWorkspace</code>。</dd>
+                  <dd>打包机本地拉代码目录。支持 <code>~</code> 表示用户主目录，例如 <code>~/UnityBuildWorkspace</code>；也可填绝对路径如 <code>/Users/buildbot/workspace</code>。</dd>
                   <dt>Artifacts Root</dt>
-                  <dd>打包产物和日志输出根目录，例如 <code>~/UnityBuildArtifacts</code>。</dd>
+                  <dd>打包产物和日志输出根目录。同样支持 <code>~</code> 或绝对路径，例如 <code>~/UnityBuildArtifacts</code>。</dd>
                 </dl>
               </article>
 
@@ -751,9 +751,9 @@
                 <h4>Unity 和通用版本</h4>
                 <dl>
                   <dt>Unity 工程相对路径</dt>
-                  <dd>仓库根目录就是 Unity 工程时填 <code>.</code>；必须能看到 <code>Assets</code> 和 <code>ProjectSettings</code>。</dd>
+                  <dd>相对于仓库根目录的路径。仓库根目录就是 Unity 工程时填 <code>.</code>；如果 Unity 工程在子目录则填如 <code>Client</code>。必须能看到 <code>Assets</code> 和 <code>ProjectSettings</code>。</dd>
                   <dt>Unity 版本 / 完整路径</dt>
-                  <dd>Hub 默认安装可填版本号；特殊安装位置再填完整 Unity 可执行文件路径。</dd>
+                  <dd>版本号如 <code>2022.3.62f2c1</code>，Hub 默认安装可只填版本号自动推导。特殊安装位置需填 Unity 可执行文件的<strong>绝对路径</strong>，如 <code>/Applications/Unity/Hub/2022.3.62f2c1/Unity.exe</code>。</dd>
                   <dt>Bundle Identifier</dt>
                   <dd>应用包名，例如 <code>com.company.game</code>。iOS 和 Android 都会用到。</dd>
                   <dt>Build Number 自动 +1</dt>
@@ -773,7 +773,7 @@
                   <dt>允许 Xcode 自动处理签名</dt>
                   <dd>使用自动签名时建议开启；证书和描述文件必须在 Mac 当前用户的 Keychain / Xcode 里配置好。</dd>
                   <dt>上传 App Store Connect/TestFlight</dt>
-                  <dd>开启后必须使用 <code>app-store</code> 导出方式，并填写 App Store Connect API Key 的 <code>.p8</code> 路径、Key ID 和 Issuer ID。上传成功后构建会进入 TestFlight 处理队列。</dd>
+                  <dd>开启后必须使用 <code>app-store</code> 导出方式，并填写 App Store Connect API Key 的 <code>.p8</code> 路径（<strong>绝对路径</strong>，支持 <code>~</code>，如 <code>~/Secrets/AuthKey_XXXXXXXXXX.p8</code>）、Key ID 和 Issuer ID。上传成功后构建会进入 TestFlight 处理队列。</dd>
                 </dl>
               </article>
 
@@ -787,7 +787,7 @@
                   <dt>Min SDK / Target SDK</dt>
                   <dd>不确定可留空，使用 Unity 项目设置；强制指定时填整数，例如 <code>23</code>、<code>35</code>。</dd>
                   <dt>Keystore</dt>
-                  <dd>正式 Android 包需要签名文件路径、Keystore 密码、Key Alias 和 Alias 密码；路径是打包机本地路径。</dd>
+                  <dd>正式 Android 包需要签名文件路径、Keystore 密码、Key Alias 和 Alias 密码。路径必须是打包机本地<strong>绝对路径</strong>，支持 <code>~</code>，如 <code>~/Secrets/game.keystore</code>。</dd>
                 </dl>
               </article>
 
@@ -817,7 +817,7 @@
                   <dt>Google Play Package</dt>
                   <dd>一般等于 Bundle Identifier，例如 <code>com.company.game</code>。</dd>
                   <dt>Service Account JSON</dt>
-                  <dd>Google Play 服务账号 JSON 文件路径，必须是打包机本地路径。</dd>
+                  <dd>Google Play 服务账号 JSON 文件的<strong>绝对路径</strong>，支持 <code>~</code>，如 <code>~/Secrets/google-play.json</code>。是打包机本地文件。</dd>
                   <dt>测试轨道 / 发布状态</dt>
                   <dd>建议先用 <code>internal</code> + <code>draft</code>，确认流程无误后再改正式发布策略。</dd>
                   <dt>灰度比例</dt>
@@ -845,7 +845,7 @@
                   <dt>看日志</dt>
                   <dd>失败时优先看任务详情里的完整日志，再看本次产物目录下的 Unity、Xcode 或 Android 日志。</dd>
                   <dt>路径归属</dt>
-                  <dd>配置里的路径属于实际执行打包的 Mac/Windows，不属于 LinuxGateway。</dd>
+                  <dd>配置里的路径属于实际执行打包的 Mac/Windows，不属于 LinuxGateway。<strong>相对路径</strong>（如 <code>.</code>、<code>Client</code>）相对于仓库根目录；<strong>支持 ~ 的路径</strong>（如 <code>~/Secrets/</code>）展开为用户主目录；其余路径需填<strong>绝对路径</strong>。</dd>
                 </dl>
               </article>
             </div>
@@ -854,6 +854,51 @@
 
         <section id="systemSettingsTab" class="tab hidden">
           <section class="panel">
+            <h3>CLI 打包工具</h3>
+            <p class="muted">BuildServer 通过 CLI 可执行文件（AutomationUnityBuildIOS）执行打包任务。自动检测模式会扫描常见位置；手动模式可指定确切路径。</p>
+            <div id="cliToolStatus" class="cli-status-card">
+              <div class="cli-status-row">
+                <span class="cli-status-label">当前状态</span>
+                <span id="cliStatusBadge" class="cli-badge cli-badge-unknown">检测中…</span>
+              </div>
+              <div class="cli-status-row">
+                <span class="cli-status-label">已路由路径</span>
+                <code id="cliActivePath" class="cli-path-code">—</code>
+              </div>
+              <div class="cli-status-row">
+                <span class="cli-status-label">工作目录</span>
+                <code id="cliWorkingDir" class="cli-path-code">—</code>
+              </div>
+            </div>
+
+            <div class="form-grid" style="margin-top: 16px;">
+              <label>CLI 模式
+                <select id="cliModeSelect">
+                  <option value="auto">自动检测</option>
+                  <option value="manual">手动指定</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="cliManualSection" class="hidden" style="margin-top: 12px;">
+              <label>CLI 可执行文件路径 (.exe 或 .dll)
+                <input id="cliManualPath" placeholder="例如 C:\build\AutomationUnityBuildIOS.exe 或 /opt/build/AutomationUnityBuildIOS.dll">
+              </label>
+              <p class="muted" style="font-size: 12px; margin-top: 4px;">.exe 直接运行；.dll 通过 dotnet 运行。路径必须是打包机本地绝对路径。</p>
+            </div>
+
+            <div id="cliCandidatesSection" style="margin-top: 16px;">
+              <h4>检测到的 CLI 候选项</h4>
+              <div id="cliCandidatesList" class="cli-candidates-list"></div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 16px;">
+              <button id="cliSaveBtn" type="button">保存设置</button>
+              <button id="cliRefreshBtn" class="secondary" type="button">重新检测</button>
+            </div>
+          </section>
+
+          <section class="panel" style="margin-top: 16px;">
             <h3>系统设置</h3>
             <p class="muted">开启开发者模式后，打包表单会显示高级调试选项（演练模式、跳过步骤等）。关闭后这些选项隐藏，简化日常使用。</p>
             <label><input id="developerModeCheckbox" type="checkbox"> 开启开发者模式</label>
@@ -1095,7 +1140,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-developer-mode"></script>
-  <script src="/app.js?v=20260813-developer-mode"></script>
+  <script src="/runtime.js?v=20260813-cli-tool"></script>
+  <script src="/app.js?v=20260813-cli-tool"></script>
 </body>
 </html>

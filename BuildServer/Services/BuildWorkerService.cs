@@ -132,7 +132,10 @@ public sealed class BuildWorkerService(
 
         try
         {
-            AutomationCommand command = AutomationToolLocator.Locate(options, environment);
+            AutomationToolSettingsRecord? toolSettings = await database.ReadAsync(db => db.AutomationToolSettings);
+            AutomationCommand command = AutomationToolLocator.TryLocateWithSettings(toolSettings, options, environment)
+                ?? throw new FileNotFoundException(
+                    "找不到 AutomationUnityBuildIOS 打包工具。请在系统设置中配置 CLI 路径，或设置环境变量 BUILD_SERVER_AUTOMATION_EXE / BUILD_SERVER_AUTOMATION_DLL。");
             List<string> args = [.. command.PrefixArgs, "run", "--config", job.MaterializedConfigPath];
             if (job.DryRun) args.Add("--dry-run");
             if (job.SkipGit) args.Add("--skip-git");

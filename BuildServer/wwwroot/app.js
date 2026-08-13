@@ -465,6 +465,7 @@ async function init() {
   togglePlatformFields();
   attachAllFileUploadButtons();
   loadDeveloperMode();
+  loadCliToolSettings();
   window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
     showError(event.reason);
@@ -599,6 +600,9 @@ function bindEvents() {
   $("importBtn").addEventListener("click", importData);
   $("uploadConfigBtn").addEventListener("click", uploadConfigFile);
   $("developerModeCheckbox").addEventListener("change", toggleDeveloperMode);
+  $("cliSaveBtn").addEventListener("click", saveCliToolSettings);
+  $("cliRefreshBtn").addEventListener("click", loadCliToolSettings);
+  $("cliModeSelect").addEventListener("change", toggleCliMode);
 
 
 
@@ -1292,6 +1296,9 @@ function setTab(tab) {
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
     refreshUsers();
+  }
+  if (tab === "systemSettings") {
+    loadCliToolSettings();
   }
   if (tab === "audit") {
     $("auditList").innerHTML = loadingItem("正在读取审计日志...");
@@ -3942,6 +3949,120 @@ async function importData() {
     showError(error);
   } finally {
     setButtonBusy("importBtn", false);
+  }
+}
+
+// ---- CLI Tool Settings ----
+
+async function loadCliToolSettings() {
+  try {
+    const res = await fetch("/api/automation-tool", { credentials: "same-origin" });
+    if (!res.ok) {
+      renderCliToolError("无法获取 CLI 工具信息（HTTP " + res.status + "）");
+      return;
+    }
+    const data = await res.json();
+    renderCliTool(data);
+  } catch (err) {
+    renderCliToolError(err.message || String(err));
+  }
+}
+
+function renderCliToolError(msg) {
+  const badge = $("cliStatusBadge");
+  badge.textContent = "获取失败";
+  badge.className = "cli-badge cli-badge-error";
+  $("cliActivePath").textContent = msg;
+  $("cliWorkingDir").textContent = "—";
+  $("cliCandidatesList").innerHTML = "";
+}
+
+function renderCliTool(data) {
+  const badge = $("cliStatusBadge");
+  if (data.found) {
+    badge.textContent = "已就绪";
+    badge.className = "cli-badge cli-badge-ok";
+  } else {
+    badge.textContent = "未找到";
+    badge.className = "cli-badge cli-badge-error";
+  }
+  $("cliActivePath").textContent = data.activePath || "—";
+  $("cliWorkingDir").textContent = data.activeWorkingDirectory || "—";
+
+  $("cliModeSelect").value = data.mode || "auto";
+  toggleCliMode();
+
+  if (data.mode === "manual") {
+    $("cliManualPath").value = data.manualPath || "";
+  }
+
+  const list = $("cliCandidatesList");
+  list.innerHTML = "";
+  const candidates = data.candidates || [];
+  if (candidates.length === 0) {
+    list.innerHTML = '<p class="muted" style="font-size:13px;">未检测到任何 CLI 候选项。</p>';
+    return;
+  }
+
+  candidates.forEach((c, idx) => {
+    const isActive = data.activePath && c.path &&
+      c.path.replace(/\\/g, "/").toLowerCase() === data.activePath.replace(/\\/g, "/").toLowerCase();
+    const item = document.createElement("div");
+    item.className = "cli-candidate-item" + (isActive ? " is-active" : "") + (!c.exists ? " is-missing" : "");
+    item.innerHTML =
+      '<input type="radio" name="cliCandidate" class="cli-candidate-radio" value="' + escapeHtml(c.path) + '"' +
+      (isActive ? " checked" : "") + ' disabled>' +
+      '<span class="cli-candidate-path">' + escapeHtml(c.path) + '</span>' +
+      '<span class="cli-candidate-type">' + escapeHtml(c.type) + '</span>' +
+      (c.exists
+        ? '<span class="cli-candidate-exists">✓ 存在</span>'
+        : '<span class="cli-candidate-missing">✗ 不存在</span>');
+    if (c.exists && !isActive) {
+      item.querySelector("input").disabled = false;
+      item.addEventListener("click", function () {
+        $("cliModeSelect").value = "manual";
+        toggleCliMode();
+        $("cliManualPath").value = c.path;
+      });
+    }
+    list.appendChild(item);
+  });
+}
+
+function toggleCliMode() {
+  const mode = $("cliModeSelect").value;
+  $("cliManualSection").classList.toggle("hidden", mode !== "manual");
+}
+
+async function saveCliToolSettings() {
+  const mode = $("cliModeSelect").value;
+  const manualPath = $("cliManualPath").value.trim();
+
+  if (mode === "manual" && !manualPath) {
+    showMessage("手动模式需要填写 CLI 路径", "error");
+    return;
+  }
+
+  setButtonBusy("cliSaveBtn", true, "保存中...");
+  try {
+    const res = await fetch("/api/automation-tool", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ mode, manualPath }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "HTTP " + res.status }));
+      showMessage(err.detail || "保存失败", "error");
+      return;
+    }
+    const data = await res.json();
+    renderCliTool(data);
+    showMessage(mode === "auto" ? "已切换到自动检测模式" : "CLI 路径已保存");
+  } catch (err) {
+    showMessage(err.message || "保存失败", "error");
+  } finally {
+    setButtonBusy("cliSaveBtn", false);
   }
 }
 
