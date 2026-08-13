@@ -1887,6 +1887,10 @@ pre {
 }
 .cli-candidate-radio {
   flex-shrink: 0;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0;
+  accent-color: var(--primary);
 }
 .cli-candidate-path {
   font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
