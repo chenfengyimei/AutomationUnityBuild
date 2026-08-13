@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-unity-profile-split">
+  <link rel="stylesheet" href="/styles.css?v=20260813-auto-template-fill">
 </head>
 <body>
   <main id="app">
@@ -28,7 +28,7 @@
           <h2>BuildServer</h2>
         </div>
         <button data-tab="builds" class="active">打包任务</button>
-        <button data-tab="projects">项目配置</button>
+        <button data-tab="projects">配置管理</button>
         <button data-tab="projectProfiles">项目管理</button>
         <button data-tab="unityProfiles">工程管理</button>
         <button data-tab="certProfiles">证书管理</button>
@@ -117,7 +117,7 @@
           <form id="configForm" class="panel">
               <h3 id="configFormTitle">新增配置</h3>
               <div id="quickFillArea" class="quick-fill-area">
-                <p class="eyebrow">选择项目、工程、签名与证书模板</p>
+                <p class="eyebrow">选择模板（自动填充，已选模板的对应区域会隐藏）</p>
                 <div class="quick-fill-row">
                   <label>项目<select id="configProject"></select></label>
                   <label>工程模板
@@ -135,9 +135,8 @@
                       <option value="">不使用</option>
                     </select>
                   </label>
-                  <button id="quickFillBtn" class="secondary" type="button">填充模板</button>
                 </div>
-                <p class="hint">选择项目后自动填充仓库地址；工程模板填充 Unity 版本/路径/包名；签名模板填充 Team ID/Keystore；证书模板填充上传配置。</p>
+                <p class="hint">选择项目后自动填充仓库地址；工程模板填充并隐藏 Unity 工程区域；签名模板填充并隐藏签名区域；证书模板填充并隐藏上传区域。</p>
               </div>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>打包平台
@@ -173,7 +172,7 @@
                   </div>
                 </details>
 
-                <details class="config-section" open>
+                <details id="unitySection" class="config-section" open>
                   <summary>
                     <span>Unity 工程</span>
                     <small>Unity 项目位置和编辑器路径</small>
@@ -201,7 +200,7 @@
                 </details>
 
                 <div id="iosConfigFields" class="platform-section">
-                  <details class="config-section" open>
+                  <details id="iosSigningSection" class="config-section" open>
                     <summary>
                       <span>iOS 导出与签名</span>
                       <small>Xcode archive/export、Team ID 和 Organizer</small>
@@ -266,7 +265,7 @@
                     </div>
                   </details>
 
-                  <details class="config-section">
+                  <details id="androidSigningSection" class="config-section">
                     <summary>
                       <span>Android 签名</span>
                       <small>正式 APK/AAB 才需要填写 Keystore</small>
@@ -1014,7 +1013,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-unity-profile-split"></script>
-  <script src="/app.js?v=20260813-unity-profile-split"></script>
+  <script src="/runtime.js?v=20260813-auto-template-fill"></script>
+  <script src="/app.js?v=20260813-auto-template-fill"></script>
 </body>
 </html>

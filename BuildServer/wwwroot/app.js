@@ -15,6 +15,7 @@ const state = {
   storageJobs: [],
   selectedStorageJobIds: new Set(),
   manualConfigPath: "",
+  configFileNameManuallyEdited: false,
   selectedJobId: null,
   pendingConfigDeleteId: null,
   editingConfigId: null,
@@ -543,8 +544,19 @@ function bindEvents() {
     autoFillProjectFields(projectId);
     fillConfigFileDefaults({ forceFileName: true });
   });
-  $("configName").addEventListener("input", fillConfigFileDefaults);
-  $("configFileName").addEventListener("input", updateConfigPathPreview);
+  $("configName").addEventListener("input", () => {
+    if (!state.configFileNameManuallyEdited && !state.editingConfigId) {
+      const configName = $("configName").value.trim() || "release";
+      const platform = $("configBuildPlatform").value || "ios";
+      $("configFileName").value = `build-${platform}.${safeFilePart(configName)}.json`;
+      updateConfigPathPreview();
+    }
+    fillConfigFileDefaults();
+  });
+  $("configFileName").addEventListener("input", () => {
+    state.configFileNameManuallyEdited = true;
+    updateConfigPathPreview();
+  });
   $("configPath").addEventListener("input", () => {
     if (!$("configModeCreate").checked) {
       state.manualConfigPath = $("configPath").value;
@@ -562,7 +574,9 @@ function bindEvents() {
   $("contactForm").addEventListener("submit", saveNotificationContact);
   $("contactCancelBtn").addEventListener("click", resetContactForm);
 
-  $("quickFillBtn").addEventListener("click", applyQuickFill);
+  $("quickFillUnity").addEventListener("change", () => applyTemplateFill("unity"));
+  $("quickFillSigning").addEventListener("change", () => applyTemplateFill("signing"));
+  $("quickFillCert").addEventListener("change", () => applyTemplateFill("cert"));
   $("projectProfileForm").addEventListener("submit", saveProjectProfile);
   $("projectProfileCancelBtn").addEventListener("click", resetProjectProfileForm);
   $("projectProfilesList").addEventListener("click", handleProjectProfilesListClick);
@@ -1265,7 +1279,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -1537,7 +1551,7 @@ function fillConfigFileDefaults(options = {}) {
     $("configBuildPlatform").value = project.defaultBuildPlatform;
   }
 
-  if (!state.editingConfigId && (options.forceFileName || !$("configFileName").value.trim())) {
+  if (!state.editingConfigId && !state.configFileNameManuallyEdited) {
     $("configFileName").value = `build-${platform}.${safeFilePart(configName)}.json`;
   }
 
@@ -1599,6 +1613,7 @@ function resetConfigForm() {
   state.editingConfigId = null;
   state.editingConfigPath = "";
   state.manualConfigPath = "";
+  state.configFileNameManuallyEdited = false;
   $("configForm").reset();
   $("configModeCreate").checked = true;
   $("configModeExisting").checked = false;
@@ -1607,6 +1622,14 @@ function resetConfigForm() {
   $("configSaveBtn").dataset.defaultText = "保存配置";
   $("configCancelEditBtn").classList.add("hidden");
   $("configDeleteBtn").classList.add("hidden");
+  $("quickFillUnity").value = "";
+  $("quickFillSigning").value = "";
+  $("quickFillCert").value = "";
+  $("unitySection")?.classList.remove("hidden");
+  $("iosSigningSection")?.classList.remove("hidden");
+  $("androidSigningSection")?.classList.remove("hidden");
+  $("appStoreConnectSection")?.classList.remove("hidden");
+  $("googlePlaySection")?.classList.remove("hidden");
   setConfigFileDefaults();
   toggleConfigFileFields();
   togglePlatformFields();
@@ -3166,65 +3189,85 @@ function renderQuickFillDropdowns() {
   $("quickFillCert").innerHTML = certOptions;
 }
 
-function applyQuickFill() {
-  const unityId = $("quickFillUnity").value;
-  const signingId = $("quickFillSigning").value;
-  const certId = $("quickFillCert").value;
-  let filled = [];
+function applyTemplateFill(type) {
+  if (state.editingConfigId) return;
 
-  if (unityId) {
+  if (type === "unity") {
+    const unityId = $("quickFillUnity").value;
+    const unitySection = $("unitySection");
+    if (!unityId) {
+      unitySection?.classList.remove("hidden");
+      return;
+    }
     const unity = state.unityProjectProfiles.find((u) => u.id === unityId);
-    if (unity) {
-      if (unity.unityProjectRelativePath) $("configUnityRelativePath").value = unity.unityProjectRelativePath;
-      if (unity.unityVersion) $("configUnityVersion").value = unity.unityVersion;
-      if (unity.unityExecutablePath) $("configUnityExecutablePath").value = unity.unityExecutablePath;
-      if (unity.unityBuildMethod) $("configUnityBuildMethod").value = unity.unityBuildMethod;
-      if (unity.productName) $("configProductName").value = unity.productName;
-      if (unity.bundleIdentifier) $("configBundleIdentifier").value = unity.bundleIdentifier;
-      filled.push("工程模板");
-    }
+    if (!unity) return;
+    if (unity.unityProjectRelativePath) $("configUnityRelativePath").value = unity.unityProjectRelativePath;
+    if (unity.unityVersion) $("configUnityVersion").value = unity.unityVersion;
+    if (unity.unityExecutablePath) $("configUnityExecutablePath").value = unity.unityExecutablePath;
+    if (unity.unityBuildMethod) $("configUnityBuildMethod").value = unity.unityBuildMethod;
+    if (unity.productName) $("configProductName").value = unity.productName;
+    if (unity.bundleIdentifier) $("configBundleIdentifier").value = unity.bundleIdentifier;
+    unitySection?.classList.add("hidden");
+    showMessage(`已从工程模板「${unity.name}」填充 Unity 工程设置。`);
   }
 
-  if (signingId) {
+  if (type === "signing") {
+    const signingId = $("quickFillSigning").value;
+    const iosSigning = $("iosSigningSection");
+    const androidSigning = $("androidSigningSection");
+    if (!signingId) {
+      iosSigning?.classList.remove("hidden");
+      androidSigning?.classList.remove("hidden");
+      return;
+    }
     const signing = state.signingProfiles.find((s) => s.id === signingId);
-    if (signing) {
-      if (signing.teamId) $("configTeamId").value = signing.teamId;
-      if (signing.exportMethod) $("configExportMethod").value = signing.exportMethod;
-      if (signing.signingStyle) $("configSigningStyle").value = signing.signingStyle;
-      if (signing.iosDeploymentTarget) $("configIosDeploymentTarget").value = signing.iosDeploymentTarget;
-      if (signing.androidKeystoreName) $("configAndroidKeystoreName").value = signing.androidKeystoreName;
-      if (signing.androidKeystorePass) $("configAndroidKeystorePass").value = signing.androidKeystorePass;
-      if (signing.androidKeyaliasName) $("configAndroidKeyaliasName").value = signing.androidKeyaliasName;
-      if (signing.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = signing.androidKeyaliasPass;
-      filled.push("签名模板");
+    if (!signing) return;
+    if (signing.teamId) $("configTeamId").value = signing.teamId;
+    if (signing.exportMethod) $("configExportMethod").value = signing.exportMethod;
+    if (signing.signingStyle) $("configSigningStyle").value = signing.signingStyle;
+    if (signing.iosDeploymentTarget) $("configIosDeploymentTarget").value = signing.iosDeploymentTarget;
+    if (signing.androidKeystoreName) $("configAndroidKeystoreName").value = signing.androidKeystoreName;
+    if (signing.androidKeystorePass) $("configAndroidKeystorePass").value = signing.androidKeystorePass;
+    if (signing.androidKeyaliasName) $("configAndroidKeyaliasName").value = signing.androidKeyaliasName;
+    if (signing.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = signing.androidKeyaliasPass;
+    const platform = $("configBuildPlatform").value;
+    if (platform === "ios" || platform === "tiktok") iosSigning?.classList.add("hidden");
+    if (platform === "android") androidSigning?.classList.add("hidden");
+    if (platform === "all" || signing.platform === "all") {
+      iosSigning?.classList.add("hidden");
+      androidSigning?.classList.add("hidden");
     }
+    showMessage(`已从签名模板「${signing.name}」填充签名设置。`);
   }
 
-  if (certId) {
+  if (type === "cert") {
+    const certId = $("quickFillCert").value;
+    const ascSection = $("appStoreConnectSection");
+    const gpSection = $("googlePlaySection");
+    if (!certId) {
+      ascSection?.classList.remove("hidden");
+      gpSection?.classList.remove("hidden");
+      return;
+    }
     const cert = state.certificateProfiles.find((c) => c.id === certId);
-    if (cert) {
-      if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
-      if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
-      if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
-      $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
-      if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
-      if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
-      if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
-      $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
-      if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
-      if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
-      if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
-      if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
-      $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
-      toggleUploadSections();
-      filled.push("证书模板");
-    }
-  }
-
-  if (filled.length) {
-    showMessage(`已填充：${filled.join("、")}。请检查并按需调整。`);
-  } else {
-    showMessage("请至少选择一个签名或证书模板。");
+    if (!cert) return;
+    if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
+    if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
+    if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
+    $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
+    if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
+    if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
+    if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
+    $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
+    if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
+    if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
+    if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
+    if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
+    $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
+    toggleUploadSections();
+    if (cert.appStoreConnectUploadEnabled) ascSection?.classList.add("hidden");
+    if (cert.googlePlayUploadEnabled) gpSection?.classList.add("hidden");
+    showMessage(`已从证书模板「${cert.name}」填充上传配置。`);
   }
 }
 
