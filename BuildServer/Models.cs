@@ -67,6 +67,7 @@ public sealed class CertificateProfileRecord
     public string AppStoreConnectApiKeyId { get; set; } = "";
     public string AppStoreConnectApiIssuerId { get; set; } = "";
     public bool AppStoreConnectUploadEnabled { get; set; }
+    public string AppStoreConnectUploadTarget { get; set; } = "testflight";
     public bool GooglePlayUploadEnabled { get; set; }
     public string GooglePlayPackageName { get; set; } = "";
     public string GooglePlayServiceAccountJsonPath { get; set; } = "";
@@ -310,6 +311,7 @@ public sealed record BuildConfigFileRequest(
     bool AllowProvisioningUpdates = true,
     bool CopyArchiveToOrganizer = true,
     bool AppStoreConnectUploadEnabled = false,
+    string? AppStoreConnectUploadTarget = "testflight",
     string? AppStoreConnectApiKeyPath = null,
     string? AppStoreConnectApiKeyId = null,
     string? AppStoreConnectApiIssuerId = null,
@@ -410,6 +412,7 @@ public sealed record CertificateProfileRequest(
     string? AppStoreConnectApiKeyId = null,
     string? AppStoreConnectApiIssuerId = null,
     bool AppStoreConnectUploadEnabled = false,
+    string? AppStoreConnectUploadTarget = "testflight",
     bool GooglePlayUploadEnabled = false,
     string? GooglePlayPackageName = null,
     string? GooglePlayServiceAccountJsonPath = null,

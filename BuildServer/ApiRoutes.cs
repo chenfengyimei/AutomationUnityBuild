@@ -1555,6 +1555,7 @@ public static class ApiRoutes
                     AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "",
                     AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "",
                     AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled,
+                    AppStoreConnectUploadTarget = string.IsNullOrWhiteSpace(request.AppStoreConnectUploadTarget) ? "testflight" : request.AppStoreConnectUploadTarget.Trim().ToLowerInvariant(),
                     GooglePlayUploadEnabled = request.GooglePlayUploadEnabled,
                     GooglePlayPackageName = request.GooglePlayPackageName ?? "",
                     GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "",
@@ -1596,6 +1597,7 @@ public static class ApiRoutes
                 profile.AppStoreConnectApiKeyId = request.AppStoreConnectApiKeyId ?? "";
                 profile.AppStoreConnectApiIssuerId = request.AppStoreConnectApiIssuerId ?? "";
                 profile.AppStoreConnectUploadEnabled = request.AppStoreConnectUploadEnabled;
+                profile.AppStoreConnectUploadTarget = string.IsNullOrWhiteSpace(request.AppStoreConnectUploadTarget) ? "testflight" : request.AppStoreConnectUploadTarget.Trim().ToLowerInvariant();
                 profile.GooglePlayUploadEnabled = request.GooglePlayUploadEnabled;
                 profile.GooglePlayPackageName = request.GooglePlayPackageName ?? "";
                 profile.GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "";
@@ -2333,6 +2335,7 @@ public static class ApiRoutes
         json["compileBitcode"] = null;
         json["uploadSymbols"] = true;
         json["appStoreConnectUploadEnabled"] = request.AppStoreConnectUploadEnabled;
+        json["appStoreConnectUploadTarget"] = string.IsNullOrWhiteSpace(request.AppStoreConnectUploadTarget) ? "testflight" : request.AppStoreConnectUploadTarget.Trim().ToLowerInvariant();
         json["appStoreConnectApiKeyPath"] = appStoreConnectApiKeyPath;
         json["appStoreConnectApiKeyId"] = appStoreConnectApiKeyId;
         json["appStoreConnectApiIssuerId"] = appStoreConnectApiIssuerId;

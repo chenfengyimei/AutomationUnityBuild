@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-sidebar-groups">
+  <link rel="stylesheet" href="/styles.css?v=20260813-asc-upload-target">
 </head>
 <body>
   <main id="app">
@@ -250,6 +250,12 @@
                       <label><input id="configAppStoreConnectUploadEnabled" type="checkbox"> 上传 App Store Connect/TestFlight</label>
                     </div>
                     <div id="appStoreConnectAdvancedFields" class="form-grid optional-fields hidden">
+                      <label>上传目标
+                        <select id="configAppStoreConnectUploadTarget">
+                          <option value="testflight">仅 TestFlight 测试</option>
+                          <option value="app-store">提交 App Store 审核</option>
+                        </select>
+                      </label>
                       <label>API Key .p8 路径<input id="configAppStoreConnectApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey_XXXXXXXXXX.p8"></label>
                       <label>API Key ID<input id="configAppStoreConnectApiKeyId" placeholder="ABCDE12345"></label>
                       <label>Issuer ID<input id="configAppStoreConnectApiIssuerId" placeholder="App Store Connect Issuer ID"></label>
@@ -471,12 +477,18 @@
               </label>
               <div id="certProfileIosFields" class="platform-section">
                 <details class="config-section" open>
-                  <summary><span>App Store Connect 上传</span><small>API Key 和上传设置</small></summary>
+                  <summary><span>App Store Connect 上传</span><small>API Key 和上传目标</small></summary>
                   <div class="form-grid">
                     <label>API Key .p8 路径<input id="certProfileApiKeyPath" placeholder="/Users/buildbot/secrets/AuthKey.p8"></label>
                     <label>API Key ID<input id="certProfileApiKeyId"></label>
                     <label>Issuer ID<input id="certProfileIssuerId"></label>
-                    <label><input id="certProfileAscUpload" type="checkbox"> 上传 App Store Connect</label>
+                    <label>上传目标
+                      <select id="certProfileAscUploadTarget">
+                        <option value="testflight">仅 TestFlight 测试</option>
+                        <option value="app-store">提交 App Store 审核</option>
+                      </select>
+                    </label>
+                    <label><input id="certProfileAscUpload" type="checkbox"> 启用 App Store Connect 上传</label>
                   </div>
                 </details>
               </div>
@@ -1070,7 +1082,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-sidebar-groups"></script>
-  <script src="/app.js?v=20260813-sidebar-groups"></script>
+  <script src="/runtime.js?v=20260813-asc-upload-target"></script>
+  <script src="/app.js?v=20260813-asc-upload-target"></script>
 </body>
 </html>

@@ -1491,6 +1491,7 @@ function collectConfigFilePayload() {
     allowProvisioningUpdates: $("configAllowProvisioningUpdates").checked,
     copyArchiveToOrganizer: $("configCopyArchiveToOrganizer").checked,
     appStoreConnectUploadEnabled: $("configAppStoreConnectUploadEnabled").checked,
+    appStoreConnectUploadTarget: $("configAppStoreConnectUploadTarget")?.value || "testflight",
     appStoreConnectApiKeyPath: $("configAppStoreConnectApiKeyPath").value || null,
     appStoreConnectApiKeyId: $("configAppStoreConnectApiKeyId").value || null,
     appStoreConnectApiIssuerId: $("configAppStoreConnectApiIssuerId").value || null,
@@ -1833,6 +1834,7 @@ function fillConfigFormFromJson(content, config) {
   $("configAllowProvisioningUpdates").checked = content.allowProvisioningUpdates !== false;
   $("configCopyArchiveToOrganizer").checked = content.copyArchiveToOrganizer !== false;
   $("configAppStoreConnectUploadEnabled").checked = Boolean(content.appStoreConnectUploadEnabled);
+  if (content.appStoreConnectUploadTarget) $("configAppStoreConnectUploadTarget").value = content.appStoreConnectUploadTarget;
   $("configAppStoreConnectApiKeyPath").value = content.appStoreConnectApiKeyPath || "";
   $("configAppStoreConnectApiKeyId").value = content.appStoreConnectApiKeyId || "";
   $("configAppStoreConnectApiIssuerId").value = content.appStoreConnectApiIssuerId || "";
@@ -3259,6 +3261,7 @@ function applyTemplateFill(type) {
     if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
     if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
     $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
+    if (cert.appStoreConnectUploadTarget) $("configAppStoreConnectUploadTarget").value = cert.appStoreConnectUploadTarget;
     if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
     if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
     if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
@@ -3528,6 +3531,7 @@ async function saveCertProfile(event) {
         appStoreConnectApiKeyId: $("certProfileApiKeyId").value || null,
         appStoreConnectApiIssuerId: $("certProfileIssuerId").value || null,
         appStoreConnectUploadEnabled: $("certProfileAscUpload").checked,
+        appStoreConnectUploadTarget: $("certProfileAscUploadTarget").value,
         googlePlayUploadEnabled: $("certProfileGpUpload").checked,
         googlePlayPackageName: $("certProfileGpPackage").value || null,
         googlePlayServiceAccountJsonPath: $("certProfileGpServiceJson").value || null,
@@ -3572,6 +3576,7 @@ function editCertProfile(profileId) {
   $("certProfileApiKeyId").value = profile.appStoreConnectApiKeyId || "";
   $("certProfileIssuerId").value = profile.appStoreConnectApiIssuerId || "";
   $("certProfileAscUpload").checked = Boolean(profile.appStoreConnectUploadEnabled);
+  $("certProfileAscUploadTarget").value = profile.appStoreConnectUploadTarget || "testflight";
   $("certProfileGpPackage").value = profile.googlePlayPackageName || "";
   $("certProfileGpServiceJson").value = profile.googlePlayServiceAccountJsonPath || "";
   $("certProfileGpTrack").value = profile.googlePlayTrack || "internal";
@@ -3592,6 +3597,7 @@ function resetCertProfileForm() {
   $("certProfileForm").reset();
   $("certProfileId").value = "";
   $("certProfilePlatform").value = "ios";
+  $("certProfileAscUploadTarget").value = "testflight";
   $("certProfileGpTrack").value = "internal";
   $("certProfileTiktokEndpoint").value = "https://open-api.tiktokglobalshop.com";
   $("certProfileFormTitle").textContent = "新增证书模板";
