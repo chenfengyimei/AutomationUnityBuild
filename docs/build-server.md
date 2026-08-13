@@ -8,6 +8,7 @@ BuildServer 是当前自动化打包工具的 Web/Agent 化入口，支持 iOS�
 - `BuildServer.Worker`: 后台串行 Worker，从队列取任务并调用 `AutomationUnityBuildIOS` CLI。
 - `BuildServer.Web`: 内置静态前端，负责人可网页登录发起打包。
 - `BuildServer.Mcp`: `/mcp` JSON-RPC 工具入口，给 Agent/AI 使用。
+- `BuildServer.Reverse`: 反向连接模块，让 BuildServer 主动连接 LinuxGateway，适用于 NAT/内网环境。
 - `buildserver-data`: JSON 持久化目录，保存用户、项目、配置、任务、产物、审计、Worker 节点。
 
 ## 本地启动
@@ -128,6 +129,39 @@ $env:BUILD_SERVER_NODE_PLATFORMS="android"
 
 设置或自动生成后会启用 `/api/gateway/*`，LinuxGateway 用 `X-Gateway-Token` 调用它来读取节点、提交任务、拉日志和产物。
 
+## 邮件通知
+
+BuildServer 内置邮件通知服务（`EmailNotificationService`），在构建任务完成后自动发送邮件：
+
+- **构建成功**：邮件包含构建产物路径、耗时和配置摘要。
+- **构建失败**：邮件包含失败步骤、错误摘要和日志路径。
+
+支持 SMTP 465 隐式 SSL、通知联系人列表和个性化邮件模板。在 Web 后台或 DesktopApp 邮件通知页面配置 SMTP 服务器、端口、发件人凭据和联系人列表。
+
+## 存储管理
+
+随着打包任务积累，构建产物会逐渐占用磁盘空间。BuildServer 提供两种存储管理机制：
+
+- **自动清理**：`MaintenanceService` 按 `RetentionDays` 和 `MaxArtifactBytes` 自动清理已完成任务和产物。
+- **手动清理**：在 Web 后台或 DesktopApp 存储管理页面查看存储概览，勾选批量删除或单条删除历史产物。
+
+`StorageCleanupService` 负责具体的产物目录扫描和删除操作。
+
+## 反向连接
+
+如果 BuildServer 节点位于 NAT、家庭网络或公司内网中，LinuxGateway 无法直接访问节点地址，可以通过反向连接让 BuildServer 主动连接 LinuxGateway。
+
+在 LinuxGateway 网页中生成 Enrollment Token，然后通过环境变量配置 BuildServer：
+
+```bash
+export BUILD_SERVER_REVERSE_GATEWAY_ENABLED=true
+export BUILD_SERVER_REVERSE_GATEWAY_URL="https://build.example.com"
+export BUILD_SERVER_REVERSE_GATEWAY_ENROLLMENT_TOKEN="<token>"
+export BUILD_SERVER_REVERSE_NODE_NAME="Mac Build"
+```
+
+连接成功后，节点凭据保存在 BuildServer 数据目录中。`BuildServer/Reverse/` 目录实现反向连接的客户端逻辑。
+
 ## 安全边界
 
 - Web/MCP 都只创建任务，不直接执行任意 shell。
@@ -137,6 +171,7 @@ $env:BUILD_SERVER_NODE_PLATFORMS="android"
 - 任务产物下载必须经过登录权限。
 - 审计日志记录登录、创建项目、创建配置、提交/取消任务、注册 Worker。
 - 维护服务按 `RetentionDays` 和 `MaxArtifactBytes` 清理已完成任务和产物。
+- 邮件通知中的敏感信息（密码、Token）不回显，仅用于 SMTP 认证。
 
 ## 多 Mac 扩展
 

@@ -1,6 +1,6 @@
 # 使用说明
 
-这份文档覆盖 AutomationUnityBuildIOS 的完整使用路径：本地 CLI、iOS 打包、Android 打包、商店上传、BuildServer 网页平台、MCP/Agent 入口，以及 LinuxGateway 多节点调度。
+这份文档覆盖 AutomationUnityBuildIOS 的完整使用路径：本地 CLI、iOS 打包、Android 打包、TikTok 小游戏打包、商店上传、DesktopApp 桌面客户端、BuildServer 网页平台、邮件通知、存储管理、模板管理、MCP/Agent 入口，以及 LinuxGateway 多节点调度。
 
 如果你第一次使用，建议先按这个顺序走：
 
@@ -19,8 +19,11 @@
 |------|----------|------|
 | 自己在 Mac 上发 iOS 包 | CLI | 最少组件，直接运行 `./AutomationUnityBuildIOS 06` |
 | iOS + Android 都要自动化 | CLI 或 BuildServer | CLI 适合单人，BuildServer 适合团队 |
+| TikTok 小游戏 WebGL 构建上传 | CLI | 使用 `12` 快捷指令生成 TikTok 配置，支持 WebGL 构建后 API 上传 |
+| Windows 上离线管理配置和打包 | DesktopApp | 原生桌面客户端，全功能配置编辑、打包执行、产物浏览 |
 | 测试/运营需要点按钮打包 | BuildServer | 浏览器登录、提交任务、看日志、下载产物 |
 | 多台 Mac/Windows 打包机 | LinuxGateway + BuildServer | LinuxGateway 只做统一入口，真正构建仍在各节点 BuildServer |
+| 节点在 NAT/内网无法被外部访问 | LinuxGateway 反向连接 | 节点主动连接 LinuxGateway，无需公网 IP 或端口映射 |
 | 让 AI Agent 参与构建流程 | BuildServer MCP | Agent 默认建议 dry-run，需要授权后才能正式打包 |
 
 ---
@@ -285,6 +288,7 @@ iOS 正式打包仍然必须在 macOS 上执行。
 | `09` | 选择配置打包，但跳过 Xcode 编译导出 |
 | `10` | 选择配置并修改配置内容 |
 | `11` | 生成 Android APK/AAB 配置模板 `build-android.json` |
+| `12` | 生成 TikTok 小游戏配置模板 `build-tiktok.json` |
 
 快捷指令可以追加参数：
 
@@ -369,6 +373,17 @@ teamId: iOS 填 10 位 Apple Developer Team ID，不是公司名。
 | `googlePlayUploadArtifact` | 上传 `apk`、`aab` 或 `both` |
 
 不要把证书、私钥、长期 Token 放进仓库。配置里确实需要引用密钥时，优先填写打包机本地路径，并保护好文件权限。
+
+### TikTok 字段
+
+| 字段 | 说明 |
+|------|------|
+| `tiktokAppId` | TikTok 开放平台 App ID |
+| `tiktokAccessToken` | TikTok 开放平台 Access Token |
+| `tiktokGameName` | TikTok 小游戏名称 |
+| `tiktokWebglOutputDirectory` | WebGL 输出目录，留空时自动生成 |
+| `tiktokUploadEnabled` | 是否自动上传到 TikTok 开放平台 |
+| `tiktokApiEndpoint` | TikTok 开放平台 API 地址，默认 `https://open-api.tiktokglobalshop.com` |
 
 ---
 
@@ -496,6 +511,175 @@ Android 不需要 Xcode，`--skip-xcode` 会被忽略。
 ```
 
 确认路径、包名、版本号和上传产物无误后再正式执行。
+
+---
+
+## TikTok 小游戏打包
+
+### 基础流程
+
+TikTok 小游戏打包流程如下：
+
+1. 校验配置安全边界和 Git 仓库策略。
+2. 检查 `git` 和 Unity。
+3. 创建本次运行目录和日志目录。
+4. 写入 `build-config-snapshot.json`。
+5. 拉取或更新 Unity 仓库。
+6. 调用 Unity BatchMode 构建 WebGL。
+7. 可选上传到 TikTok 开放平台。
+
+TikTok 打包不需要 Xcode，`--skip-xcode` 会被忽略。
+
+### 生成配置
+
+```bash
+./AutomationUnityBuildIOS 12
+```
+
+等价完整命令：
+
+```bash
+./AutomationUnityBuildIOS init-config --config build-tiktok.json --template --platform tiktok
+```
+
+### 配置示例
+
+```json
+{
+  "buildPlatform": "tiktok",
+  "unityBuildMethod": "BuildAutomation.TiktokBuilder.Build",
+  "tiktokAppId": "your-app-id",
+  "tiktokAccessToken": "your-access-token",
+  "tiktokGameName": "Your Game",
+  "tiktokUploadEnabled": true
+}
+```
+
+### 正式打包
+
+```bash
+./AutomationUnityBuildIOS run --config configs/build-tiktok.release.json
+```
+
+TikTok 相关代码在 `Modules/Tiktok/` 目录下，与 iOS/Android 完全独立，不影响已有打包流程。
+
+---
+
+## 桌面客户端
+
+DesktopApp 是基于 Avalonia UI 11 + .NET 8 的原生 Windows 桌面客户端，复用主项目全部核心逻辑（AutomationWorkflow / BuildConfig / ConfigFileSelector / SampleFiles）。它把 CLI、BuildServer 和模板管理的能力整合到一个桌面应用中，所有操作离线可用。
+
+### 功能页面
+
+| 页面 | 功能 |
+|------|------|
+| **配置管理** | iOS/Android/TikTok 全字段编辑，配置文件名自动同步，模板选择器一键填充 |
+| **打包任务** | 实时日志 tail、耗时计时器、清空日志、自动滚动 |
+| **环境检查** | 检查 Unity、Git、Xcode 等环境依赖 |
+| **产物浏览** | 文件列表、选中文件、双击打开、文件预览 |
+| **存储管理** | 勾选批量删除、单条删除、全选、存储概览 |
+| **邮件通知** | SMTP 配置（含 465 隐式 SSL）、通知联系人列表、邮件模板 |
+| **项目管理** | ProjectProfile 模板，管理仓库/工作目录等 |
+| **工程管理** | UnityProfile 模板，管理 Unity 版本/路径/BuildMethod/ProductName/BundleID |
+| **签名管理** | SigningProfile 模板，管理 iOS TeamID/ExportMethod/SigningStyle/Android Keystore |
+| **证书管理** | CertificateProfile 模板，管理 ASC API Key/Google Play/TikTok Token |
+| **服务器同步** | 连接 BuildServer REST API，双向同步模板和配置文件 |
+| **BuildServer 管理** | 自动检测或手动选择 BuildServer.exe 路径，一键启动/停止，健康检测 |
+| **数据管理** | 勾选导出各类数据为 JSON，导入 JSON 按 ID 去重合并 |
+| **帮助说明** | 使用指南和快捷指令参考 |
+
+### 发布 DesktopApp
+
+```powershell
+dotnet publish DesktopApp/DesktopApp.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -o DesktopApp/bin/publish-vN
+```
+
+如果上次的 exe 还在运行会报 `UnauthorizedAccessException`，需先：
+
+```powershell
+Stop-Process -Name DesktopApp -Force
+```
+
+再发布到新目录。单文件约 89MB。
+
+也可以使用发布脚本：
+
+```powershell
+.\scripts\publish-desktop.ps1
+```
+
+### 模板管理
+
+DesktopApp 提供四类配置模板，数据存储在 `profiles/` 目录下：
+
+| 模板 | 文件 | 用途 |
+|------|------|------|
+| 项目管理 | `projects.json` | 仓库地址、工作目录、产物目录等 |
+| 工程管理 | `unity-profiles.json` | Unity 版本、路径、BuildMethod、ProductName、BundleID |
+| 签名管理 | `signing-profiles.json` | iOS TeamID、ExportMethod、SigningStyle、Android Keystore |
+| 证书管理 | `certificates.json` | ASC API Key、Google Play Service Account、TikTok Token |
+
+在配置管理页面编辑表单顶部有四个模板选择器，各选一个点「应用」即可一键填充对应字段。应用模板后，被填充的字段区域会自动隐藏，减少界面干扰。
+
+### 服务器同步
+
+DesktopApp 可以连接 BuildServer REST API 进行双向同步：
+
+- **项目模板**：拉取/上传
+- **证书模板**：拉取/上传
+- **配置文件**：浏览服务器配置列表 + 下载到本地 `configs/` 目录
+
+连接信息持久化到 `profiles/server-settings.json`。
+
+配置管理页另提供「导入配置文件」按钮，可从本地任意位置导入 JSON 到 `configs/` 目录。
+
+---
+
+## 邮件通知
+
+BuildServer 支持构建任务完成后自动发送邮件通知，通知范围包括成功和失败两种结果。
+
+### 配置
+
+在 BuildServer 的 Web 后台或 DesktopApp 的邮件通知页面配置：
+
+| 字段 | 说明 |
+|------|------|
+| SMTP 服务器 | 例如 `smtp.gmail.com`、`smtp.qq.com` |
+| SMTP 端口 | 常见：25（明文）、465（隐式 SSL）、587（STARTTLS） |
+| 发件人邮箱 | 发送通知的邮箱地址 |
+| 发件人密码 | 邮箱授权码或密码 |
+| 是否启用 SSL | 端口 465 使用隐式 SSL |
+| 通知联系人 | 收件人邮箱列表，多个用逗号或换行分隔 |
+| 邮件模板 | 个性化邮件标题和正文模板 |
+
+### 通知触发
+
+- **构建成功**：邮件包含构建产物路径、耗时和配置摘要。
+- **构建失败**：邮件包含失败步骤、错误摘要和日志路径，方便快速定位问题。
+
+邮件通知服务在 `BuildServer/Services/EmailNotificationService.cs` 中实现。
+
+---
+
+## 存储管理
+
+随着打包任务积累，构建产物会逐渐占用磁盘空间。BuildServer 提供两种存储管理机制：
+
+### 自动清理
+
+`MaintenanceService` 按配置的 `RetentionDays` 和 `MaxArtifactBytes` 自动清理已完成任务和产物。
+
+### 手动清理
+
+在 Web 后台或 DesktopApp 的存储管理页面可以：
+
+- 查看存储概览（总空间、已用空间、任务数量、产物大小分布）。
+- 勾选多个历史任务批量删除。
+- 单条删除指定任务的产物。
+- 全选清空所有历史产物。
+
+存储清理服务在 `BuildServer/Services/StorageCleanupService.cs` 中实现。
 
 ---
 
@@ -825,6 +1009,35 @@ export BUILD_SERVER_REVERSE_NODE_NAME="Mac Build"
 
 连接成功后，LinuxGateway 会显示反向连接节点。节点凭据会保存在 BuildServer 数据目录中；吊销节点后，需要重新生成 Enrollment Token 再注册。
 
+反向连接的实现在 `LinuxGateway/Reverse/` 和 `BuildServer/Reverse/` 目录中。
+
+### LinuxGateway 在线自更新
+
+LinuxGateway 内置 `SelfUpdateService`，支持从 Gitee 或 GitHub Release 检查并下载更新包，无需在服务器上安装 .NET SDK。
+
+检查更新：
+
+```text
+GET /api/system/version
+GET /api/system/update/check
+```
+
+执行更新（仅 Admin）：
+
+```text
+POST /api/system/update/apply
+```
+
+更新流程会自动备份当前版本、下载 tar.gz 更新包、生成 `apply-update.sh` 脚本完成替换和重启。
+
+配置项：
+
+| 变量 | 说明 |
+|------|------|
+| `LINUX_GATEWAY_UPDATE_SOURCE` | 更新源：`gitee` 或 `github` |
+| `LINUX_GATEWAY_UPDATE_REPO_OWNER` | 仓库所有者 |
+| `LINUX_GATEWAY_UPDATE_REPO_NAME` | 仓库名称 |
+
 ### 通过 LinuxGateway 发起构建
 
 1. 登录 LinuxGateway。
@@ -888,6 +1101,14 @@ iOS 任务只能发到支持 `ios` 的 Mac 节点；Windows 节点通常只适�
 - iOS sample dry-run。
 - Android sample dry-run。
 - 配置编辑器打开并退出。
+
+测试套件覆盖 256+ 个用例，涵盖 CLI 参数解析、配置模型、路径安全、Git 策略、Unity 命令构建、Google Play API、TikTok 配置、BuildServer API 路由、LinuxGateway 节点通信、反向连接、邮件通知等全部模块。
+
+运行完整测试：
+
+```powershell
+dotnet test .\AutomationUnityBuildIOS.Tests\AutomationUnityBuildIOS.Tests.csproj
+```
 
 如果只想快速检查当前文档改动是否影响编译，可直接运行：
 

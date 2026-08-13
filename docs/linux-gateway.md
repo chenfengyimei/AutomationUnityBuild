@@ -1,6 +1,8 @@
 # LinuxGateway 多设备入口
 
-`LinuxGateway` 是新增的可选中央入口，适合部署在有公网域名的 Linux 服务器上。它不直接运行 Unity、不保存 Unity 项目、不持有 Apple 证书；它只负责网页登录、登记 Mac/Windows 打包节点、选择节点并把任务转发给节点上的 `BuildServer`。
+`LinuxGateway` 是可选的中央入口，适合部署在有公网域名的 Linux 服务器上。它不直接运行 Unity、不保存 Unity 项目、不持有 Apple 证书；它只负责网页登录、登记 Mac/Windows 打包节点、选择节点并把任务转发给节点上的 `BuildServer`。
+
+LinuxGateway 支持两种节点连接方式：直接连接（LinuxGateway 主动访问节点）和反向连接（节点主动连接 LinuxGateway，适用于 NAT/内网环境）。内置在线自更新功能，支持从 Gitee/GitHub Release 下载更新包，无需在服务器上安装 .NET SDK。
 
 不部署 LinuxGateway 时，Mac/Windows 上原来的 `BuildServer` 仍然可以独立登录、配置和打包。
 
@@ -114,3 +116,55 @@ chmod +x ./LinuxGateway
 - 节点的 `/api/gateway/*` 只接受 `X-Gateway-Token`，不要把 token 放 URL。
 - 节点不要对公网开放普通管理后台，能只给 LinuxGateway 访问最好。
 - iOS 任务只能发到支持 `ios` 的 Mac 节点；Windows 节点只适合 Android APK/AAB。
+
+## 反向连接
+
+反向连接适用于节点在 NAT、家庭网络或公司内网中，LinuxGateway 无法直接访问节点地址的场景。此时由 BuildServer 主动连接 LinuxGateway，无需节点暴露公网端口。
+
+### 配置流程
+
+1. 在 LinuxGateway 网页中生成 Enrollment Token。
+2. 在 BuildServer 节点设置环境变量：
+
+```bash
+export BUILD_SERVER_REVERSE_GATEWAY_ENABLED=true
+export BUILD_SERVER_REVERSE_GATEWAY_URL="https://build.example.com"
+export BUILD_SERVER_REVERSE_GATEWAY_ENROLLMENT_TOKEN="<token>"
+export BUILD_SERVER_REVERSE_NODE_NAME="Mac Build"
+```
+
+3. 启动 BuildServer，它会自动连接 LinuxGateway 并注册为反向连接节点。
+4. 连接成功后，LinuxGateway 网页中会显示该节点。
+5. 吊销节点后需要重新生成 Enrollment Token 再注册。
+
+反向连接的实现在 `LinuxGateway/Reverse/` 和 `BuildServer/Reverse/` 目录中。
+
+## 在线自更新
+
+LinuxGateway 内置 `SelfUpdateService`，支持从 Gitee 或 GitHub Release 检查并下载更新包，无需在服务器上安装 .NET SDK。
+
+### API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/system/version` | GET | 获取当前版本 |
+| `/api/system/update/check` | GET | 检查最新版本 |
+| `/api/system/update/apply` | POST | 执行更新（仅 Admin） |
+
+### 更新流程
+
+1. 从 Gitee/GitHub Release API 并行查询最新版本。
+2. 下载 tar.gz 更新包。
+3. 生成 `apply-update.sh` 脚本完成备份 + 替换 + 重启。
+
+### 配置项
+
+| 变量 | 说明 |
+|------|------|
+| `LINUX_GATEWAY_UPDATE_SOURCE` | 更新源：`gitee` 或 `github` |
+| `LINUX_GATEWAY_UPDATE_REPO_OWNER` | 仓库所有者 |
+| `LINUX_GATEWAY_UPDATE_REPO_NAME` | 仓库名称 |
+
+## Docker 部署
+
+LinuxGateway 支持 Docker 部署，尤其适合 CentOS 7 等较老系统的环境（原生 `libstdc++` 运行时可能太旧）。详见 [Docker 部署说明](linux-gateway-docker.md)。
