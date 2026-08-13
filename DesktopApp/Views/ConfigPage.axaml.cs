@@ -22,6 +22,8 @@ public partial class ConfigPage : UserControl
     private void Edit_Click(object? sender, RoutedEventArgs e) => VM.StartEdit();
     private void Save_Click(object? sender, RoutedEventArgs e) => VM.SaveConfig();
     private void CancelEdit_Click(object? sender, RoutedEventArgs e) => VM.CancelEdit();
+    private void ApplyProject_Click(object? sender, RoutedEventArgs e) => VM.ApplyProjectProfile();
+    private void ApplyCert_Click(object? sender, RoutedEventArgs e) => VM.ApplyCertificateProfile();
     private void OpenNotepad_Click(object? sender, RoutedEventArgs e) { if (VM.SelectedConfig is not null) VM.OpenInEditor(VM.SelectedConfig); }
     private void Delete_Click(object? sender, RoutedEventArgs e) { if (VM.SelectedConfig is not null) VM.DeleteConfig(VM.SelectedConfig); }
 }

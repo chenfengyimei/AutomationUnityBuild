@@ -30,13 +30,16 @@
         <Button Classes="primary" Content="▶ 开始打包" Click="StartBuild_Click" IsEnabled="{Binding !IsRunning}" />
         <Button Classes="danger" Content="■ 取消" Click="CancelBuild_Click" IsEnabled="{Binding IsRunning}" />
         <Button Classes="secondary" Content="📂 打开产物目录" Click="OpenArtifacts_Click" IsEnabled="{Binding CanOpenArtifacts}" />
+        <Button Classes="secondary" Content="🗑 清空日志" Click="ClearLog_Click" IsEnabled="{Binding !IsRunning}" />
+        <TextBlock Text="{Binding ElapsedText}" VerticalAlignment="Center" FontWeight="Medium" Foreground="#2563EB"
+                   IsVisible="{Binding IsRunning}" Margin="8,0,0,0" />
       </StackPanel>
 
       <TextBlock Text="{Binding StatusMessage}" FontWeight="Medium" Margin="0,8,0,0" />
     </StackPanel>
 
     <Border Grid.Row="1" Margin="24,8,24,8" CornerRadius="8" BorderBrush="#334155" BorderThickness="1" Background="#0F172A">
-      <TextBox Classes="log-output" Text="{Binding LogText}" Margin="2" />
+      <TextBox Classes="log-output" Text="{Binding LogText}" Margin="2" Name="logTextBox" />
     </Border>
 
     <Border Grid.Row="2" Margin="24,0,24,16" Padding="0,0,0,0">

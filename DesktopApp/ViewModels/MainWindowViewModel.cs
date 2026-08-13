@@ -16,6 +16,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
     public bool ShowBuildPage => true;
 
     private readonly ConfigPage _configPage = new();
+    private readonly ProjectPage _projectPage = new();
+    private readonly CertificatePage _certificatePage = new();
     private readonly BuildPage _buildPage = new();
     private readonly DoctorPage _doctorPage = new();
     private readonly ArtifactsPage _artifactsPage = new();
@@ -31,6 +33,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             "build" => _buildPage,
             "config" => _configPage,
+            "project" => _projectPage,
+            "certificate" => _certificatePage,
             "doctor" => _doctorPage,
             "artifacts" => _artifactsPage,
             "storage" => _storagePage,

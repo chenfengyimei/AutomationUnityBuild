@@ -22,7 +22,7 @@
 
     <Border Grid.Row="1" Margin="24,8,24,16" Classes="card" Background="#F8FAFC">
       <DockPanel>
-        <StackPanel DockPanel.Dock="Left" Width="320" Margin="0,0,16,0">
+        <StackPanel DockPanel.Dock="Left" Width="300" Margin="0,0,16,0">
           <TextBlock Text="历史产物目录" FontWeight="Bold" Margin="0,0,0,8" />
           <ListBox ItemsSource="{Binding RunFolders}" SelectedItem="{Binding SelectedRunFolder}">
             <ListBox.ItemTemplate>
@@ -40,21 +40,19 @@
           </ListBox>
         </StackPanel>
 
-        <Grid DockPanel.Dock="Left" Width="280" Margin="0,0,16,0">
-          <StackPanel>
-            <TextBlock Text="目录内容" FontWeight="Bold" Margin="0,0,0,8" />
-            <ListBox ItemsSource="{Binding CurrentFiles}">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <StackPanel Orientation="Horizontal" Spacing="6" Margin="4">
-                    <TextBlock Text="{Binding Icon}" />
-                    <TextBlock Text="{Binding Name}" />
-                  </StackPanel>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </StackPanel>
-        </Grid>
+        <StackPanel DockPanel.Dock="Left" Width="260" Margin="0,0,16,0">
+          <TextBlock Text="目录内容" FontWeight="Bold" Margin="0,0,0,8" />
+          <ListBox ItemsSource="{Binding CurrentFiles}" SelectedItem="{Binding SelectedFile}" DoubleTapped="FileItem_DoubleTapped">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4">
+                  <TextBlock Text="{Binding Icon}" />
+                  <TextBlock Text="{Binding Name}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
 
         <Grid ColumnDefinitions="*,Auto">
           <Grid Grid.Column="0">
@@ -62,7 +60,7 @@
           </Grid>
           <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="8">
             <Button Classes="secondary" Content="打开目录" Click="OpenDir_Click" />
-            <Button Classes="secondary" Content="打开文件" Click="OpenFile_Click" />
+            <Button Classes="secondary" Content="打开文件" Click="OpenFile_Click" IsEnabled="{Binding HasSelectedFile}" />
           </StackPanel>
         </Grid>
       </DockPanel>

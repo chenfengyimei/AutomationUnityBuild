@@ -16,7 +16,8 @@
           </ComboBox.ItemTemplate>
         </ComboBox>
         <Button Classes="secondary" Content="刷新" Click="Refresh_Click" />
-        <Button Classes="danger" Content="🗑 批量删除选中" Click="DeleteSelected_Click" />
+        <Button Classes="secondary" Content="全选" Click="SelectAll_Click" />
+        <Button Classes="danger" Content="🗑 删除选中" Click="DeleteSelected_Click" IsEnabled="{Binding HasSelected}" />
       </StackPanel>
     </StackPanel>
 
@@ -35,6 +36,12 @@
       </Border>
       <Border Classes="metric">
         <StackPanel>
+          <TextBlock Classes="metric-label" Text="已选中" />
+          <TextBlock Classes="metric-value" Text="{Binding SelectedCount}" />
+        </StackPanel>
+      </Border>
+      <Border Classes="metric">
+        <StackPanel>
           <TextBlock Classes="metric-label" Text="产物根目录" />
           <TextBlock Text="{Binding ArtifactsRoot}" FontSize="11" Foreground="#475569" />
         </StackPanel>
@@ -45,10 +52,21 @@
       <DataGrid ItemsSource="{Binding RunFolders}" AutoGenerateColumns="False" CanUserSortColumns="True"
                 HeadersVisibility="All" GridLinesVisibility="Horizontal" BorderThickness="1" BorderBrush="#E2E8F0">
         <DataGrid.Columns>
+          <DataGridCheckBoxColumn Header="选" Binding="{Binding IsSelected}" Width="40" />
           <DataGridTextColumn Header="目录名" Binding="{Binding Name}" Width="200" />
           <DataGridTextColumn Header="创建时间" Binding="{Binding Created}" Width="180" />
           <DataGridTextColumn Header="文件数" Binding="{Binding FileCount}" Width="80" />
           <DataGridTextColumn Header="占用大小" Binding="{Binding DisplaySize}" Width="100" />
+          <DataGridTemplateColumn Header="操作" Width="120">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <Button Classes="secondary" Content="打开" Click="OpenFolder_Click" Tag="{Binding}" FontSize="11" Padding="8,2" />
+                  <Button Classes="danger" Content="删除" Click="DeleteSingle_Click" Tag="{Binding}" FontSize="11" Padding="8,2" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
         </DataGrid.Columns>
       </DataGrid>
     </Border>

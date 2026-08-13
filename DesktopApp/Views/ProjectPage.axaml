@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.ProjectPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="12">
+      <TextBlock Classes="page-title" Text="项目管理" />
+      <TextBlock Classes="page-subtitle" Text="管理可复用的项目信息模板，新建打包配置时可一键填充" />
+
+      <!-- Toolbar -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="primary" Content="刷新列表" Click="Refresh_Click" IsVisible="{Binding !IsEditing}" />
+        <Button Classes="secondary" Content="➕ 新建项目模板" Click="Create_Click" IsVisible="{Binding !IsEditing}" />
+        <Button Classes="secondary" Content="✏️ 编辑" Click="Edit_Click" IsVisible="{Binding !IsEditing}" />
+      </StackPanel>
+
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#64748B" />
+
+      <!-- List (visible when not editing) -->
+      <Border Classes="card" IsVisible="{Binding !IsEditing}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="项目模板列表" FontWeight="Bold" Margin="0,0,0,8" />
+          <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinHeight="120">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="4">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" FontWeight="Medium" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding RepositoryUrl}" FontSize="11" Foreground="#64748B" />
+                  <TextBlock Text="{Binding UnityVersion}" FontSize="11" Foreground="#475569" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Classes="danger" Content="🗑 删除选中" Click="Delete_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Edit Form -->
+      <Border Classes="card" IsVisible="{Binding IsEditing}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding IsNew, StringFormat='{}新建项目模板'}" FontWeight="Bold" FontSize="16"
+                     IsVisible="{Binding IsNew}" />
+          <TextBlock Text="编辑项目模板" FontWeight="Bold" FontSize="16"
+                     IsVisible="{Binding !IsNew}" />
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="模板名称" />
+              <TextBox Text="{Binding EditProfile.Name}" Watermark="例如：我的 Unity 项目" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="Git 仓库地址" />
+              <TextBox Text="{Binding EditProfile.RepositoryUrl}" Watermark="git@github.com:org/game.git" />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="分支" />
+              <TextBox Text="{Binding EditProfile.Branch}" Watermark="main" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="项目目录名" />
+              <TextBox Text="{Binding EditProfile.ProjectDirectoryName}" Watermark="留空自动推断" />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="Unity 版本" />
+              <TextBox Text="{Binding EditProfile.UnityVersion}" Watermark="6000.0.0f1" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="Unity 工程相对路径" />
+              <TextBox Text="{Binding EditProfile.UnityProjectRelativePath}" Watermark="." />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="Unity 可执行文件路径" />
+              <TextBox Text="{Binding EditProfile.UnityExecutablePath}" Watermark="留空使用默认" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="Unity Build Method" />
+              <TextBox Text="{Binding EditProfile.UnityBuildMethod}" Watermark="留空自动推断" />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="Workspace Root" />
+              <TextBox Text="{Binding EditProfile.WorkspaceRoot}" Watermark="~/UnityBuildWorkspace" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="Artifacts Root" />
+              <TextBox Text="{Binding EditProfile.ArtifactsRoot}" Watermark="~/UnityBuildArtifacts" />
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="Product Name" />
+              <TextBox Text="{Binding EditProfile.ProductName}" Watermark="Your Game" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="Bundle Identifier" />
+              <TextBox Text="{Binding EditProfile.BundleIdentifier}" Watermark="com.company.game" />
+            </StackPanel>
+          </Grid>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button Classes="primary" Content="💾 保存" Click="Save_Click" />
+            <Button Classes="secondary" Content="取消" Click="Cancel_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

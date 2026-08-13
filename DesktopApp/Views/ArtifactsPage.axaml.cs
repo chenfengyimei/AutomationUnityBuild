@@ -20,10 +20,17 @@ public partial class ArtifactsPage : UserControl
     }
     private void OpenFile_Click(object? sender, RoutedEventArgs e)
     {
-        if (VM.CurrentFiles.Count > 0 && VM.CurrentFiles.Count > 0)
+        if (VM.SelectedFile is not null && !VM.SelectedFile.IsDirectory)
+            VM.OpenFile(VM.SelectedFile.FullPath);
+    }
+    private void FileItem_DoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (VM.SelectedFile is not null)
         {
-            var item = VM.CurrentFiles[0];
-            if (!item.IsDirectory) VM.OpenFile(item.FullPath);
+            if (VM.SelectedFile.IsDirectory)
+                VM.OpenFolder(VM.SelectedFile.FullPath);
+            else
+                VM.OpenFile(VM.SelectedFile.FullPath);
         }
     }
 }

@@ -38,22 +38,13 @@ public class ArtifactEntry
     }
 }
 
-public class RunFolder
-{
-    public string Name { get; set; } = "";
-    public string FullPath { get; set; } = "";
-    public long TotalBytes { get; set; }
-    public int FileCount { get; set; }
-    public DateTimeOffset Created { get; set; }
-    public string DisplaySize => ArtifactEntry.FormatBytes(TotalBytes);
-}
-
 public class ArtifactsPageViewModel : ViewModelBase
 {
     private ConfigItem? _selectedConfig;
     private string _artifactsRoot = "";
     private string _statusMessage = "选择配置后自动加载产物目录。";
     private RunFolder? _selectedRunFolder;
+    private ArtifactEntry? _selectedFile;
     private string _logPreview = "";
 
     public ObservableCollection<ConfigItem> Configs { get; } = new();
@@ -91,6 +82,20 @@ public class ArtifactsPageViewModel : ViewModelBase
             LoadRunFolderContents(value);
         }
     }
+
+    public ArtifactEntry? SelectedFile
+    {
+        get => _selectedFile;
+        set
+        {
+            Set(ref _selectedFile, value);
+            Raise(nameof(HasSelectedFile));
+            if (value is not null && !value.IsDirectory)
+                LoadFilePreview(value);
+        }
+    }
+
+    public bool HasSelectedFile => _selectedFile is not null;
 
     public string LogPreview
     {
@@ -194,6 +199,7 @@ public class ArtifactsPageViewModel : ViewModelBase
     private void LoadRunFolderContents(RunFolder? folder)
     {
         CurrentFiles.Clear();
+        SelectedFile = null;
         LogPreview = "";
 
         if (folder is null) return;
@@ -233,6 +239,20 @@ public class ArtifactsPageViewModel : ViewModelBase
         {
             StatusMessage = $"加载内容失败: {ex.Message}";
         }
+    }
+
+    private void LoadFilePreview(ArtifactEntry file)
+    {
+        if (file.IsDirectory) return;
+        try
+        {
+            string ext = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (ext is ".log" or ".json" or ".txt" or ".xml" or ".plist")
+            {
+                LogPreview = File.ReadAllText(file.FullPath);
+            }
+        }
+        catch { }
     }
 
     public void OpenFolder(string path)

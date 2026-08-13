@@ -22,7 +22,7 @@ public partial class MainWindow : Window
 
     private void UpdateActiveNav(string activeTag)
     {
-        string[] navNames = ["navBuild", "navConfig", "navDoctor", "navArtifacts", "navStorage", "navEmail", "navHelp"];
+        string[] navNames = ["navBuild", "navConfig", "navProject", "navCertificate", "navDoctor", "navArtifacts", "navStorage", "navEmail", "navHelp"];
         foreach (string name in navNames)
         {
             Control? ctrl = this.FindControl<Button>(name);

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AutomationUnityBuildIOS;
+using DesktopApp.Models;
 using DesktopApp.Services;
 
 namespace DesktopApp.ViewModels;
@@ -52,6 +53,7 @@ public class ConfigItem : ViewModelBase
 
     // TikTok fields
     public string TiktokAppId { get; set; } = "";
+    public string TiktokAccessToken { get; set; } = "";
     public string TiktokGameName { get; set; } = "";
     public string TiktokWebglOutputDirectory { get; set; } = "";
     public bool TiktokUploadEnabled { get; set; }
@@ -130,8 +132,103 @@ public class ConfigPageViewModel : ViewModelBase
     public bool IsEditAndroid => string.Equals(EditConfig.Platform, "android", StringComparison.OrdinalIgnoreCase);
     public bool IsEditTiktok => string.Equals(EditConfig.Platform, "tiktok", StringComparison.OrdinalIgnoreCase);
 
+    // ---- Profile selection ----
+    public ObservableCollection<ProjectProfile> AvailableProjects { get; } = new();
+    public ObservableCollection<CertificateProfile> AvailableCertificates { get; } = new();
+
+    private ProjectProfile? _selectedProjectProfile;
+    public ProjectProfile? SelectedProjectProfile
+    {
+        get => _selectedProjectProfile;
+        set => Set(ref _selectedProjectProfile, value);
+    }
+
+    private CertificateProfile? _selectedCertificateProfile;
+    public CertificateProfile? SelectedCertificateProfile
+    {
+        get => _selectedCertificateProfile;
+        set => Set(ref _selectedCertificateProfile, value);
+    }
+
+    public void LoadProfiles()
+    {
+        AvailableProjects.Clear();
+        foreach (var p in ProfileStore.LoadProjects())
+            AvailableProjects.Add(p);
+
+        AvailableCertificates.Clear();
+        foreach (var c in ProfileStore.LoadCertificates())
+            AvailableCertificates.Add(c);
+    }
+
+    public void ApplyProjectProfile()
+    {
+        if (SelectedProjectProfile is null)
+        {
+            StatusMessage = "请先选择一个项目模板。";
+            return;
+        }
+        var p = SelectedProjectProfile;
+        if (!string.IsNullOrEmpty(p.RepositoryUrl)) EditConfig.RepositoryUrl = p.RepositoryUrl;
+        if (!string.IsNullOrEmpty(p.Branch)) EditConfig.Branch = p.Branch;
+        if (!string.IsNullOrEmpty(p.ProjectDirectoryName)) EditConfig.ProjectDirectoryName = p.ProjectDirectoryName;
+        if (!string.IsNullOrEmpty(p.UnityProjectRelativePath)) EditConfig.UnityProjectRelativePath = p.UnityProjectRelativePath;
+        if (!string.IsNullOrEmpty(p.UnityVersion)) EditConfig.UnityVersion = p.UnityVersion;
+        if (!string.IsNullOrEmpty(p.UnityExecutablePath)) EditConfig.UnityExecutablePath = p.UnityExecutablePath;
+        if (!string.IsNullOrEmpty(p.UnityBuildMethod)) EditConfig.UnityBuildMethod = p.UnityBuildMethod;
+        if (!string.IsNullOrEmpty(p.WorkspaceRoot)) EditConfig.WorkspaceRoot = p.WorkspaceRoot;
+        if (!string.IsNullOrEmpty(p.ArtifactsRoot)) EditConfig.ArtifactsRoot = p.ArtifactsRoot;
+        if (!string.IsNullOrEmpty(p.ProductName)) EditConfig.ProductName = p.ProductName;
+        if (!string.IsNullOrEmpty(p.BundleIdentifier)) EditConfig.BundleIdentifier = p.BundleIdentifier;
+        StatusMessage = $"✅ 已从项目模板「{p.Name}」填充项目信息。";
+    }
+
+    public void ApplyCertificateProfile()
+    {
+        if (SelectedCertificateProfile is null)
+        {
+            StatusMessage = "请先选择一个证书模板。";
+            return;
+        }
+        var c = SelectedCertificateProfile;
+        // iOS
+        if (IsEditIos)
+        {
+            if (!string.IsNullOrEmpty(c.TeamId)) EditConfig.TeamId = c.TeamId;
+            if (!string.IsNullOrEmpty(c.ExportMethod)) EditConfig.ExportMethod = c.ExportMethod;
+            if (!string.IsNullOrEmpty(c.IosDeploymentTarget)) EditConfig.IosDeploymentTarget = c.IosDeploymentTarget;
+            if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyPath)) EditConfig.AppStoreConnectApiKeyPath = c.AppStoreConnectApiKeyPath;
+            if (!string.IsNullOrEmpty(c.AppStoreConnectApiKeyId)) EditConfig.AppStoreConnectApiKeyId = c.AppStoreConnectApiKeyId;
+            if (!string.IsNullOrEmpty(c.AppStoreConnectApiIssuerId)) EditConfig.AppStoreConnectApiIssuerId = c.AppStoreConnectApiIssuerId;
+            EditConfig.AppStoreConnectUploadEnabled = c.AppStoreConnectUploadEnabled;
+        }
+        // Android
+        if (IsEditAndroid)
+        {
+            if (!string.IsNullOrEmpty(c.AndroidKeystoreName)) EditConfig.AndroidKeystoreName = c.AndroidKeystoreName;
+            if (!string.IsNullOrEmpty(c.AndroidKeystorePass)) EditConfig.AndroidKeystorePass = c.AndroidKeystorePass;
+            if (!string.IsNullOrEmpty(c.AndroidKeyaliasName)) EditConfig.AndroidKeyaliasName = c.AndroidKeyaliasName;
+            if (!string.IsNullOrEmpty(c.AndroidKeyaliasPass)) EditConfig.AndroidKeyaliasPass = c.AndroidKeyaliasPass;
+            if (!string.IsNullOrEmpty(c.GooglePlayPackageName)) EditConfig.GooglePlayPackageName = c.GooglePlayPackageName;
+            if (!string.IsNullOrEmpty(c.GooglePlayServiceAccountJsonPath)) EditConfig.GooglePlayServiceAccountJsonPath = c.GooglePlayServiceAccountJsonPath;
+            if (!string.IsNullOrEmpty(c.GooglePlayTrack)) EditConfig.GooglePlayTrack = c.GooglePlayTrack;
+            EditConfig.GooglePlayUploadEnabled = c.GooglePlayUploadEnabled;
+        }
+        // TikTok
+        if (IsEditTiktok)
+        {
+            if (!string.IsNullOrEmpty(c.TiktokAppId)) EditConfig.TiktokAppId = c.TiktokAppId;
+            if (!string.IsNullOrEmpty(c.TiktokAccessToken)) EditConfig.TiktokAccessToken = c.TiktokAccessToken;
+            if (!string.IsNullOrEmpty(c.TiktokGameName)) EditConfig.TiktokGameName = c.TiktokGameName;
+            if (!string.IsNullOrEmpty(c.TiktokApiEndpoint)) EditConfig.TiktokApiEndpoint = c.TiktokApiEndpoint;
+            EditConfig.TiktokUploadEnabled = c.TiktokUploadEnabled;
+        }
+        StatusMessage = $"✅ 已从证书模板「{c.Name}」填充签名信息。";
+    }
+
     public ConfigPageViewModel()
     {
+        LoadProfiles();
         RefreshConfigs();
     }
 
@@ -202,6 +299,7 @@ public class ConfigPageViewModel : ViewModelBase
             item.GooglePlayTrack = GetString(root, "googlePlayTrack");
             // TikTok
             item.TiktokAppId = GetString(root, "tiktokAppId");
+            item.TiktokAccessToken = GetString(root, "tiktokAccessToken");
             item.TiktokGameName = GetString(root, "tiktokGameName");
             item.TiktokWebglOutputDirectory = GetString(root, "tiktokWebglOutputDirectory");
             item.TiktokUploadEnabled = GetBool(root, "tiktokUploadEnabled");
@@ -330,7 +428,7 @@ public class ConfigPageViewModel : ViewModelBase
             else if (EditConfig.Platform == "tiktok")
             {
                 json["tiktokAppId"] = EditConfig.TiktokAppId ?? "";
-                json["tiktokAccessToken"] = "";
+                json["tiktokAccessToken"] = EditConfig.TiktokAccessToken ?? "";
                 json["tiktokGameName"] = EditConfig.TiktokGameName ?? "";
                 json["tiktokWebglOutputDirectory"] = EditConfig.TiktokWebglOutputDirectory ?? "";
                 json["tiktokUploadEnabled"] = EditConfig.TiktokUploadEnabled;
@@ -454,6 +552,7 @@ public class ConfigPageViewModel : ViewModelBase
             GooglePlayServiceAccountJsonPath = src.GooglePlayServiceAccountJsonPath,
             GooglePlayTrack = src.GooglePlayTrack,
             TiktokAppId = src.TiktokAppId,
+            TiktokAccessToken = src.TiktokAccessToken,
             TiktokGameName = src.TiktokGameName,
             TiktokWebglOutputDirectory = src.TiktokWebglOutputDirectory,
             TiktokUploadEnabled = src.TiktokUploadEnabled,

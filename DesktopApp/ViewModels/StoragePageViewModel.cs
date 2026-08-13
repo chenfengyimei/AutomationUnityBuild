@@ -4,6 +4,23 @@ using AutomationUnityBuildIOS;
 
 namespace DesktopApp.ViewModels;
 
+public class RunFolder : ViewModelBase
+{
+    public string Name { get; set; } = "";
+    public string FullPath { get; set; } = "";
+    public long TotalBytes { get; set; }
+    public int FileCount { get; set; }
+    public DateTimeOffset Created { get; set; }
+    public string DisplaySize => ArtifactEntry.FormatBytes(TotalBytes);
+
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => Set(ref _isSelected, value);
+    }
+}
+
 public class StoragePageViewModel : ViewModelBase
 {
     private ConfigItem? _selectedConfig;
@@ -11,10 +28,11 @@ public class StoragePageViewModel : ViewModelBase
     private string _statusMessage = "选择配置后自动加载产物目录。";
     private long _totalBytes;
     private int _totalFolders;
+    private int _selectedCount;
+    private bool _hasSelected;
 
     public ObservableCollection<ConfigItem> Configs { get; } = new();
     public ObservableCollection<RunFolder> RunFolders { get; } = new();
-    public ObservableCollection<RunFolder> SelectedFolders { get; } = new();
 
     public ConfigItem? SelectedConfig
     {
@@ -50,6 +68,18 @@ public class StoragePageViewModel : ViewModelBase
         set => Set(ref _totalFolders, value);
     }
 
+    public int SelectedCount
+    {
+        get => _selectedCount;
+        set => Set(ref _selectedCount, value);
+    }
+
+    public bool HasSelected
+    {
+        get => _hasSelected;
+        set => Set(ref _hasSelected, value);
+    }
+
     public string TotalDisplay => ArtifactEntry.FormatBytes(TotalBytes);
 
     public StoragePageViewModel()
@@ -79,9 +109,9 @@ public class StoragePageViewModel : ViewModelBase
     private void LoadArtifactsRoot(ConfigItem? config)
     {
         RunFolders.Clear();
-        SelectedFolders.Clear();
         TotalBytes = 0;
         TotalFolders = 0;
+        UpdateSelectedCount();
 
         if (config is null) return;
 
@@ -135,12 +165,14 @@ public class StoragePageViewModel : ViewModelBase
                     FileCount = files.Length,
                     TotalBytes = files.Sum(f => f.Length)
                 };
+                run.PropertyChanged += (_, _) => UpdateSelectedCount();
                 RunFolders.Add(run);
             }
 
             TotalFolders = RunFolders.Count;
             TotalBytes = RunFolders.Sum(r => r.TotalBytes);
             Raise(nameof(TotalDisplay));
+            UpdateSelectedCount();
             StatusMessage = $"找到 {TotalFolders} 个历史产物目录，共占用 {TotalDisplay}。";
         }
         catch (Exception ex)
@@ -149,16 +181,31 @@ public class StoragePageViewModel : ViewModelBase
         }
     }
 
+    private void UpdateSelectedCount()
+    {
+        int count = RunFolders.Count(r => r.IsSelected);
+        SelectedCount = count;
+        HasSelected = count > 0;
+    }
+
+    public void ToggleSelectAll()
+    {
+        bool allSelected = RunFolders.Count > 0 && RunFolders.All(r => r.IsSelected);
+        foreach (var folder in RunFolders)
+            folder.IsSelected = !allSelected;
+        UpdateSelectedCount();
+    }
+
     public void DeleteFolder(RunFolder folder)
     {
         try
         {
             Directory.Delete(folder.FullPath, recursive: true);
             RunFolders.Remove(folder);
-            SelectedFolders.Remove(folder);
             TotalFolders = RunFolders.Count;
             TotalBytes = RunFolders.Sum(r => r.TotalBytes);
             Raise(nameof(TotalDisplay));
+            UpdateSelectedCount();
             StatusMessage = $"已删除: {folder.Name}";
         }
         catch (Exception ex)
@@ -169,8 +216,16 @@ public class StoragePageViewModel : ViewModelBase
 
     public void DeleteSelected()
     {
+        var toDelete = RunFolders.Where(r => r.IsSelected).ToList();
+        if (toDelete.Count == 0)
+        {
+            StatusMessage = "请先勾选要删除的目录。";
+            return;
+        }
+
         int deleted = 0;
-        foreach (var folder in SelectedFolders.ToList())
+        var errors = new List<string>();
+        foreach (var folder in toDelete)
         {
             try
             {
@@ -178,13 +233,18 @@ public class StoragePageViewModel : ViewModelBase
                 RunFolders.Remove(folder);
                 deleted++;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                errors.Add($"{folder.Name}: {ex.Message}");
+            }
         }
-        SelectedFolders.Clear();
         TotalFolders = RunFolders.Count;
         TotalBytes = RunFolders.Sum(r => r.TotalBytes);
         Raise(nameof(TotalDisplay));
-        StatusMessage = $"已批量删除 {deleted} 个目录。";
+        UpdateSelectedCount();
+        StatusMessage = errors.Count > 0
+            ? $"已删除 {deleted} 个目录，{errors.Count} 个失败：{string.Join("; ", errors)}"
+            : $"已批量删除 {deleted} 个目录。";
     }
 
     public void OpenFolder(string path)

@@ -64,6 +64,35 @@
           <TextBlock Text="编辑配置" FontWeight="Bold" FontSize="16"
                      IsVisible="{Binding !IsNewConfig}" />
 
+          <!-- Quick-fill from profiles -->
+          <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="12,8">
+            <StackPanel Spacing="8">
+              <TextBlock Text="⚡ 快速填充模板" FontWeight="Medium" Foreground="#0369A1" />
+              <Grid ColumnDefinitions="*,Auto,*,Auto" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="📦 从项目模板填充" />
+                  <ComboBox ItemsSource="{Binding AvailableProjects}"
+                            SelectedItem="{Binding SelectedProjectProfile}"
+                            DisplayMemberBinding="{Binding Name}"
+                            PlaceholderText="选择项目模板…" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                  <Button Classes="secondary" Content="应用" Click="ApplyProject_Click" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="8,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="🔑 从证书模板填充" />
+                  <ComboBox ItemsSource="{Binding AvailableCertificates}"
+                            SelectedItem="{Binding SelectedCertificateProfile}"
+                            DisplayMemberBinding="{Binding Name}"
+                            PlaceholderText="选择证书模板…" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" VerticalAlignment="Bottom">
+                  <Button Classes="secondary" Content="应用" Click="ApplyCert_Click" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
           <!-- File path -->
           <StackPanel>
             <TextBlock Classes="FieldLabel" Text="配置文件路径" />
@@ -245,6 +274,16 @@
               <StackPanel Grid.Column="1" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="游戏名称" />
                 <TextBox Text="{Binding EditConfig.TiktokGameName}" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="*,*" Margin="0">
+              <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Classes="FieldLabel" Text="Access Token" />
+                <TextBox Text="{Binding EditConfig.TiktokAccessToken}" PasswordChar="*" Watermark="开放平台 Access Token" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="WebGL 输出目录" />
+                <TextBox Text="{Binding EditConfig.TiktokWebglOutputDirectory}" Watermark="留空自动生成" />
               </StackPanel>
             </Grid>
             <Grid ColumnDefinitions="*" Margin="0">

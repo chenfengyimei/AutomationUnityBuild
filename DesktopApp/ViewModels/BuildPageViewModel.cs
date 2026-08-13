@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using AutomationUnityBuildIOS;
 using DesktopApp.Services;
 
@@ -19,7 +20,10 @@ public class BuildPageViewModel : ViewModelBase
     private bool _runSucceeded;
     private string _statusMessage = "选择配置后点击「开始打包」。";
     private string? _artifactsRoot;
+    private string _elapsedText = "";
     private CancellationTokenSource? _cts;
+    private Stopwatch? _stopwatch;
+    private System.Timers.Timer? _uiTimer;
 
     public ObservableCollection<ConfigItem> Configs { get; } = new();
 
@@ -65,6 +69,12 @@ public class BuildPageViewModel : ViewModelBase
         set => Set(ref _statusMessage, value);
     }
 
+    public string ElapsedText
+    {
+        get => _elapsedText;
+        set => Set(ref _elapsedText, value);
+    }
+
     public bool CanOpenArtifacts => _artifactsRoot is not null;
 
     public BuildPageViewModel()
@@ -91,6 +101,13 @@ public class BuildPageViewModel : ViewModelBase
         catch { }
     }
 
+    public void ClearLog()
+    {
+        LogText = "";
+        RunCompleted = false;
+        StatusMessage = "日志已清空。";
+    }
+
     public async Task StartBuildAsync()
     {
         if (SelectedConfig is null)
@@ -105,6 +122,9 @@ public class BuildPageViewModel : ViewModelBase
         LogText = "";
         StatusMessage = "正在执行打包...";
 
+        _stopwatch = Stopwatch.StartNew();
+        StartUiTimer();
+
         var sb = new System.Text.StringBuilder();
 
         var (success, logPath, artifactsRoot, error) = await _runner.RunAsync(
@@ -116,6 +136,9 @@ public class BuildPageViewModel : ViewModelBase
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => LogText = sb.ToString());
             },
             _cts.Token);
+
+        StopUiTimer();
+        _stopwatch?.Stop();
 
         IsRunning = false;
         RunCompleted = true;
@@ -144,5 +167,38 @@ public class BuildPageViewModel : ViewModelBase
                 System.Diagnostics.Process.Start("xdg-open", $"\"{_artifactsRoot}\"");
         }
         catch { }
+    }
+
+    private void StartUiTimer()
+    {
+        _uiTimer = new System.Timers.Timer(1000);
+        _uiTimer.Elapsed += (_, _) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_stopwatch?.IsRunning == true)
+                {
+                    var ts = _stopwatch.Elapsed;
+                    ElapsedText = ts.TotalHours >= 1
+                        ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+                        : $"{ts.Minutes}:{ts.Seconds:D2}";
+                }
+            });
+        };
+        _uiTimer.Start();
+    }
+
+    private void StopUiTimer()
+    {
+        _uiTimer?.Stop();
+        _uiTimer?.Dispose();
+        _uiTimer = null;
+        if (_stopwatch is not null)
+        {
+            var ts = _stopwatch.Elapsed;
+            ElapsedText = ts.TotalHours >= 1
+                ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+                : $"{ts.Minutes}:{ts.Seconds:D2}";
+        }
     }
 }

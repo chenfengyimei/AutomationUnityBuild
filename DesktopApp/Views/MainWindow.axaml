@@ -19,6 +19,8 @@
         <StackPanel Grid.Row="1" Margin="0,0,0,8">
           <Button Classes="nav" Content="📦 打包任务" Click="OnNavClick" Tag="build" Name="navBuild" IsVisible="{Binding ShowBuildPage}"/>
           <Button Classes="nav" Content="⚙️ 配置管理" Click="OnNavClick" Tag="config" Name="navConfig"/>
+          <Button Classes="nav" Content="📁 项目管理" Click="OnNavClick" Tag="project" Name="navProject"/>
+          <Button Classes="nav" Content="🔑 证书管理" Click="OnNavClick" Tag="certificate" Name="navCertificate"/>
           <Button Classes="nav" Content="🔍 环境检查" Click="OnNavClick" Tag="doctor" Name="navDoctor"/>
           <Button Classes="nav" Content="📂 产物浏览" Click="OnNavClick" Tag="artifacts" Name="navArtifacts"/>
           <Button Classes="nav" Content="🗂️ 存储管理" Click="OnNavClick" Tag="storage" Name="navStorage"/>
