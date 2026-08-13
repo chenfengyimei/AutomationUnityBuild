@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType Condition="'$(ExcludeCli)' == 'true'">Library</OutputType>
-    <OutputType Condition="'$(ExcludeCli)' != 'true'">Exe</OutputType>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -13,12 +12,6 @@
     <Compile Remove="LinuxGateway\**\*.cs" />
     <Compile Remove="AutomationUnityBuildIOS.Tests\**\*.cs" />
     <Compile Remove="DesktopApp\**\*.cs" />
-    <Compile Remove="Cli\Cli.cs" Condition="'$(ExcludeCli)' == 'true'" />
-    <Compile Remove="Cli\CommandLineParser.cs" Condition="'$(ExcludeCli)' == 'true'" />
-    <Compile Remove="Cli\ShortcutCommands.cs" Condition="'$(ExcludeCli)' == 'true'" />
-    <Compile Remove="ConsoleUi\HelpPrinter.cs" Condition="'$(ExcludeCli)' == 'true'" />
-    <Compile Remove="ConsoleUi\InteractiveMenu.cs" Condition="'$(ExcludeCli)' == 'true'" />
-    <Compile Remove="Program.cs" Condition="'$(ExcludeCli)' == 'true'" />
     <Content Remove="BuildServer\**\*" />
     <Content Remove="LinuxGateway\**\*" />
     <Content Remove="AutomationUnityBuildIOS.Tests\**\*" />

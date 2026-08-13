@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AutomationUnityBuildIOS.csproj" Properties="ExcludeCli=true" />
+    <ProjectReference Include="..\AutomationUnityBuildIOS.csproj" />
   </ItemGroup>
 
 </Project>
