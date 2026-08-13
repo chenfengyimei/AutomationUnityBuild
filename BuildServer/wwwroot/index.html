@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-project-merge">
+  <link rel="stylesheet" href="/styles.css?v=20260813-merge-project-selector">
 </head>
 <body>
   <main id="app">
@@ -115,22 +115,18 @@
           <form id="configForm" class="panel">
               <h3 id="configFormTitle">新增配置</h3>
               <div id="quickFillArea" class="quick-fill-area">
-                <p class="eyebrow">快速填充模板</p>
+                <p class="eyebrow">选择项目与证书模板</p>
                 <div class="quick-fill-row">
-                  <label>项目模板
-                    <select id="quickFillProject">
-                      <option value="">不使用</option>
-                    </select>
-                  </label>
+                  <label>项目<select id="configProject"></select></label>
                   <label>证书模板
                     <select id="quickFillCert">
                       <option value="">不使用</option>
                     </select>
                   </label>
-                  <button id="quickFillBtn" class="secondary" type="button">一键填充</button>
+                  <button id="quickFillBtn" class="secondary" type="button">填充证书</button>
                 </div>
+                <p class="hint">选择项目后自动填充仓库地址、Unity 版本等字段；选择证书模板后点击「填充证书」填充签名信息。</p>
               </div>
-              <label>项目<select id="configProject"></select></label>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>打包平台
                 <select id="configBuildPlatform">
@@ -915,7 +911,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-project-merge"></script>
-  <script src="/app.js?v=20260813-project-merge"></script>
+  <script src="/runtime.js?v=20260813-merge-project-selector"></script>
+  <script src="/app.js?v=20260813-merge-project-selector"></script>
 </body>
 </html>

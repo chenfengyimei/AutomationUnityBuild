@@ -537,10 +537,12 @@ function bindEvents() {
     togglePlatformFields();
   });
   $("configProject").addEventListener("change", () => {
-    const project = state.projects.find((item) => item.id === $("configProject").value);
+    const projectId = $("configProject").value;
+    const project = state.projects.find((item) => item.id === projectId);
     if (project?.defaultBuildPlatform) {
       $("configBuildPlatform").value = project.defaultBuildPlatform;
     }
+    autoFillProjectFields(projectId);
     fillConfigFileDefaults({ forceFileName: true });
   });
   $("configName").addEventListener("input", fillConfigFileDefaults);
@@ -3126,12 +3128,19 @@ async function disconnectGateway() {
 
 // ---- Quick Fill ----
 
-function renderQuickFillDropdowns() {
-  const projectOptions = ['<option value="">不使用</option>']
-    .concat(state.projectProfiles.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`))
-    .join("");
-  $("quickFillProject").innerHTML = projectOptions;
+function autoFillProjectFields(projectId) {
+  if (!projectId || state.editingConfigId) return;
+  const profile = state.projectProfiles.find((p) => p.projectRecordId === projectId || p.id === projectId);
+  if (!profile) return;
+  if (profile.repositoryUrl) $("configProjectDirectoryName").value = deriveRepoFolderName(profile.repositoryUrl) || profile.projectDirectoryName || "";
+  if (profile.unityProjectRelativePath) $("configUnityRelativePath").value = profile.unityProjectRelativePath;
+  if (profile.unityVersion) $("configUnityVersion").value = profile.unityVersion;
+  if (profile.unityExecutablePath) $("configUnityExecutablePath").value = profile.unityExecutablePath;
+  if (profile.productName) $("configProductName").value = profile.productName;
+  if (profile.bundleIdentifier) $("configBundleIdentifier").value = profile.bundleIdentifier;
+}
 
+function renderQuickFillDropdowns() {
   const certOptions = ['<option value="">不使用</option>']
     .concat(state.certificateProfiles.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`))
     .join("");
@@ -3139,56 +3148,37 @@ function renderQuickFillDropdowns() {
 }
 
 function applyQuickFill() {
-  const projectId = $("quickFillProject").value;
   const certId = $("quickFillCert").value;
-  let filled = [];
-
-  if (projectId) {
-    const profile = state.projectProfiles.find((p) => p.id === projectId);
-    if (profile) {
-      if (profile.repositoryUrl) $("configProjectDirectoryName").value = deriveRepoFolderName(profile.repositoryUrl) || profile.projectDirectoryName || "";
-      if (profile.unityProjectRelativePath) $("configUnityRelativePath").value = profile.unityProjectRelativePath;
-      if (profile.unityVersion) $("configUnityVersion").value = profile.unityVersion;
-      if (profile.unityExecutablePath) $("configUnityExecutablePath").value = profile.unityExecutablePath;
-      if (profile.productName) $("configProductName").value = profile.productName;
-      if (profile.bundleIdentifier) $("configBundleIdentifier").value = profile.bundleIdentifier;
-      filled.push("项目模板");
-    }
+  if (!certId) {
+    showMessage("请先选择证书模板。");
+    return;
   }
 
-  if (certId) {
-    const cert = state.certificateProfiles.find((c) => c.id === certId);
-    if (cert) {
-      if (cert.teamId) $("configTeamId").value = cert.teamId;
-      if (cert.iosDeploymentTarget) $("configIosDeploymentTarget").value = cert.iosDeploymentTarget;
-      if (cert.exportMethod) $("configExportMethod").value = cert.exportMethod;
-      if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
-      if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
-      if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
-      $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
-      if (cert.androidKeystoreName) $("configAndroidKeystoreName").value = cert.androidKeystoreName;
-      if (cert.androidKeystorePass) $("configAndroidKeystorePass").value = cert.androidKeystorePass;
-      if (cert.androidKeyaliasName) $("configAndroidKeyaliasName").value = cert.androidKeyaliasName;
-      if (cert.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = cert.androidKeyaliasPass;
-      if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
-      if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
-      if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
-      $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
-      if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
-      if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
-      if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
-      if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
-      $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
-      toggleUploadSections();
-      filled.push("证书模板");
-    }
-  }
+  const cert = state.certificateProfiles.find((c) => c.id === certId);
+  if (!cert) return;
 
-  if (filled.length) {
-    showMessage(`已填充：${filled.join("、")}。请检查并按需调整。`);
-  } else {
-    showMessage("请至少选择一个模板。");
-  }
+  if (cert.teamId) $("configTeamId").value = cert.teamId;
+  if (cert.iosDeploymentTarget) $("configIosDeploymentTarget").value = cert.iosDeploymentTarget;
+  if (cert.exportMethod) $("configExportMethod").value = cert.exportMethod;
+  if (cert.appStoreConnectApiKeyPath) $("configAppStoreConnectApiKeyPath").value = cert.appStoreConnectApiKeyPath;
+  if (cert.appStoreConnectApiKeyId) $("configAppStoreConnectApiKeyId").value = cert.appStoreConnectApiKeyId;
+  if (cert.appStoreConnectApiIssuerId) $("configAppStoreConnectApiIssuerId").value = cert.appStoreConnectApiIssuerId;
+  $("configAppStoreConnectUploadEnabled").checked = Boolean(cert.appStoreConnectUploadEnabled);
+  if (cert.androidKeystoreName) $("configAndroidKeystoreName").value = cert.androidKeystoreName;
+  if (cert.androidKeystorePass) $("configAndroidKeystorePass").value = cert.androidKeystorePass;
+  if (cert.androidKeyaliasName) $("configAndroidKeyaliasName").value = cert.androidKeyaliasName;
+  if (cert.androidKeyaliasPass) $("configAndroidKeyaliasPass").value = cert.androidKeyaliasPass;
+  if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
+  if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
+  if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
+  $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
+  if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
+  if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
+  if (cert.tiktokGameName) $("configTiktokGameName").value = cert.tiktokGameName;
+  if (cert.tiktokApiEndpoint) $("configTiktokApiEndpoint").value = cert.tiktokApiEndpoint;
+  $("configTiktokUploadEnabled").checked = Boolean(cert.tiktokUploadEnabled);
+  toggleUploadSections();
+  showMessage(`已从证书模板「${cert.name}」填充签名信息。请检查并按需调整。`);
 }
 
 // ---- Project Profiles ----
