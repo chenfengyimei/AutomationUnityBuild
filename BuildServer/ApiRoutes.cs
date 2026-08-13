@@ -92,6 +92,9 @@ public static class ApiRoutes
         app.MapPost("/api/unity-project-profiles", CreateUnityProjectProfileAsync);
         app.MapPut("/api/unity-project-profiles/{profileId}", UpdateUnityProjectProfileAsync);
         app.MapDelete("/api/unity-project-profiles/{profileId}", DeleteUnityProjectProfileAsync);
+
+        app.MapPost("/api/data/export", ExportDataAsync);
+        app.MapPost("/api/data/import", ImportDataAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1830,6 +1833,196 @@ public static class ApiRoutes
                 return profile;
             });
             return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    // ---- Data Export / Import ----
+
+    private static readonly string[] ExportCategories =
+    [
+        "projects", "configs", "projectProfiles", "unityProjectProfiles",
+        "signingProfiles", "certificateProfiles", "notificationContacts", "emailSettings"
+    ];
+
+    private static async Task<IResult> ExportDataAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        string[]? categories = await context.Request.ReadFromJsonAsync<string[]>();
+        if (categories is null || categories.Length == 0)
+        {
+            categories = ExportCategories;
+        }
+
+        var result = await database.ReadAsync(db =>
+        {
+            var dict = new Dictionary<string, object?>();
+            foreach (string category in categories.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                switch (category.ToLowerInvariant())
+                {
+                    case "projects":
+                        dict["projects"] = db.Projects.OrderBy(p => p.Name).ToList();
+                        break;
+                    case "configs":
+                        dict["configs"] = db.Configs.OrderBy(c => c.Name).ToList();
+                        break;
+                    case "projectprofiles":
+                        dict["projectProfiles"] = db.ProjectProfiles.OrderBy(p => p.Name).ToList();
+                        break;
+                    case "unityprojectprofiles":
+                        dict["unityProjectProfiles"] = db.UnityProjectProfiles.OrderBy(u => u.Name).ToList();
+                        break;
+                    case "signingprofiles":
+                        dict["signingProfiles"] = db.SigningProfiles.OrderBy(s => s.Name).ToList();
+                        break;
+                    case "certificateprofiles":
+                        dict["certificateProfiles"] = db.CertificateProfiles.OrderBy(c => c.Name).ToList();
+                        break;
+                    case "notificationcontacts":
+                        dict["notificationContacts"] = db.NotificationContacts.OrderBy(c => c.Title).ToList();
+                        break;
+                    case "emailsettings":
+                        dict["emailSettings"] = db.EmailSettings;
+                        break;
+                }
+            }
+            return dict;
+        });
+
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> ImportDataAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.IsAdmin(user)) return Results.Forbid();
+
+        try
+        {
+            JsonNode? payload = await context.Request.ReadFromJsonAsync<JsonNode>();
+            if (payload is null)
+            {
+                throw new InvalidOperationException("导入数据为空。");
+            }
+
+            var result = await database.UpdateAsync(db =>
+            {
+                int imported = 0;
+
+                if (payload["projects"] is JsonNode projectsNode)
+                {
+                    var items = projectsNode.Deserialize<List<ProjectRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.Projects.Any(p => p.Id == item.Id))
+                        {
+                            db.Projects.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["configs"] is JsonNode configsNode)
+                {
+                    var items = configsNode.Deserialize<List<BuildConfigRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.Configs.Any(c => c.Id == item.Id))
+                        {
+                            db.Configs.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["projectProfiles"] is JsonNode ppNode)
+                {
+                    var items = ppNode.Deserialize<List<ProjectProfileRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.ProjectProfiles.Any(p => p.Id == item.Id))
+                        {
+                            db.ProjectProfiles.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["unityProjectProfiles"] is JsonNode upNode)
+                {
+                    var items = upNode.Deserialize<List<UnityProjectProfileRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.UnityProjectProfiles.Any(p => p.Id == item.Id))
+                        {
+                            db.UnityProjectProfiles.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["signingProfiles"] is JsonNode spNode)
+                {
+                    var items = spNode.Deserialize<List<SigningProfileRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.SigningProfiles.Any(p => p.Id == item.Id))
+                        {
+                            db.SigningProfiles.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["certificateProfiles"] is JsonNode cpNode)
+                {
+                    var items = cpNode.Deserialize<List<CertificateProfileRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.CertificateProfiles.Any(p => p.Id == item.Id))
+                        {
+                            db.CertificateProfiles.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["notificationContacts"] is JsonNode ncNode)
+                {
+                    var items = ncNode.Deserialize<List<NotificationContactRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.NotificationContacts.Any(c => c.Id == item.Id))
+                        {
+                            db.NotificationContacts.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["emailSettings"] is JsonNode esNode)
+                {
+                    var settings = esNode.Deserialize<EmailSettingsRecord>(CamelizeOptions);
+                    if (settings is not null)
+                    {
+                        db.EmailSettings = settings;
+                        imported++;
+                    }
+                }
+
+                AuthService.AddAudit(db, user.Id, user.UserName, "data.import", "system", "import", $"导入数据 {imported} 条");
+                return new { imported };
+            });
+
+            return Results.Ok(result);
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {

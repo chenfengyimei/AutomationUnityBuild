@@ -591,6 +591,9 @@ function bindEvents() {
   $("unityProfileForm").addEventListener("submit", saveUnityProfile);
   $("unityProfileCancelBtn").addEventListener("click", resetUnityProfileForm);
   $("unityProfilesList").addEventListener("click", handleUnityProfilesListClick);
+  $("exportAllBtn").addEventListener("click", toggleExportAll);
+  $("exportBtn").addEventListener("click", exportData);
+  $("importBtn").addEventListener("click", importData);
 
 
 
@@ -1279,7 +1282,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", dataManager: "数据管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -3757,6 +3760,79 @@ function renderSigningProfiles() {
       <div><dt>Keystore</dt><dd>${escapeHtml(s.androidKeystoreName || "-")}</dd></div>
     </dl>
   </article>`).join("");
+}
+
+// ---- Data Manager ----
+
+function toggleExportAll() {
+  const checkboxes = document.querySelectorAll(".export-cat");
+  const allChecked = Array.from(checkboxes).every((cb) => cb.checked);
+  checkboxes.forEach((cb) => { cb.checked = !allChecked; });
+}
+
+async function exportData() {
+  const categories = Array.from(document.querySelectorAll(".export-cat:checked")).map((cb) => cb.value);
+  if (categories.length === 0) {
+    showError(new Error("请至少选择一个数据类别。"));
+    return;
+  }
+
+  setButtonBusy("exportBtn", true, "导出中...");
+  try {
+    const data = await api("/api/data/export", {
+      method: "POST",
+      body: JSON.stringify(categories),
+    });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `buildserver-data-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showMessage("数据已导出。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("exportBtn", false);
+  }
+}
+
+async function importData() {
+  const fileInput = $("importFileInput");
+  const file = fileInput.files?.[0];
+  if (!file) {
+    showError(new Error("请先选择要导入的 JSON 文件。"));
+    return;
+  }
+
+  if (!confirm("导入会按 ID 去重，已存在的记录会被跳过。确认导入？")) return;
+
+  setButtonBusy("importBtn", true, "导入中...");
+  const resultEl = $("importResult");
+  resultEl.classList.remove("hidden");
+  resultEl.className = "toast";
+  resultEl.textContent = "正在导入...";
+  try {
+    const text = await file.text();
+    JSON.parse(text);
+    const result = await api("/api/data/import", {
+      method: "POST",
+      body: text,
+    });
+    resultEl.className = "toast";
+    resultEl.textContent = `导入完成，共导入 ${result.imported} 条记录。`;
+    await refreshAll({ showSuccess: false });
+    fileInput.value = "";
+  } catch (error) {
+    resultEl.className = "toast error";
+    resultEl.textContent = `导入失败：${error.message || error}`;
+    showError(error);
+  } finally {
+    setButtonBusy("importBtn", false);
+  }
 }
 
 init();

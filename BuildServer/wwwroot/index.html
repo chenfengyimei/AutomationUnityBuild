@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-auto-template-fill">
+  <link rel="stylesheet" href="/styles.css?v=20260813-data-manager">
 </head>
 <body>
   <main id="app">
@@ -33,6 +33,7 @@
         <button data-tab="unityProfiles">工程管理</button>
         <button data-tab="signingProfiles">签名管理</button>
         <button data-tab="certProfiles">证书管理</button>
+        <button data-tab="dataManager">数据管理</button>
         <button data-tab="workers">Worker 节点</button>
         <button data-tab="audit">审计日志</button>
         <button id="usersNav" data-tab="users">用户权限</button>
@@ -580,6 +581,49 @@
           </div>
         </section>
 
+        <section id="dataManagerTab" class="tab hidden">
+          <div class="grid two">
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">导出</p>
+                  <h3>导出数据</h3>
+                  <p class="muted">选择要导出的数据类别，点击导出会下载 JSON 文件。</p>
+                </div>
+              </header>
+              <div id="exportCheckboxes" class="checks" style="grid-template-columns: 1fr;">
+                <label><input type="checkbox" class="export-cat" value="projects" checked> 项目数据（ProjectRecord）</label>
+                <label><input type="checkbox" class="export-cat" value="configs" checked> 配置数据（BuildConfigRecord）</label>
+                <label><input type="checkbox" class="export-cat" value="projectProfiles" checked> 项目模板</label>
+                <label><input type="checkbox" class="export-cat" value="unityProjectProfiles" checked> 工程模板</label>
+                <label><input type="checkbox" class="export-cat" value="signingProfiles" checked> 签名模板</label>
+                <label><input type="checkbox" class="export-cat" value="certificateProfiles" checked> 证书模板</label>
+                <label><input type="checkbox" class="export-cat" value="notificationContacts" checked> 通知联系人</label>
+                <label><input type="checkbox" class="export-cat" value="emailSettings" checked> 邮件设置</label>
+              </div>
+              <div class="form-actions">
+                <button id="exportAllBtn" class="secondary" type="button">全选</button>
+                <button id="exportBtn" type="button">导出选中</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">导入</p>
+                  <h3>导入数据</h3>
+                  <p class="muted">上传之前导出的 JSON 文件，已存在的记录（按 ID 判断）会被跳过。</p>
+                </div>
+              </header>
+              <input id="importFileInput" type="file" accept=".json" style="margin-bottom: 14px;">
+              <div class="form-actions">
+                <button id="importBtn" type="button">导入</button>
+              </div>
+              <div id="importResult" class="hidden" style="margin-top: 14px;"></div>
+            </section>
+          </div>
+        </section>
+
         <section id="workersTab" class="tab hidden">
           <section class="panel workers-panel">
             <header class="section-toolbar">
@@ -1011,7 +1055,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-auto-template-fill"></script>
-  <script src="/app.js?v=20260813-auto-template-fill"></script>
+  <script src="/runtime.js?v=20260813-data-manager"></script>
+  <script src="/app.js?v=20260813-data-manager"></script>
 </body>
 </html>
