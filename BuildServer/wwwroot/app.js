@@ -525,6 +525,7 @@ function bindEvents() {
     if (event.key === "Escape" && isFieldHelpOpen()) closeFieldHelp();
     if (event.key === "Escape" && isConfigDeleteModalOpen()) closeConfigDeleteModal();
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
+    if (event.key === "Escape" && !$("configFileBrowserModal").classList.contains("hidden")) closeConfigFileBrowser();
   });
   document.querySelectorAll('input[name="configMode"]').forEach((radio) => {
     radio.addEventListener("change", toggleConfigFileFields);
@@ -594,6 +595,18 @@ function bindEvents() {
   $("exportAllBtn").addEventListener("click", toggleExportAll);
   $("exportBtn").addEventListener("click", exportData);
   $("importBtn").addEventListener("click", importData);
+  $("browseConfigBtn").addEventListener("click", openConfigFileBrowser);
+  $("configFileBrowserClose").addEventListener("click", closeConfigFileBrowser);
+  $("configFileBrowserModal").addEventListener("click", (event) => {
+    if (event.target === $("configFileBrowserModal")) closeConfigFileBrowser();
+  });
+  $("configFileBrowserList").addEventListener("click", (event) => {
+    const item = event.target.closest("[data-config-file-path]");
+    if (!item) return;
+    $("configPath").value = item.dataset.configFilePath;
+    closeConfigFileBrowser();
+    showMessage("已选择配置文件。");
+  });
 
 
 
@@ -3760,6 +3773,42 @@ function renderSigningProfiles() {
       <div><dt>Keystore</dt><dd>${escapeHtml(s.androidKeystoreName || "-")}</dd></div>
     </dl>
   </article>`).join("");
+}
+
+// ---- Config File Browser ----
+
+async function openConfigFileBrowser() {
+  const modal = $("configFileBrowserModal");
+  const listEl = $("configFileBrowserList");
+  listEl.innerHTML = loadingItem("正在读取配置文件列表...");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+
+  try {
+    const files = await api("/api/config-files/list");
+    if (!files.length) {
+      listEl.innerHTML = `<div class="empty-state compact">配置目录下暂无 JSON 文件。</div>`;
+      return;
+    }
+
+    listEl.innerHTML = files.map((f) => `<article class="item" style="cursor: pointer;" data-config-file-path="${escapeHtml(f.path)}">
+      <header>
+        <div>
+          <strong>${escapeHtml(f.name)}</strong>
+          <div class="muted small">${escapeHtml(f.path)}</div>
+        </div>
+        <button class="secondary" type="button">选择</button>
+      </header>
+    </article>`).join("");
+  } catch (error) {
+    listEl.innerHTML = `<div class="empty-state compact">读取失败：${escapeHtml(error.message || error)}</div>`;
+  }
+}
+
+function closeConfigFileBrowser() {
+  const modal = $("configFileBrowserModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
 }
 
 // ---- Data Manager ----

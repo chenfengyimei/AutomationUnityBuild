@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-data-manager">
+  <link rel="stylesheet" href="/styles.css?v=20260813-config-file-browser">
 </head>
 <body>
   <main id="app">
@@ -157,7 +157,10 @@
                   <small>指定服务器上已有的 JSON 文件路径</small>
                 </label>
               </div>
-              <label id="configPathLabel" class="hidden">已有配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
+              <div id="configPathLabel" class="hidden">
+                <label>已有配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
+                <button id="browseConfigBtn" class="secondary" type="button" style="margin-bottom: 14px;">浏览文件</button>
+              </div>
               <div id="configFileFields" class="config-sections">
                 <details class="config-section">
                   <summary>
@@ -1020,6 +1023,21 @@
     </div>
   </section>
 
+  <section id="configFileBrowserModal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal" style="width: min(640px, 100%);" role="dialog" aria-modal="true">
+      <header class="modal-header">
+        <div>
+          <h2>选择配置文件</h2>
+          <p class="muted">从服务器配置目录中选择已有的 JSON 文件</p>
+        </div>
+        <button id="configFileBrowserClose" class="secondary" type="button">关闭</button>
+      </header>
+      <div class="modal-body">
+        <div id="configFileBrowserList" class="list"></div>
+      </div>
+    </div>
+  </section>
+
   <section id="userModal" class="modal-backdrop hidden" aria-hidden="true">
     <div class="modal user-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
       <form id="userForm">
@@ -1055,7 +1073,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-data-manager"></script>
-  <script src="/app.js?v=20260813-data-manager"></script>
+  <script src="/runtime.js?v=20260813-config-file-browser"></script>
+  <script src="/app.js?v=20260813-config-file-browser"></script>
 </body>
 </html>

@@ -95,6 +95,8 @@ public static class ApiRoutes
 
         app.MapPost("/api/data/export", ExportDataAsync);
         app.MapPost("/api/data/import", ImportDataAsync);
+
+        app.MapGet("/api/config-files/list", ListConfigFilesAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1838,6 +1840,26 @@ public static class ApiRoutes
         {
             return ApiDiagnostics.ClientError(context, ex);
         }
+    }
+
+    private static async Task<IResult> ListConfigFilesAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        var files = new List<object>();
+        foreach (string root in options.AllowedConfigRoots)
+        {
+            string fullPath = BuildServerEnvironment.ExpandHome(root);
+            if (!Directory.Exists(fullPath)) continue;
+            foreach (string file in Directory.EnumerateFiles(fullPath, "*.json", SearchOption.TopDirectoryOnly))
+            {
+                files.Add(new { path = file, name = Path.GetFileName(file) });
+            }
+        }
+
+        return Results.Ok(files);
     }
 
     // ---- Data Export / Import ----
