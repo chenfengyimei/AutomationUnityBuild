@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-cert-signing-split">
+  <link rel="stylesheet" href="/styles.css?v=20260813-unity-profile-split">
 </head>
 <body>
   <main id="app">
@@ -30,6 +30,7 @@
         <button data-tab="builds" class="active">打包任务</button>
         <button data-tab="projects">项目配置</button>
         <button data-tab="projectProfiles">项目管理</button>
+        <button data-tab="unityProfiles">工程管理</button>
         <button data-tab="certProfiles">证书管理</button>
         <button data-tab="signingProfiles">签名管理</button>
         <button data-tab="workers">Worker 节点</button>
@@ -116,9 +117,14 @@
           <form id="configForm" class="panel">
               <h3 id="configFormTitle">新增配置</h3>
               <div id="quickFillArea" class="quick-fill-area">
-                <p class="eyebrow">选择项目、签名与证书模板</p>
+                <p class="eyebrow">选择项目、工程、签名与证书模板</p>
                 <div class="quick-fill-row">
                   <label>项目<select id="configProject"></select></label>
+                  <label>工程模板
+                    <select id="quickFillUnity">
+                      <option value="">不使用</option>
+                    </select>
+                  </label>
                   <label>签名模板
                     <select id="quickFillSigning">
                       <option value="">不使用</option>
@@ -131,7 +137,7 @@
                   </label>
                   <button id="quickFillBtn" class="secondary" type="button">填充模板</button>
                 </div>
-                <p class="hint">选择项目后自动填充仓库地址、Unity 版本等；签名模板填充 Team ID、Keystore 等；证书模板填充上传配置。</p>
+                <p class="hint">选择项目后自动填充仓库地址；工程模板填充 Unity 版本/路径/包名；签名模板填充 Team ID/Keystore；证书模板填充上传配置。</p>
               </div>
               <label>配置名<input id="configName" placeholder="release"></label>
               <label>打包平台
@@ -363,7 +369,7 @@
           <div class="grid two">
             <form id="projectProfileForm" class="panel">
               <h3 id="projectProfileFormTitle">新增项目</h3>
-              <p class="muted">管理项目信息，新建配置时选择项目即可自动填充仓库地址、Unity 版本等字段。</p>
+              <p class="muted">管理项目 Git 仓库信息、工作区和产物目录。Unity 工程设置请到「工程管理」。</p>
               <input id="projectProfileId" type="hidden">
               <label>项目名称<input id="projectProfileName" placeholder="例如：主力项目" required></label>
               <label>Git 仓库<input id="projectProfileRepo" placeholder="git@github.com:org/game.git" required></label>
@@ -378,17 +384,10 @@
                   </select>
                 </label>
                 <label>仓库目录名<input id="projectProfileDirName" placeholder="留空自动推断"></label>
-              </div>
-              <label>说明<textarea id="projectProfileDescription" rows="2"></textarea></label>
-              <div class="form-grid">
-                <label>Unity 工程相对路径<input id="projectProfileUnityPath" value="."></label>
-                <label>Unity 版本<input id="projectProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
-                <label>Unity 完整路径<input id="projectProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
                 <label>Workspace Root<input id="projectProfileWorkspace" value="~/UnityBuildWorkspace"></label>
                 <label>Artifacts Root<input id="projectProfileArtifacts" value="~/UnityBuildArtifacts"></label>
-                <label>Product Name<input id="projectProfileProductName" placeholder="游戏名称"></label>
-                <label>Bundle Identifier<input id="projectProfileBundleId" placeholder="com.company.game"></label>
               </div>
+              <label>说明<textarea id="projectProfileDescription" rows="2"></textarea></label>
               <div class="form-actions">
                 <button id="projectProfileSaveBtn" type="submit">保存项目</button>
                 <button id="projectProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
@@ -400,10 +399,44 @@
                 <div>
                   <p class="eyebrow">项目登记</p>
                   <h3>已有项目</h3>
-                  <p class="muted">新建配置时选择项目即可自动填充仓库地址、Unity 版本等字段。</p>
+                  <p class="muted">新建配置时选择项目即可自动填充仓库地址、工作区等字段。</p>
                 </div>
               </header>
               <div id="projectProfilesList" class="list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="unityProfilesTab" class="tab hidden">
+          <div class="grid two">
+            <form id="unityProfileForm" class="panel">
+              <h3 id="unityProfileFormTitle">新增工程模板</h3>
+              <p class="muted">管理 Unity 工程设置：版本、路径、Build Method、Product Name、Bundle ID。</p>
+              <input id="unityProfileId" type="hidden">
+              <label>模板名称<input id="unityProfileName" placeholder="例如：Unity 2022 主力工程" required></label>
+              <div class="form-grid">
+                <label>Unity 工程相对路径<input id="unityProfileUnityPath" value="."></label>
+                <label>Unity 版本<input id="unityProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
+                <label>Unity 完整路径<input id="unityProfileUnityExe" placeholder="留空使用 Hub 默认"></label>
+                <label>Unity Build Method<input id="unityProfileBuildMethod" placeholder="留空自动推导"></label>
+                <label>Product Name<input id="unityProfileProductName" placeholder="游戏名称"></label>
+                <label>Bundle Identifier<input id="unityProfileBundleId" placeholder="com.company.game"></label>
+              </div>
+              <div class="form-actions">
+                <button id="unityProfileSaveBtn" type="submit">保存模板</button>
+                <button id="unityProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">模板登记</p>
+                  <h3>已有工程模板</h3>
+                  <p class="muted">新建配置时选择工程模板填充 Unity 版本、路径和包名等字段。</p>
+                </div>
+              </header>
+              <div id="unityProfilesList" class="list"></div>
             </section>
           </div>
         </section>
@@ -981,7 +1014,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-cert-signing-split"></script>
-  <script src="/app.js?v=20260813-cert-signing-split"></script>
+  <script src="/runtime.js?v=20260813-unity-profile-split"></script>
+  <script src="/app.js?v=20260813-unity-profile-split"></script>
 </body>
 </html>

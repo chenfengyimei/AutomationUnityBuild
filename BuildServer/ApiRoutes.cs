@@ -87,6 +87,11 @@ public static class ApiRoutes
         app.MapPost("/api/signing-profiles", CreateSigningProfileAsync);
         app.MapPut("/api/signing-profiles/{profileId}", UpdateSigningProfileAsync);
         app.MapDelete("/api/signing-profiles/{profileId}", DeleteSigningProfileAsync);
+
+        app.MapGet("/api/unity-project-profiles", ListUnityProjectProfilesAsync);
+        app.MapPost("/api/unity-project-profiles", CreateUnityProjectProfileAsync);
+        app.MapPut("/api/unity-project-profiles/{profileId}", UpdateUnityProjectProfileAsync);
+        app.MapDelete("/api/unity-project-profiles/{profileId}", DeleteUnityProjectProfileAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -151,6 +156,7 @@ public static class ApiRoutes
             projectProfiles = db.ProjectProfiles.OrderBy(p => p.Name).ToList(),
             certificateProfiles = db.CertificateProfiles.OrderBy(c => c.Name).ToList(),
             signingProfiles = db.SigningProfiles.OrderBy(s => s.Name).ToList(),
+            unityProjectProfiles = db.UnityProjectProfiles.OrderBy(u => u.Name).ToList(),
             settings = new
             {
                 options.DataRoot,
@@ -1405,14 +1411,8 @@ public static class ApiRoutes
                     DefaultBuildPlatform = project.DefaultBuildPlatform,
                     Description = project.Description,
                     ProjectDirectoryName = request.ProjectDirectoryName ?? "",
-                    UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim(),
-                    UnityVersion = request.UnityVersion ?? "",
-                    UnityExecutablePath = request.UnityExecutablePath ?? "",
-                    UnityBuildMethod = request.UnityBuildMethod ?? "",
                     WorkspaceRoot = project.WorkspaceRoot,
                     ArtifactsRoot = project.ArtifactsRoot,
-                    ProductName = request.ProductName ?? "",
-                    BundleIdentifier = request.BundleIdentifier ?? "",
                     CreatedAt = DateTimeOffset.Now
                 };
                 db.ProjectProfiles.Add(profile);
@@ -1455,14 +1455,8 @@ public static class ApiRoutes
                 profile.DefaultBuildPlatform = NormalizeBuildPlatform(request.DefaultBuildPlatform);
                 profile.Description = request.Description ?? "";
                 profile.ProjectDirectoryName = request.ProjectDirectoryName ?? "";
-                profile.UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim();
-                profile.UnityVersion = request.UnityVersion ?? "";
-                profile.UnityExecutablePath = request.UnityExecutablePath ?? "";
-                profile.UnityBuildMethod = request.UnityBuildMethod ?? "";
                 profile.WorkspaceRoot = workspaceRoot;
                 profile.ArtifactsRoot = artifactsRoot;
-                profile.ProductName = request.ProductName ?? "";
-                profile.BundleIdentifier = request.BundleIdentifier ?? "";
 
                 ProjectRecord? project = db.Projects.FirstOrDefault(p => p.Id == profile.ProjectRecordId);
                 if (project is not null)
@@ -1735,6 +1729,104 @@ public static class ApiRoutes
                     ?? throw new FileNotFoundException("签名模板不存在。");
                 db.SigningProfiles.Remove(profile);
                 AuthService.AddAudit(db, user.Id, user.UserName, "signing-profile.delete", "signing-profile", profile.Id, $"删除签名模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    // ---- Unity Project Profiles ----
+
+    private static async Task<IResult> ListUnityProjectProfilesAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+        return Results.Ok(await database.ReadAsync(db => db.UnityProjectProfiles.OrderBy(u => u.Name).ToList()));
+    }
+
+    private static async Task<IResult> CreateUnityProjectProfileAsync(UnityProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            UnityProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                var profile = new UnityProjectProfileRecord
+                {
+                    Id = Ids.New("up"),
+                    Name = Required(request.Name, "模板名称"),
+                    UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim(),
+                    UnityVersion = request.UnityVersion ?? "",
+                    UnityExecutablePath = request.UnityExecutablePath ?? "",
+                    UnityBuildMethod = request.UnityBuildMethod ?? "",
+                    ProductName = request.ProductName ?? "",
+                    BundleIdentifier = request.BundleIdentifier ?? "",
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.UnityProjectProfiles.Add(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "unity-project-profile.create", "unity-project-profile", profile.Id, $"创建工程模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateUnityProjectProfileAsync(string profileId, UnityProjectProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            UnityProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                UnityProjectProfileRecord? profile = db.UnityProjectProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("工程模板不存在。");
+                profile.Name = Required(request.Name, "模板名称");
+                profile.UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim();
+                profile.UnityVersion = request.UnityVersion ?? "";
+                profile.UnityExecutablePath = request.UnityExecutablePath ?? "";
+                profile.UnityBuildMethod = request.UnityBuildMethod ?? "";
+                profile.ProductName = request.ProductName ?? "";
+                profile.BundleIdentifier = request.BundleIdentifier ?? "";
+                AuthService.AddAudit(db, user.Id, user.UserName, "unity-project-profile.update", "unity-project-profile", profile.Id, $"更新工程模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteUnityProjectProfileAsync(string profileId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            UnityProjectProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                UnityProjectProfileRecord? profile = db.UnityProjectProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("工程模板不存在。");
+                db.UnityProjectProfiles.Remove(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "unity-project-profile.delete", "unity-project-profile", profile.Id, $"删除工程模板 {profile.Name}");
                 return profile;
             });
             return Results.Ok(new { deleted = true, profile });

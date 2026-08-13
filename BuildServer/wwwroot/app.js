@@ -10,6 +10,7 @@ const state = {
   projectProfiles: [],
   certificateProfiles: [],
   signingProfiles: [],
+  unityProjectProfiles: [],
   storageOverview: null,
   storageJobs: [],
   selectedStorageJobIds: new Set(),
@@ -573,6 +574,9 @@ function bindEvents() {
   $("signingProfileCancelBtn").addEventListener("click", resetSigningProfileForm);
   $("signingProfilesList").addEventListener("click", handleSigningProfilesListClick);
   $("signingProfilePlatform").addEventListener("change", toggleSigningProfilePlatformFields);
+  $("unityProfileForm").addEventListener("submit", saveUnityProfile);
+  $("unityProfileCancelBtn").addEventListener("click", resetUnityProfileForm);
+  $("unityProfilesList").addEventListener("click", handleUnityProfilesListClick);
 
 
 
@@ -1207,6 +1211,7 @@ function applyDashboard(dashboard) {
   state.projectProfiles = dashboard.projectProfiles || [];
   state.certificateProfiles = dashboard.certificateProfiles || [];
   state.signingProfiles = dashboard.signingProfiles || [];
+  state.unityProjectProfiles = dashboard.unityProjectProfiles || [];
   renderProjects();
   renderConfigsSelects();
   renderJobs();
@@ -1217,6 +1222,7 @@ function applyDashboard(dashboard) {
   renderProjectProfiles();
   renderCertProfiles();
   renderSigningProfiles();
+  renderUnityProfiles();
   updatePermissionControls();
 }
 
@@ -1259,7 +1265,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "项目配置", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -3141,14 +3147,14 @@ function autoFillProjectFields(projectId) {
   const profile = state.projectProfiles.find((p) => p.projectRecordId === projectId || p.id === projectId);
   if (!profile) return;
   if (profile.repositoryUrl) $("configProjectDirectoryName").value = deriveRepoFolderName(profile.repositoryUrl) || profile.projectDirectoryName || "";
-  if (profile.unityProjectRelativePath) $("configUnityRelativePath").value = profile.unityProjectRelativePath;
-  if (profile.unityVersion) $("configUnityVersion").value = profile.unityVersion;
-  if (profile.unityExecutablePath) $("configUnityExecutablePath").value = profile.unityExecutablePath;
-  if (profile.productName) $("configProductName").value = profile.productName;
-  if (profile.bundleIdentifier) $("configBundleIdentifier").value = profile.bundleIdentifier;
 }
 
 function renderQuickFillDropdowns() {
+  const unityOptions = ['<option value="">不使用</option>']
+    .concat(state.unityProjectProfiles.map((u) => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`))
+    .join("");
+  $("quickFillUnity").innerHTML = unityOptions;
+
   const signingOptions = ['<option value="">不使用</option>']
     .concat(state.signingProfiles.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`))
     .join("");
@@ -3161,9 +3167,23 @@ function renderQuickFillDropdowns() {
 }
 
 function applyQuickFill() {
+  const unityId = $("quickFillUnity").value;
   const signingId = $("quickFillSigning").value;
   const certId = $("quickFillCert").value;
   let filled = [];
+
+  if (unityId) {
+    const unity = state.unityProjectProfiles.find((u) => u.id === unityId);
+    if (unity) {
+      if (unity.unityProjectRelativePath) $("configUnityRelativePath").value = unity.unityProjectRelativePath;
+      if (unity.unityVersion) $("configUnityVersion").value = unity.unityVersion;
+      if (unity.unityExecutablePath) $("configUnityExecutablePath").value = unity.unityExecutablePath;
+      if (unity.unityBuildMethod) $("configUnityBuildMethod").value = unity.unityBuildMethod;
+      if (unity.productName) $("configProductName").value = unity.productName;
+      if (unity.bundleIdentifier) $("configBundleIdentifier").value = unity.bundleIdentifier;
+      filled.push("工程模板");
+    }
+  }
 
   if (signingId) {
     const signing = state.signingProfiles.find((s) => s.id === signingId);
@@ -3229,13 +3249,8 @@ async function saveProjectProfile(event) {
         defaultBuildPlatform: $("projectProfileDefaultPlatform").value,
         description: $("projectProfileDescription").value || null,
         projectDirectoryName: $("projectProfileDirName").value || null,
-        unityProjectRelativePath: $("projectProfileUnityPath").value || null,
-        unityVersion: $("projectProfileUnityVersion").value || null,
-        unityExecutablePath: $("projectProfileUnityExe").value || null,
         workspaceRoot: $("projectProfileWorkspace").value || null,
         artifactsRoot: $("projectProfileArtifacts").value || null,
-        productName: $("projectProfileProductName").value || null,
-        bundleIdentifier: $("projectProfileBundleId").value || null,
       }),
     });
     resetProjectProfileForm();
@@ -3272,13 +3287,8 @@ function editProjectProfile(profileId) {
   $("projectProfileDefaultPlatform").value = profile.defaultBuildPlatform || "ios";
   $("projectProfileDescription").value = profile.description || "";
   $("projectProfileDirName").value = profile.projectDirectoryName || "";
-  $("projectProfileUnityPath").value = profile.unityProjectRelativePath || ".";
-  $("projectProfileUnityVersion").value = profile.unityVersion || "";
-  $("projectProfileUnityExe").value = profile.unityExecutablePath || "";
   $("projectProfileWorkspace").value = profile.workspaceRoot || "~/UnityBuildWorkspace";
   $("projectProfileArtifacts").value = profile.artifactsRoot || "~/UnityBuildArtifacts";
-  $("projectProfileProductName").value = profile.productName || "";
-  $("projectProfileBundleId").value = profile.bundleIdentifier || "";
   $("projectProfileFormTitle").textContent = "编辑项目";
   $("projectProfileSaveBtn").textContent = "更新项目";
   $("projectProfileCancelBtn").classList.remove("hidden");
@@ -3291,7 +3301,6 @@ function resetProjectProfileForm() {
   $("projectProfileBranch").value = "main";
   $("projectProfileAllowedBranches").value = "main";
   $("projectProfileDefaultPlatform").value = "ios";
-  $("projectProfileUnityPath").value = ".";
   $("projectProfileWorkspace").value = "~/UnityBuildWorkspace";
   $("projectProfileArtifacts").value = "~/UnityBuildArtifacts";
   $("projectProfileFormTitle").textContent = "新增项目";
@@ -3331,9 +3340,115 @@ function renderProjectProfiles() {
     <dl class="project-meta">
       <div><dt>默认分支</dt><dd>${escapeHtml(p.defaultBranch || "-")}</dd></div>
       <div><dt>默认平台</dt><dd>${platformBadge(p.defaultBuildPlatform || "ios")}</dd></div>
-      <div><dt>Unity 版本</dt><dd>${escapeHtml(p.unityVersion || "-")}</dd></div>
-      <div><dt>Bundle ID</dt><dd>${escapeHtml(p.bundleIdentifier || "-")}</dd></div>
       <div><dt>Workspace</dt><dd>${escapeHtml(p.workspaceRoot || "-")}</dd></div>
+    </dl>
+  </article>`).join("");
+}
+
+// ---- Unity Project Profiles ----
+
+async function saveUnityProfile(event) {
+  event.preventDefault();
+  clearMessage();
+  const profileId = $("unityProfileId").value;
+  const isEditing = Boolean(profileId);
+  setButtonBusy("unityProfileSaveBtn", true, isEditing ? "更新中..." : "保存中...");
+  try {
+    const path = isEditing ? `/api/unity-project-profiles/${encodeURIComponent(profileId)}` : "/api/unity-project-profiles";
+    const method = isEditing ? "PUT" : "POST";
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        name: $("unityProfileName").value,
+        unityProjectRelativePath: $("unityProfileUnityPath").value || null,
+        unityVersion: $("unityProfileUnityVersion").value || null,
+        unityExecutablePath: $("unityProfileUnityExe").value || null,
+        unityBuildMethod: $("unityProfileBuildMethod").value || null,
+        productName: $("unityProfileProductName").value || null,
+        bundleIdentifier: $("unityProfileBundleId").value || null,
+      }),
+    });
+    resetUnityProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "工程模板已更新。" : "工程模板已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("unityProfileSaveBtn", false);
+  }
+}
+
+function handleUnityProfilesListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-up-id]");
+  if (editBtn) {
+    editUnityProfile(editBtn.dataset.editUpId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-up-id]");
+  if (deleteBtn) {
+    deleteUnityProfile(deleteBtn.dataset.deleteUpId);
+  }
+}
+
+function editUnityProfile(profileId) {
+  const profile = state.unityProjectProfiles.find((u) => u.id === profileId);
+  if (!profile) return;
+  $("unityProfileId").value = profile.id;
+  $("unityProfileName").value = profile.name || "";
+  $("unityProfileUnityPath").value = profile.unityProjectRelativePath || ".";
+  $("unityProfileUnityVersion").value = profile.unityVersion || "";
+  $("unityProfileUnityExe").value = profile.unityExecutablePath || "";
+  $("unityProfileBuildMethod").value = profile.unityBuildMethod || "";
+  $("unityProfileProductName").value = profile.productName || "";
+  $("unityProfileBundleId").value = profile.bundleIdentifier || "";
+  $("unityProfileFormTitle").textContent = "编辑工程模板";
+  $("unityProfileSaveBtn").textContent = "更新模板";
+  $("unityProfileCancelBtn").classList.remove("hidden");
+  $("unityProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetUnityProfileForm() {
+  $("unityProfileForm").reset();
+  $("unityProfileId").value = "";
+  $("unityProfileUnityPath").value = ".";
+  $("unityProfileFormTitle").textContent = "新增工程模板";
+  $("unityProfileSaveBtn").textContent = "保存模板";
+  $("unityProfileCancelBtn").classList.add("hidden");
+}
+
+async function deleteUnityProfile(profileId) {
+  if (!confirm("确认删除这个工程模板？")) return;
+  try {
+    await api(`/api/unity-project-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    if ($("unityProfileId").value === profileId) resetUnityProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("工程模板已删除。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderUnityProfiles() {
+  if (state.unityProjectProfiles.length === 0) {
+    $("unityProfilesList").innerHTML = `<div class="empty-state compact">暂无工程模板。使用左侧表单添加。</div>`;
+    return;
+  }
+
+  $("unityProfilesList").innerHTML = state.unityProjectProfiles.map((u) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(u.name)}</strong>
+      </div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-edit-up-id="${escapeHtml(u.id)}">编辑</button>
+        <button class="danger" type="button" data-delete-up-id="${escapeHtml(u.id)}">删除</button>
+      </div>
+    </header>
+    <dl class="project-meta">
+      <div><dt>Unity 版本</dt><dd>${escapeHtml(u.unityVersion || "-")}</dd></div>
+      <div><dt>Product Name</dt><dd>${escapeHtml(u.productName || "-")}</dd></div>
+      <div><dt>Bundle ID</dt><dd>${escapeHtml(u.bundleIdentifier || "-")}</dd></div>
     </dl>
   </article>`).join("");
 }

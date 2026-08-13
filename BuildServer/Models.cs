@@ -17,6 +17,7 @@ public sealed class BuildServerDatabase
     public List<ProjectProfileRecord> ProjectProfiles { get; set; } = [];
     public List<CertificateProfileRecord> CertificateProfiles { get; set; } = [];
     public List<SigningProfileRecord> SigningProfiles { get; set; } = [];
+    public List<UnityProjectProfileRecord> UnityProjectProfiles { get; set; } = [];
 }
 
 public sealed class NotificationContactRecord
@@ -39,12 +40,19 @@ public sealed class ProjectProfileRecord
     public string DefaultBuildPlatform { get; set; } = BuildPlatforms.Ios;
     public string Description { get; set; } = "";
     public string ProjectDirectoryName { get; set; } = "";
+    public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
+    public string ArtifactsRoot { get; set; } = "~/UnityBuildArtifacts";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class UnityProjectProfileRecord
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
     public string UnityProjectRelativePath { get; set; } = ".";
     public string UnityVersion { get; set; } = "";
     public string UnityExecutablePath { get; set; } = "";
     public string UnityBuildMethod { get; set; } = "";
-    public string WorkspaceRoot { get; set; } = "~/UnityBuildWorkspace";
-    public string ArtifactsRoot { get; set; } = "~/UnityBuildArtifacts";
     public string ProductName { get; set; } = "";
     public string BundleIdentifier { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
@@ -383,12 +391,15 @@ public sealed record ProjectProfileRequest(
     string? DefaultBuildPlatform = null,
     string? Description = null,
     string? ProjectDirectoryName = null,
+    string? WorkspaceRoot = null,
+    string? ArtifactsRoot = null);
+
+public sealed record UnityProjectProfileRequest(
+    string Name,
     string? UnityProjectRelativePath = null,
     string? UnityVersion = null,
     string? UnityExecutablePath = null,
     string? UnityBuildMethod = null,
-    string? WorkspaceRoot = null,
-    string? ArtifactsRoot = null,
     string? ProductName = null,
     string? BundleIdentifier = null);
 
