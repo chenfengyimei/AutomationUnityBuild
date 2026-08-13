@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-form-consistency">
+  <link rel="stylesheet" href="/styles.css?v=20260813-developer-mode">
 </head>
 <body>
   <main id="app">
@@ -52,6 +52,7 @@
           <button id="usersNav" data-tab="users">用户权限</button>
           <button data-tab="settings">邮件通知</button>
           <button data-tab="help">填写说明</button>
+          <button data-tab="systemSettings">系统设置</button>
         </div>
         <button id="logoutBtn">退出登录</button>
       </aside>
@@ -100,7 +101,7 @@
               <label>配置<select id="buildConfig"></select></label>
               <label>分支<input id="buildBranch" placeholder="留空使用项目默认分支"></label>
               <label>Build Number<input id="buildNumber" placeholder="留空由服务器分配"></label>
-              <div class="checks">
+              <div class="checks hidden" id="buildAdvancedChecks">
                 <label><input id="dryRun" type="checkbox"> 演练模式（dry-run）</label>
                 <label><input id="skipGit" type="checkbox"> 跳过 Git</label>
                 <label><input id="skipUnity" type="checkbox"> 跳过 Unity</label>
@@ -851,6 +852,15 @@
           </section>
         </section>
 
+        <section id="systemSettingsTab" class="tab hidden">
+          <section class="panel">
+            <h3>系统设置</h3>
+            <p class="muted">开启开发者模式后，打包表单会显示高级调试选项（演练模式、跳过步骤等）。关闭后这些选项隐藏，简化日常使用。</p>
+            <label><input id="developerModeCheckbox" type="checkbox"> 开启开发者模式</label>
+            <div id="developerOptionsHint" class="muted hidden" style="margin-top: 8px;">已开启开发者模式。打包表单中的高级调试选项现已可见。</div>
+          </section>
+        </section>
+
         <section id="settingsTab" class="tab hidden">
           <div class="grid two">
             <form id="emailSettingsForm" class="panel">
@@ -1085,7 +1095,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-form-consistency"></script>
-  <script src="/app.js?v=20260813-form-consistency"></script>
+  <script src="/runtime.js?v=20260813-developer-mode"></script>
+  <script src="/app.js?v=20260813-developer-mode"></script>
 </body>
 </html>
