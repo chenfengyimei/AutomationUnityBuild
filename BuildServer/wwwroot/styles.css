@@ -238,6 +238,19 @@ button.danger:hover {
   padding: 24px;
 }
 
+.file-upload-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.file-upload-btn {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;

@@ -462,6 +462,7 @@ async function init() {
   setConfigFileDefaults();
   toggleConfigFileFields();
   togglePlatformFields();
+  attachAllFileUploadButtons();
   window.addEventListener("unhandledrejection", (event) => {
     event.preventDefault();
     showError(event.reason);
@@ -3767,6 +3768,72 @@ function renderSigningProfiles() {
       <div><dt>Keystore</dt><dd>${escapeHtml(s.androidKeystoreName || "-")}</dd></div>
     </dl>
   </article>`).join("");
+}
+
+// ---- Generic File Upload Helper ----
+
+function attachFileUploadButton(inputId, accept = "") {
+  const input = $(inputId);
+  if (!input || input.dataset.uploadAttached === "true") return;
+  input.dataset.uploadAttached = "true";
+
+  const label = input.closest("label");
+  if (!label) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "file-upload-row";
+
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  if (accept) fileInput.accept = accept;
+  fileInput.style.marginBottom = "6px";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "secondary file-upload-btn";
+  btn.textContent = "上传文件";
+  btn.style.marginBottom = "10px";
+
+  btn.addEventListener("click", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      showError(new Error("请先选择要上传的文件。"));
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "上传中...";
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/secrets/upload", { method: "POST", body: formData });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      input.value = result.path;
+      fileInput.value = "";
+      showMessage(`已上传文件：${result.name}`);
+    } catch (error) {
+      showError(error);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "上传文件";
+    }
+  });
+
+  wrapper.appendChild(fileInput);
+  wrapper.appendChild(btn);
+  label.appendChild(wrapper);
+}
+
+function attachAllFileUploadButtons() {
+  attachFileUploadButton("configAppStoreConnectApiKeyPath", ".p8");
+  attachFileUploadButton("configAndroidKeystoreName", "");
+  attachFileUploadButton("configGooglePlayServiceAccountJsonPath", ".json");
+  attachFileUploadButton("certProfileApiKeyPath", ".p8");
+  attachFileUploadButton("certProfileGpServiceJson", ".json");
+  attachFileUploadButton("signingProfileKeystoreName", "");
 }
 
 // ---- Config File Upload ----

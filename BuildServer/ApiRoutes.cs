@@ -97,6 +97,7 @@ public static class ApiRoutes
         app.MapPost("/api/data/import", ImportDataAsync);
 
         app.MapPost("/api/config-files/upload", UploadConfigFileAsync);
+        app.MapPost("/api/secrets/upload", UploadSecretFileAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1879,6 +1880,52 @@ public static class ApiRoutes
             });
 
             return Results.Ok(new { path = configPath, name = fileName });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UploadSecretFileAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            IFormCollection form = await context.Request.ReadFromJsonAsync<IFormCollection>();
+            IFormFile? file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+            {
+                throw new InvalidOperationException("没有收到文件。");
+            }
+
+            string fileName = Path.GetFileName(file.FileName);
+            if (string.IsNullOrWhiteSpace(fileName) ||
+                fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                fileName.Contains("..", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("文件名不合法。");
+            }
+
+            string secretsDir = Path.Combine(options.DataRoot, "secrets");
+            Directory.CreateDirectory(secretsDir);
+            string filePath = Path.Combine(secretsDir, fileName);
+
+            await using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            await database.UpdateAsync(db =>
+            {
+                AuthService.AddAudit(db, user.Id, user.UserName, "secret-file.upload", "file", filePath, $"上传密钥文件 {filePath}");
+                return true;
+            });
+
+            return Results.Ok(new { path = filePath, name = fileName });
         }
         catch (Exception ex) when (IsClientInputError(ex))
         {
