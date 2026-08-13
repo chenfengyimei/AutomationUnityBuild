@@ -16,7 +16,9 @@ internal static class InteractiveMenu
             Console.WriteLine("  05. 选择配置并预览命令 dry-run");
             Console.WriteLine("  06. 选择配置并正式打包");
             Console.WriteLine("  10. 选择配置并修改配置内容");
-            Console.WriteLine("  11. 手动输入完整命令");
+            Console.WriteLine("  11. 生成 Android 配置模板");
+            Console.WriteLine("  12. 生成 TikTok 配置模板");
+            Console.WriteLine("  99. 手动输入完整命令");
             Console.WriteLine("  0. 退出");
             Console.Write("> ");
 
@@ -28,34 +30,13 @@ internal static class InteractiveMenu
 
             if (ShortcutCommands.IsShortcut(choice))
             {
-                await Cli.ExecuteAsync([choice]);
+                await ShortcutCommands.ExecuteAsync([choice]);
                 continue;
             }
 
             switch (choice)
             {
-                case "1":
-                    await Cli.ExecuteAsync(["init-config"]);
-                    break;
-                case "2":
-                    await Cli.ExecuteAsync(["init-config", "--config", "build-ios.json", "--template"]);
-                    break;
-                case "3":
-                    await Cli.ExecuteAsync(["list-configs"]);
-                    break;
-                case "4":
-                    await Cli.ExecuteAsync(["doctor", "--allow-non-mac"]);
-                    break;
-                case "5":
-                    await Cli.ExecuteAsync(["run", "--dry-run", "--verbose", "--allow-non-mac"]);
-                    break;
-                case "6":
-                    await Cli.ExecuteAsync(["run"]);
-                    break;
-                case "10":
-                    await Cli.ExecuteAsync(["edit-config"]);
-                    break;
-                case "11":
+                case "99":
                     Console.WriteLine("请输入命令，不需要输入 exe 名称。例: run --config configs/build-ios.dev.json --dry-run --allow-non-mac");
                     Console.Write("> ");
                     string? commandLine = Console.ReadLine();
