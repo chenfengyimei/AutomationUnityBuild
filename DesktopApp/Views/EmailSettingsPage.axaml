@@ -1,6 +1,5 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ctrl="clr-namespace:DesktopApp.Controls"
              x:Class="DesktopApp.Views.EmailSettingsPage">
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="24,20" Spacing="16">
@@ -16,11 +15,11 @@
           <Grid ColumnDefinitions="*,*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="SMTP 主机" />
-              <ctrl:ImeTextBox Text="{Binding SmtpHost}" Watermark="smtp.exmail.qq.com" />
+              <TextBox Text="{Binding SmtpHost}" Watermark="smtp.exmail.qq.com" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,8,0">
               <TextBlock Classes="FieldLabel" Text="端口" />
-              <ctrl:ImeTextBox Text="{Binding SmtpPort}" Watermark="465" />
+              <TextBox Text="{Binding SmtpPort}" Watermark="465" />
             </StackPanel>
             <StackPanel Grid.Column="2" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="启用 SSL/TLS" />
@@ -30,21 +29,21 @@
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="SMTP 用户名" />
-              <ctrl:ImeTextBox Text="{Binding SmtpUserName}" Watermark="bot@example.com" />
+              <TextBox Text="{Binding SmtpUserName}" Watermark="bot@example.com" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="SMTP 密码" />
-              <ctrl:ImeTextBox Text="{Binding SmtpPassword}" Watermark="留空不修改" PasswordChar="*" />
+              <TextBox Text="{Binding SmtpPassword}" Watermark="留空不修改" PasswordChar="*" />
             </StackPanel>
           </Grid>
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="发信邮箱" />
-              <ctrl:ImeTextBox Text="{Binding FromEmail}" Watermark="bot@example.com" />
+              <TextBox Text="{Binding FromEmail}" Watermark="bot@example.com" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="发信人名称" />
-              <ctrl:ImeTextBox Text="{Binding FromName}" Watermark="BuildServer" />
+              <TextBox Text="{Binding FromName}" Watermark="BuildServer" />
             </StackPanel>
           </Grid>
           <CheckBox IsChecked="{Binding Enabled}" Content="启用邮件通知" Margin="0,4,0,0" />
@@ -58,7 +57,7 @@
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="收件邮箱" />
-              <ctrl:ImeTextBox Text="{Binding TestEmailTo}" Watermark="someone@example.com" />
+              <TextBox Text="{Binding TestEmailTo}" Watermark="someone@example.com" />
             </StackPanel>
             <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
               <Button Classes="secondary" Content="📮 发送测试邮件" Click="TestEmail_Click" IsEnabled="{Binding !IsBusy}" />
@@ -74,11 +73,11 @@
           <Grid ColumnDefinitions="*,*,Auto" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="职位名称" />
-              <ctrl:ImeTextBox Name="contactTitle" Watermark="负责人" />
+              <TextBox Name="contactTitle" Watermark="负责人" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,8,0">
               <TextBlock Classes="FieldLabel" Text="邮箱" />
-              <ctrl:ImeTextBox Name="contactEmail" Watermark="someone@example.com" />
+              <TextBox Name="contactEmail" Watermark="someone@example.com" />
             </StackPanel>
             <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
               <Button Classes="secondary" Content="添加" Click="AddContact_Click" />

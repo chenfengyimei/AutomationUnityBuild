@@ -3,6 +3,9 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AutomationUnityBuildIOS;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using DesktopApp.Models;
 using DesktopApp.Services;
 
@@ -134,6 +137,8 @@ public class ConfigPageViewModel : ViewModelBase
 
     // ---- Profile selection ----
     public ObservableCollection<ProjectProfile> AvailableProjects { get; } = new();
+    public ObservableCollection<UnityProfile> AvailableUnityProfiles { get; } = new();
+    public ObservableCollection<SigningProfile> AvailableSigningProfiles { get; } = new();
     public ObservableCollection<CertificateProfile> AvailableCertificates { get; } = new();
 
     private ProjectProfile? _selectedProjectProfile;
@@ -141,6 +146,20 @@ public class ConfigPageViewModel : ViewModelBase
     {
         get => _selectedProjectProfile;
         set => Set(ref _selectedProjectProfile, value);
+    }
+
+    private UnityProfile? _selectedUnityProfile;
+    public UnityProfile? SelectedUnityProfile
+    {
+        get => _selectedUnityProfile;
+        set => Set(ref _selectedUnityProfile, value);
+    }
+
+    private SigningProfile? _selectedSigningProfile;
+    public SigningProfile? SelectedSigningProfile
+    {
+        get => _selectedSigningProfile;
+        set => Set(ref _selectedSigningProfile, value);
     }
 
     private CertificateProfile? _selectedCertificateProfile;
@@ -155,6 +174,14 @@ public class ConfigPageViewModel : ViewModelBase
         AvailableProjects.Clear();
         foreach (var p in ProfileStore.LoadProjects())
             AvailableProjects.Add(p);
+
+        AvailableUnityProfiles.Clear();
+        foreach (var u in ProfileStore.LoadUnityProfiles())
+            AvailableUnityProfiles.Add(u);
+
+        AvailableSigningProfiles.Clear();
+        foreach (var s in ProfileStore.LoadSigningProfiles())
+            AvailableSigningProfiles.Add(s);
 
         AvailableCertificates.Clear();
         foreach (var c in ProfileStore.LoadCertificates())
@@ -181,6 +208,33 @@ public class ConfigPageViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(p.ProductName)) EditConfig.ProductName = p.ProductName;
         if (!string.IsNullOrEmpty(p.BundleIdentifier)) EditConfig.BundleIdentifier = p.BundleIdentifier;
         StatusMessage = $"✅ 已从项目模板「{p.Name}」填充项目信息。";
+    }
+
+    public void ApplyUnityProfile()
+    {
+        if (SelectedUnityProfile is null) { StatusMessage = "请先选择一个工程模板。"; return; }
+        var u = SelectedUnityProfile;
+        if (!string.IsNullOrEmpty(u.UnityProjectRelativePath)) EditConfig.UnityProjectRelativePath = u.UnityProjectRelativePath;
+        if (!string.IsNullOrEmpty(u.UnityVersion)) EditConfig.UnityVersion = u.UnityVersion;
+        if (!string.IsNullOrEmpty(u.UnityExecutablePath)) EditConfig.UnityExecutablePath = u.UnityExecutablePath;
+        if (!string.IsNullOrEmpty(u.UnityBuildMethod)) EditConfig.UnityBuildMethod = u.UnityBuildMethod;
+        if (!string.IsNullOrEmpty(u.ProductName)) EditConfig.ProductName = u.ProductName;
+        if (!string.IsNullOrEmpty(u.BundleIdentifier)) EditConfig.BundleIdentifier = u.BundleIdentifier;
+        StatusMessage = $"✅ 已从工程模板「{u.Name}」填充 Unity 工程信息。";
+    }
+
+    public void ApplySigningProfile()
+    {
+        if (SelectedSigningProfile is null) { StatusMessage = "请先选择一个签名模板。"; return; }
+        var s = SelectedSigningProfile;
+        if (!string.IsNullOrEmpty(s.TeamId)) EditConfig.TeamId = s.TeamId;
+        if (!string.IsNullOrEmpty(s.ExportMethod)) EditConfig.ExportMethod = s.ExportMethod;
+        if (!string.IsNullOrEmpty(s.IosDeploymentTarget)) EditConfig.IosDeploymentTarget = s.IosDeploymentTarget;
+        if (!string.IsNullOrEmpty(s.AndroidKeystoreName)) EditConfig.AndroidKeystoreName = s.AndroidKeystoreName;
+        if (!string.IsNullOrEmpty(s.AndroidKeystorePass)) EditConfig.AndroidKeystorePass = s.AndroidKeystorePass;
+        if (!string.IsNullOrEmpty(s.AndroidKeyaliasName)) EditConfig.AndroidKeyaliasName = s.AndroidKeyaliasName;
+        if (!string.IsNullOrEmpty(s.AndroidKeyaliasPass)) EditConfig.AndroidKeyaliasPass = s.AndroidKeyaliasPass;
+        StatusMessage = $"✅ 已从签名模板「{s.Name}」填充签名信息。";
     }
 
     public void ApplyCertificateProfile()
@@ -502,6 +556,59 @@ public class ConfigPageViewModel : ViewModelBase
                 Process.Start("xdg-open", $"\"{dir}\"");
         }
         catch { }
+    }
+
+    public async Task ImportConfigAsync()
+    {
+        try
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "选择要导入的配置文件",
+                Filters = new List<FileDialogFilter>
+                {
+                    new() { Name = "JSON 配置文件", Extensions = new List<string> { "json" } },
+                    new() { Name = "所有文件", Extensions = new List<string> { "*" } }
+                },
+                AllowMultiple = false
+            };
+
+            string[]? results = await dialog.ShowAsync(GetMainWindow());
+            if (results is null || results.Length == 0)
+            {
+                StatusMessage = "未选择文件。";
+                return;
+            }
+
+            string srcPath = results[0];
+            string fileName = Path.GetFileName(srcPath);
+
+            string destDir = Path.Combine(Environment.CurrentDirectory, "configs");
+            Directory.CreateDirectory(destDir);
+            string destPath = Path.Combine(destDir, fileName);
+
+            if (File.Exists(destPath))
+            {
+                string nameNoExt = Path.GetFileNameWithoutExtension(fileName);
+                string ext = Path.GetExtension(fileName);
+                destPath = Path.Combine(destDir, $"{nameNoExt}-{DateTime.Now:HHmmss}{ext}");
+            }
+
+            File.Copy(srcPath, destPath);
+            StatusMessage = $"✅ 配置已导入: {destPath}";
+            RefreshConfigs();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"❌ 导入失败: {ex.Message}";
+        }
+    }
+
+    private static Window? GetMainWindow()
+    {
+        return Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            ? desktop.MainWindow
+            : null;
     }
 
     private static ConfigItem CloneConfig(ConfigItem src)

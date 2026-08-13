@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.DataPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="12">
+      <TextBlock Classes="page-title" Text="数据管理" />
+      <TextBlock Classes="page-subtitle" Text="导出和导入本地模板、配置和连接设置" />
+
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#64748B" />
+
+      <!-- 导出 -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="导出数据" FontWeight="Bold" />
+          <TextBlock Text="选择要导出的数据类别，点击导出会保存为 JSON 文件。" FontSize="12" Foreground="#64748B" Margin="0,0,0,4"/>
+          <ItemsControl ItemsSource="{Binding Categories}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <CheckBox Content="{Binding Label}" IsChecked="{Binding Selected}" Margin="0,2" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Classes="secondary" Content="全选" Click="SelectAll_Click" />
+            <Button Classes="secondary" Content="取消全选" Click="DeselectAll_Click" />
+            <Button Classes="primary" Content="📤 导出选中" Click="Export_Click" IsEnabled="{Binding !IsBusy}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 导入 -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="导入数据" FontWeight="Bold" />
+          <TextBlock Text="选择之前导出的 JSON 文件，已存在的记录（按 ID 判断）会被跳过。" FontSize="12" Foreground="#64748B" Margin="0,0,0,4"/>
+          <Button Classes="primary" Content="📥 选择文件并导入" Click="Import_Click" IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

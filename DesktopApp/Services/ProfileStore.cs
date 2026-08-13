@@ -17,31 +17,29 @@ public static class ProfileStore
     private static string ProfilesDir => Path.Combine(Environment.CurrentDirectory, "profiles");
 
     private static string ProjectsPath => Path.Combine(ProfilesDir, "projects.json");
+    private static string UnityProfilesPath => Path.Combine(ProfilesDir, "unity-profiles.json");
+    private static string SigningProfilesPath => Path.Combine(ProfilesDir, "signing-profiles.json");
     private static string CertificatesPath => Path.Combine(ProfilesDir, "certificates.json");
 
     // ---- Project Profiles ----
 
-    public static List<ProjectProfile> LoadProjects()
-    {
-        return Load<ProjectProfile>(ProjectsPath);
-    }
+    public static List<ProjectProfile> LoadProjects() => Load<ProjectProfile>(ProjectsPath);
+    public static void SaveProjects(List<ProjectProfile> profiles) => Save(ProjectsPath, profiles);
 
-    public static void SaveProjects(List<ProjectProfile> profiles)
-    {
-        Save(ProjectsPath, profiles);
-    }
+    // ---- Unity Profiles ----
+
+    public static List<UnityProfile> LoadUnityProfiles() => Load<UnityProfile>(UnityProfilesPath);
+    public static void SaveUnityProfiles(List<UnityProfile> profiles) => Save(UnityProfilesPath, profiles);
+
+    // ---- Signing Profiles ----
+
+    public static List<SigningProfile> LoadSigningProfiles() => Load<SigningProfile>(SigningProfilesPath);
+    public static void SaveSigningProfiles(List<SigningProfile> profiles) => Save(SigningProfilesPath, profiles);
 
     // ---- Certificate Profiles ----
 
-    public static List<CertificateProfile> LoadCertificates()
-    {
-        return Load<CertificateProfile>(CertificatesPath);
-    }
-
-    public static void SaveCertificates(List<CertificateProfile> profiles)
-    {
-        Save(CertificatesPath, profiles);
-    }
+    public static List<CertificateProfile> LoadCertificates() => Load<CertificateProfile>(CertificatesPath);
+    public static void SaveCertificates(List<CertificateProfile> profiles) => Save(CertificatesPath, profiles);
 
     // ---- Generic helpers ----
 

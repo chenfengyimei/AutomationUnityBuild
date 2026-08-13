@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.BuildServerPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="12">
+      <TextBlock Classes="page-title" Text="BuildServer" />
+      <TextBlock Classes="page-subtitle" Text="在本机启动 BuildServer 网页版，无需命令行操作" />
+
+      <!-- 状态卡片 -->
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="运行状态" FontWeight="Bold" />
+
+          <Grid ColumnDefinitions="Auto,*" Margin="0">
+            <TextBlock Grid.Column="0" Text="状态: " FontWeight="Medium" Foreground="#475569" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+              <Border CornerRadius="6" Padding="8,2" Background="{Binding StatusColor}">
+                <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="12" FontWeight="Medium" />
+              </Border>
+            </StackPanel>
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*" Margin="0" IsVisible="{Binding HasServerUrl}">
+            <TextBlock Grid.Column="0" Text="访问地址: " FontWeight="Medium" Foreground="#475569" />
+            <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" Foreground="#3B82F6" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*" Margin="0" IsVisible="{Binding HasExePath}">
+            <TextBlock Grid.Column="0" Text="可执行文件: " FontWeight="Medium" Foreground="#475569" />
+            <TextBlock Grid.Column="1" Text="{Binding ExePath}" FontSize="11" Foreground="#64748B" TextWrapping="Wrap" />
+          </Grid>
+
+          <Grid ColumnDefinitions="Auto,*" Margin="0">
+            <TextBlock Grid.Column="0" Text="检测结果: " FontWeight="Medium" Foreground="#475569" />
+            <TextBlock Grid.Column="1" Text="{Binding DetectMessage}" Foreground="{Binding DetectColor}" FontSize="12" />
+          </Grid>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Classes="secondary" Content="🔄 刷新状态" Click="Refresh_Click" />
+            <Button Classes="primary" Content="▶ 启动 BuildServer" Click="Start_Click"
+                    IsEnabled="{Binding CanStart}" />
+            <Button Classes="danger" Content="⏹ 停止" Click="Stop_Click"
+                    IsEnabled="{Binding IsRunning}" />
+            <Button Classes="secondary" Content="🌐 浏览器打开" Click="OpenBrowser_Click"
+                    IsEnabled="{Binding IsRunning}" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <Button Classes="secondary" Content="📂 手动选择 BuildServer 文件" Click="Browse_Click" />
+            <Button Classes="secondary" Content="清除自定义路径" Click="ClearPath_Click" IsEnabled="{Binding HasExePath}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 说明卡片 -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="使用说明" FontWeight="Bold" />
+          <TextBlock Text="• 自动检测 BuildServer.exe 是否与 DesktopApp 在同一目录或上级目录" FontSize="12" Foreground="#64748B" />
+          <TextBlock Text="• 检测到后可直接点击「启动」运行，网页版默认 http://127.0.0.1:5088" FontSize="12" Foreground="#64748B" />
+          <TextBlock Text="• 如果没有检测到，按钮会变灰不可点击，请手动运行 BuildServer" FontSize="12" Foreground="#64748B" />
+          <TextBlock Text="• 启动后可点「浏览器打开」直接访问网页控制台" FontSize="12" Foreground="#64748B" />
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

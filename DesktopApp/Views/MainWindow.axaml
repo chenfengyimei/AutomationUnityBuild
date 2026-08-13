@@ -8,28 +8,57 @@
         MinWidth="900" MinHeight="600"
         WindowState="Maximized">
 
-  <Grid ColumnDefinitions="200,*">
+  <Grid ColumnDefinitions="220,*">
     <Border Grid.Column="0" Classes="sidebar">
       <Grid RowDefinitions="Auto,*,Auto">
-        <StackPanel Grid.Row="0" Margin="16,20,16,16">
-          <TextBlock Text="Unity 自动化" Foreground="#94A3B8" FontSize="11"/>
-          <TextBlock Text="打包工具" Foreground="White" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+        <!-- Logo 区 -->
+        <StackPanel Grid.Row="0" Margin="20,24,20,20">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Border Width="36" Height="36" CornerRadius="10" Background="#3B82F6">
+              <TextBlock Text="🚀" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Unity Build" Foreground="#F1F5F9" FontSize="14" FontWeight="Bold"/>
+              <TextBlock Text="自动化打包平台" Foreground="#64748B" FontSize="10" Margin="0,1,0,0"/>
+            </StackPanel>
+          </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,8">
-          <Button Classes="nav" Content="📦 打包任务" Click="OnNavClick" Tag="build" Name="navBuild" IsVisible="{Binding ShowBuildPage}"/>
-          <Button Classes="nav" Content="⚙️ 配置管理" Click="OnNavClick" Tag="config" Name="navConfig"/>
-          <Button Classes="nav" Content="📁 项目管理" Click="OnNavClick" Tag="project" Name="navProject"/>
-          <Button Classes="nav" Content="🔑 证书管理" Click="OnNavClick" Tag="certificate" Name="navCertificate"/>
-          <Button Classes="nav" Content="🔍 环境检查" Click="OnNavClick" Tag="doctor" Name="navDoctor"/>
-          <Button Classes="nav" Content="📂 产物浏览" Click="OnNavClick" Tag="artifacts" Name="navArtifacts"/>
-          <Button Classes="nav" Content="🗂️ 存储管理" Click="OnNavClick" Tag="storage" Name="navStorage"/>
-          <Button Classes="nav" Content="📧 邮件通知" Click="OnNavClick" Tag="email" Name="navEmail"/>
-          <Button Classes="nav" Content="💡 帮助说明" Click="OnNavClick" Tag="help" Name="navHelp"/>
-        </StackPanel>
+        <!-- 导航菜单 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="8,0,8,8" Spacing="2">
+            <TextBlock Text="构建" Foreground="#475569" FontSize="10" FontWeight="SemiBold" Margin="12,8,0,4"/>
+            <Button Classes="nav" Content="📦  打包任务" Click="OnNavClick" Tag="build" Name="navBuild" IsVisible="{Binding ShowBuildPage}"/>
 
-        <StackPanel Grid.Row="2" Margin="16,8">
-          <TextBlock Text="{Binding VersionText}" Foreground="#64748B" FontSize="10"/>
+            <TextBlock Text="配置" Foreground="#475569" FontSize="10" FontWeight="SemiBold" Margin="12,12,0,4"/>
+            <Button Classes="nav" Content="⚙️  配置管理" Click="OnNavClick" Tag="config" Name="navConfig"/>
+            <Button Classes="nav" Content="📁  项目管理" Click="OnNavClick" Tag="project" Name="navProject"/>
+            <Button Classes="nav" Content="🎮  工程管理" Click="OnNavClick" Tag="unityProfile" Name="navUnityProfile"/>
+            <Button Classes="nav" Content="✍️  签名管理" Click="OnNavClick" Tag="signingProfile" Name="navSigningProfile"/>
+            <Button Classes="nav" Content="🔑  证书管理" Click="OnNavClick" Tag="certificate" Name="navCertificate"/>
+            <Button Classes="nav" Content="🔄  服务器同步" Click="OnNavClick" Tag="sync" Name="navSync"/>
+
+            <TextBlock Text="运维" Foreground="#475569" FontSize="10" FontWeight="SemiBold" Margin="12,12,0,4"/>
+            <Button Classes="nav" Content="🔍  环境检查" Click="OnNavClick" Tag="doctor" Name="navDoctor"/>
+            <Button Classes="nav" Content="📂  产物浏览" Click="OnNavClick" Tag="artifacts" Name="navArtifacts"/>
+            <Button Classes="nav" Content="🗂️  存储管理" Click="OnNavClick" Tag="storage" Name="navStorage"/>
+            <Button Classes="nav" Content="📤  数据管理" Click="OnNavClick" Tag="data" Name="navData"/>
+            <Button Classes="nav" Content="📧  邮件通知" Click="OnNavClick" Tag="email" Name="navEmail"/>
+            <Button Classes="nav" Content="💡  帮助说明" Click="OnNavClick" Tag="help" Name="navHelp"/>
+
+            <TextBlock Text="服务" Foreground="#475569" FontSize="10" FontWeight="SemiBold" Margin="12,12,0,4"/>
+            <Button Classes="nav" Content="🖥️  BuildServer" Click="OnNavClick" Tag="buildServer" Name="navBuildServer"/>
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- 版本信息 -->
+        <StackPanel Grid.Row="2" Margin="20,12">
+          <Border Background="#1E293B" CornerRadius="8" Padding="12,8">
+            <StackPanel>
+              <TextBlock Text="{Binding VersionText}" Foreground="#64748B" FontSize="10"/>
+              <TextBlock Text="© 2026 Unity Auto Build" Foreground="#475569" FontSize="9" Margin="0,2,0,0"/>
+            </StackPanel>
+          </Border>
         </StackPanel>
       </Grid>
     </Border>

@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DesktopApp.Views.SyncPage">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20" Spacing="12">
+      <TextBlock Classes="page-title" Text="服务器同步" />
+      <TextBlock Classes="page-subtitle" Text="连接 BuildServer 同步项目模板、证书模板，导入服务器配置文件" />
+
+      <TextBlock Text="{Binding StatusMessage}" Foreground="#64748B" />
+
+      <!-- 服务器连接 -->
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <TextBlock Text="服务器连接" FontWeight="Bold" />
+          <Grid ColumnDefinitions="*,Auto" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="服务器地址" />
+              <TextBox Text="{Binding ServerUrl}" Watermark="https://build.example.com" IsEnabled="{Binding !IsLoggedIn}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+              <Button Classes="primary" Content="🔗 连接" Click="Login_Click" IsEnabled="{Binding !IsLoggedIn}" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,*" Margin="0">
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+              <TextBlock Classes="FieldLabel" Text="用户名" />
+              <TextBox Text="{Binding UserName}" IsEnabled="{Binding !IsLoggedIn}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+              <TextBlock Classes="FieldLabel" Text="密码" />
+              <TextBox Text="{Binding Password}" PasswordChar="*" IsEnabled="{Binding !IsLoggedIn}" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Text="{Binding IsLoggedIn, StringFormat='{}✅ 已连接'}" Foreground="#16A34A" FontWeight="Medium"
+                     IsVisible="{Binding IsLoggedIn}" />
+        </StackPanel>
+      </Border>
+
+      <!-- 项目模板同步 -->
+      <Border Classes="card" IsVisible="{Binding IsLoggedIn}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="项目模板同步" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="{Binding LocalProjectCount, StringFormat='本地: {0} 个'}" Foreground="#475569" />
+            <TextBlock Text="{Binding ServerProjectCount, StringFormat='服务器: {0} 个'}" Foreground="#475569" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="secondary" Content="⬇ 从服务器拉取" Click="PullProjects_Click" IsEnabled="{Binding !IsBusy}" />
+            <Button Classes="secondary" Content="⬆ 上传本地到服务器" Click="PushProjects_Click" IsEnabled="{Binding !IsBusy}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 证书模板同步 -->
+      <Border Classes="card" IsVisible="{Binding IsLoggedIn}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="证书模板同步" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="{Binding LocalCertCount, StringFormat='本地: {0} 个'}" Foreground="#475569" />
+            <TextBlock Text="{Binding ServerCertCount, StringFormat='服务器: {0} 个'}" Foreground="#475569" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Classes="secondary" Content="⬇ 从服务器拉取" Click="PullCerts_Click" IsEnabled="{Binding !IsBusy}" />
+            <Button Classes="secondary" Content="⬆ 上传本地到服务器" Click="PushCerts_Click" IsEnabled="{Binding !IsBusy}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- 配置文件导入 -->
+      <Border Classes="card" IsVisible="{Binding IsLoggedIn}">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="服务器配置文件" FontWeight="Bold" />
+            <Button Classes="secondary" Content="🔄 刷新列表" Click="RefreshConfigs_Click" IsEnabled="{Binding !IsBusy}" />
+          </StackPanel>
+          <ListBox ItemsSource="{Binding ServerConfigs}" SelectedItem="{Binding SelectedServerConfig}" MinHeight="120" MaxHeight="300">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="4">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" FontWeight="Medium" />
+                    <TextBlock Text="{Binding BuildPlatform}" FontSize="11" Foreground="#2563EB" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding ConfigPath}" FontSize="11" Foreground="#64748B" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Button Classes="primary" Content="⬇ 下载选中配置到本地" Click="DownloadConfig_Click" IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

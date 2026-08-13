@@ -1,60 +1,192 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+  <!-- 全局背景 -->
+  <Style Selector="Window">
+    <Setter Property="Background" Value="#F1F5F9" />
+  </Style>
+
+  <!-- 字段标签 -->
   <Style Selector="TextBlock.FieldLabel">
     <Setter Property="FontWeight" Value="Medium" />
-    <Setter Property="Margin" Value="0,8,0,2" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="#475569" />
+    <Setter Property="Margin" Value="0,10,0,3" />
   </Style>
 
+  <!-- 按钮: 主要 -->
   <Style Selector=":is(Button).primary">
+    <Setter Property="Background" Value="#3B82F6" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="20,9" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector=":is(Button).primary:pointerover">
     <Setter Property="Background" Value="#2563EB" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="FontWeight" Value="Medium" />
-    <Setter Property="Padding" Value="16,8" />
-    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector=":is(Button).primary:pressed">
+    <Setter Property="Background" Value="#1D4ED8" />
   </Style>
 
+  <!-- 按钮: 危险 -->
   <Style Selector=":is(Button).danger">
-    <Setter Property="Background" Value="#DC2626" />
+    <Setter Property="Background" Value="#EF4444" />
     <Setter Property="Foreground" Value="White" />
-    <Setter Property="Padding" Value="16,8" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="20,9" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector=":is(Button).danger:pointerover">
+    <Setter Property="Background" Value="#DC2626" />
+  </Style>
+  <Style Selector=":is(Button).danger:pressed">
+    <Setter Property="Background" Value="#B91C1C" />
   </Style>
 
+  <!-- 按钮: 次要 -->
   <Style Selector=":is(Button).secondary">
-    <Setter Property="Padding" Value="16,8" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Background" Value="White" />
+    <Setter Property="Foreground" Value="#334155" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="20,9" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderBrush" Value="#CBD5E1" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector=":is(Button).secondary:pointerover">
+    <Setter Property="Background" Value="#F1F5F9" />
+    <Setter Property="BorderBrush" Value="#94A3B8" />
+  </Style>
+  <Style Selector=":is(Button).secondary:pressed">
+    <Setter Property="Background" Value="#E2E8F0" />
   </Style>
 
+  <!-- 侧边栏 -->
   <Style Selector="Border.sidebar">
-    <Setter Property="Background" Value="#1E293B" />
-    <Setter Property="Width" Value="200" />
+    <Setter Property="Background" Value="#0F172A" />
   </Style>
 
+  <!-- 导航按钮 -->
   <Style Selector=":is(Button).nav">
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
-    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="Padding" Value="20,11" />
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="#CBD5E1" />
+    <Setter Property="Foreground" Value="#94A3B8" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="FontSize" Value="13" />
   </Style>
-
+  <Style Selector=":is(Button).nav:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1E293B" />
+    <Setter Property="Foreground" Value="#F1F5F9" />
+  </Style>
+  <Style Selector=":is(Button).nav:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="#334155" />
+  </Style>
+  <Style Selector=":is(Button).nav.active /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1E293B" />
+  </Style>
   <Style Selector=":is(Button).nav.active">
+    <Setter Property="Background" Value="#1E293B" />
+    <Setter Property="Foreground" Value="#3B82F6" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector=":is(Button).nav.active:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="#334155" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="#60A5FA" />
   </Style>
 
-  <Style Selector=":is(Button).nav:pointerover">
-    <Setter Property="Background" Value="#334155" />
-  </Style>
-
-  <Style Selector="Border.content-area">
+  <!-- 卡片容器 -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="White" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="BorderBrush" Value="#E2E8F0" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="24,20" />
+    <Setter Property="Margin" Value="0,0,0,12" />
+    <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
   </Style>
 
+  <!-- 指标块 -->
+  <Style Selector="Border.metric">
+    <Setter Property="Background" Value="#F8FAFC" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="BorderBrush" Value="#E2E8F0" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="18,14" />
+    <Setter Property="Margin" Value="0,0,10,10" />
+  </Style>
+
+  <Style Selector="TextBlock.metric-label">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="#64748B" />
+  </Style>
+
+  <Style Selector="TextBlock.metric-value">
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="#1E293B" />
+  </Style>
+
+  <!-- 页面标题 -->
+  <Style Selector="TextBlock.page-title">
+    <Setter Property="FontSize" Value="24" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="#0F172A" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+  </Style>
+
+  <Style Selector="TextBlock.page-subtitle">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="#64748B" />
+    <Setter Property="Margin" Value="0,0,0,16" />
+  </Style>
+
+  <!-- 输入框美化 -->
+  <Style Selector=":is(TextBox)">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="BorderBrush" Value="#CBD5E1" />
+  </Style>
+  <Style Selector=":is(TextBox):focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="#3B82F6" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+  <!-- 下拉框美化 -->
+  <Style Selector=":is(ComboBox)">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <!-- 列表框美化 -->
+  <Style Selector=":is(ListBox)">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderBrush" Value="#E2E8F0" />
+  </Style>
+  <Style Selector=":is(ListBoxItem):pointerover">
+    <Setter Property="Background" Value="#F1F5F9" />
+  </Style>
+  <Style Selector=":is(ListBoxItem):selected">
+    <Setter Property="Background" Value="#DBEAFE" />
+    <Setter Property="Foreground" Value="#1E40AF" />
+  </Style>
+
+  <!-- 复选框美化 -->
+  <Style Selector=":is(CheckBox)">
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <!-- 日志输出框 -->
   <Style Selector=":is(TextBox).log-output">
     <Setter Property="FontFamily" Value="Cascadia Code,Consolas,monospace" />
     <Setter Property="FontSize" Value="12" />
@@ -65,72 +197,34 @@
     <Setter Property="Foreground" Value="#E2E8F0" />
     <Setter Property="BorderBrush" Value="#334155" />
     <Setter Property="BorderThickness" Value="1" />
-  </Style>
-
-  <Style Selector="Border.card">
-    <Setter Property="Background" Value="White" />
     <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="BorderBrush" Value="#E2E8F0" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="20,16" />
-    <Setter Property="Margin" Value="0,0,0,12" />
   </Style>
 
-  <Style Selector="Border.metric">
-    <Setter Property="Background" Value="#F8FAFC" />
-    <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="BorderBrush" Value="#E2E8F0" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="16,12" />
-    <Setter Property="Margin" Value="0,0,8,8" />
-  </Style>
-
-  <Style Selector="TextBlock.metric-label">
-    <Setter Property="FontSize" Value="12" />
-    <Setter Property="Foreground" Value="#64748B" />
-  </Style>
-
-  <Style Selector="TextBlock.metric-value">
-    <Setter Property="FontSize" Value="20" />
-    <Setter Property="FontWeight" Value="Bold" />
-  </Style>
-
-  <Style Selector="TextBlock.page-title">
-    <Setter Property="FontSize" Value="22" />
-    <Setter Property="FontWeight" Value="Bold" />
-    <Setter Property="Margin" Value="0,0,0,4" />
-  </Style>
-
-  <Style Selector="TextBlock.page-subtitle">
-    <Setter Property="FontSize" Value="13" />
-    <Setter Property="Foreground" Value="#64748B" />
-    <Setter Property="Margin" Value="0,0,0,16" />
-  </Style>
-
+  <!-- 状态徽章 -->
   <Style Selector="Border.status-badge">
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,3" />
     <Setter Property="Margin" Value="0,0,8,0" />
   </Style>
-
   <Style Selector="Border.status-badge.succeeded">
     <Setter Property="Background" Value="#DCFCE7" />
   </Style>
-
   <Style Selector="Border.status-badge.failed">
     <Setter Property="Background" Value="#FEE2E2" />
   </Style>
-
   <Style Selector="Border.status-badge.running">
     <Setter Property="Background" Value="#DBEAFE" />
   </Style>
-
   <Style Selector="Border.status-badge.queued">
     <Setter Property="Background" Value="#FEF3C7" />
   </Style>
-
   <Style Selector="Border.status-badge.canceled">
     <Setter Property="Background" Value="#F1F5F9" />
+  </Style>
+
+  <!-- 内容区域 -->
+  <Style Selector="Border.content-area">
+    <Setter Property="Padding" Value="28,24" />
   </Style>
 
 </Styles>

@@ -1,6 +1,5 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ctrl="clr-namespace:DesktopApp.Controls"
              x:Class="DesktopApp.Views.ProjectPage">
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="24,20" Spacing="12">
@@ -50,66 +49,66 @@
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="模板名称" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.Name}" Watermark="例如：我的 Unity 项目" />
+              <TextBox Text="{Binding EditProfile.Name}" Watermark="例如：我的 Unity 项目" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="Git 仓库地址" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.RepositoryUrl}" Watermark="git@github.com:org/game.git" />
+              <TextBox Text="{Binding EditProfile.RepositoryUrl}" Watermark="git@github.com:org/game.git" />
             </StackPanel>
           </Grid>
 
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="分支" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.Branch}" Watermark="main" />
+              <TextBox Text="{Binding EditProfile.Branch}" Watermark="main" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="项目目录名" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.ProjectDirectoryName}" Watermark="留空自动推断" />
+              <TextBox Text="{Binding EditProfile.ProjectDirectoryName}" Watermark="留空自动推断" />
             </StackPanel>
           </Grid>
 
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="Unity 版本" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.UnityVersion}" Watermark="6000.0.0f1" />
+              <TextBox Text="{Binding EditProfile.UnityVersion}" Watermark="6000.0.0f1" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="Unity 工程相对路径" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.UnityProjectRelativePath}" Watermark="." />
+              <TextBox Text="{Binding EditProfile.UnityProjectRelativePath}" Watermark="." />
             </StackPanel>
           </Grid>
 
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="Unity 可执行文件路径" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.UnityExecutablePath}" Watermark="留空使用默认" />
+              <TextBox Text="{Binding EditProfile.UnityExecutablePath}" Watermark="留空使用默认" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="Unity Build Method" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.UnityBuildMethod}" Watermark="留空自动推断" />
+              <TextBox Text="{Binding EditProfile.UnityBuildMethod}" Watermark="留空自动推断" />
             </StackPanel>
           </Grid>
 
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="Workspace Root" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.WorkspaceRoot}" Watermark="~/UnityBuildWorkspace" />
+              <TextBox Text="{Binding EditProfile.WorkspaceRoot}" Watermark="~/UnityBuildWorkspace" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="Artifacts Root" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.ArtifactsRoot}" Watermark="~/UnityBuildArtifacts" />
+              <TextBox Text="{Binding EditProfile.ArtifactsRoot}" Watermark="~/UnityBuildArtifacts" />
             </StackPanel>
           </Grid>
 
           <Grid ColumnDefinitions="*,*" Margin="0">
             <StackPanel Grid.Column="0" Margin="0,0,8,0">
               <TextBlock Classes="FieldLabel" Text="Product Name" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.ProductName}" Watermark="Your Game" />
+              <TextBox Text="{Binding EditProfile.ProductName}" Watermark="Your Game" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="8,0,0,0">
               <TextBlock Classes="FieldLabel" Text="Bundle Identifier" />
-              <ctrl:ImeTextBox Text="{Binding EditProfile.BundleIdentifier}" Watermark="com.company.game" />
+              <TextBox Text="{Binding EditProfile.BundleIdentifier}" Watermark="com.company.game" />
             </StackPanel>
           </Grid>
 

@@ -17,13 +17,18 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     private readonly ConfigPage _configPage = new();
     private readonly ProjectPage _projectPage = new();
+    private readonly UnityProfilePage _unityProfilePage = new();
+    private readonly SigningProfilePage _signingProfilePage = new();
     private readonly CertificatePage _certificatePage = new();
+    private readonly SyncPage _syncPage = new();
     private readonly BuildPage _buildPage = new();
     private readonly DoctorPage _doctorPage = new();
     private readonly ArtifactsPage _artifactsPage = new();
     private readonly StoragePage _storagePage = new();
+    private readonly DataPage _dataPage = new();
     private readonly EmailSettingsPage _emailPage = new();
     private readonly HelpPage _helpPage = new();
+    private readonly BuildServerPage _buildServerPage = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -34,12 +39,17 @@ public class MainWindowViewModel : INotifyPropertyChanged
             "build" => _buildPage,
             "config" => _configPage,
             "project" => _projectPage,
+            "unityProfile" => _unityProfilePage,
+            "signingProfile" => _signingProfilePage,
             "certificate" => _certificatePage,
+            "sync" => _syncPage,
             "doctor" => _doctorPage,
             "artifacts" => _artifactsPage,
             "storage" => _storagePage,
+            "data" => _dataPage,
             "email" => _emailPage,
             "help" => _helpPage,
+            "buildServer" => _buildServerPage,
             _ => _configPage
         };
     }
