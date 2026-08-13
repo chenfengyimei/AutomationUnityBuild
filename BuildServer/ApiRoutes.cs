@@ -1895,7 +1895,7 @@ public static class ApiRoutes
 
         try
         {
-            IFormCollection form = await context.Request.ReadFromJsonAsync<IFormCollection>();
+            IFormCollection form = await context.Request.ReadFormAsync();
             IFormFile? file = form.Files.FirstOrDefault();
             if (file is null || file.Length == 0)
             {
@@ -2543,7 +2543,7 @@ public static class ApiRoutes
         string buildPlatform = BuildPlatforms.Normalize(value);
         if (!BuildPlatforms.IsKnown(buildPlatform))
         {
-            throw new InvalidOperationException("Build Platform 只能是 ios 或 android。");
+            throw new InvalidOperationException("Build Platform 只能是 ios、android 或 tiktok。");
         }
 
         return buildPlatform;
@@ -2564,9 +2564,12 @@ public static class ApiRoutes
 
     private static string DefaultUnityBuildMethod(string buildPlatform)
     {
-        return buildPlatform == BuildPlatforms.Android
-            ? DefaultUnityBuildMethods.Android
-            : DefaultUnityBuildMethods.Ios;
+        return buildPlatform switch
+        {
+            BuildPlatforms.Android => DefaultUnityBuildMethods.Android,
+            BuildPlatforms.Tiktok => DefaultUnityBuildMethods.Tiktok,
+            _ => DefaultUnityBuildMethods.Ios
+        };
     }
 
     private static void ValidateOptionalInteger(string value, string field)

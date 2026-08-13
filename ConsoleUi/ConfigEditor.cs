@@ -210,7 +210,7 @@ internal static class ConfigEditor
         new(28, "配置文件信息", "Build Platform", config => Display(config.BuildPlatform), config =>
         {
             string previousPlatform = config.BuildPlatform;
-            string platform = ConsolePrompts.AskChoice("Build Platform", [BuildPlatforms.Ios, BuildPlatforms.Android], Default(config.BuildPlatform, BuildPlatforms.Ios));
+            string platform = ConsolePrompts.AskChoice("Build Platform", [BuildPlatforms.Ios, BuildPlatforms.Android, BuildPlatforms.Tiktok], Default(config.BuildPlatform, BuildPlatforms.Ios));
             if (previousPlatform == platform)
             {
                 return true;
@@ -225,9 +225,12 @@ internal static class ConfigEditor
             }
 
             config.BuildPlatform = platform;
-            config.UnityBuildMethod = platform == BuildPlatforms.Android
-                ? DefaultUnityBuildMethods.Android
-                : DefaultUnityBuildMethods.Ios;
+            config.UnityBuildMethod = platform switch
+            {
+                BuildPlatforms.Android => DefaultUnityBuildMethods.Android,
+                BuildPlatforms.Tiktok => DefaultUnityBuildMethods.Tiktok,
+                _ => DefaultUnityBuildMethods.Ios
+            };
             Console.WriteLine($"已切换到 {platform}。另一平台的专有字段已隐藏但保留。");
             return true;
         }),

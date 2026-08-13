@@ -16,7 +16,8 @@ internal static class ShortcutCommands
         new("08", "选择配置打包，但跳过 Unity 导出", ["run", "--skip-unity"]),
         new("09", "选择配置打包，但跳过 Xcode 编译导出", ["run", "--skip-xcode"]),
         new("10", "选择配置并修改配置内容", ["edit-config"]),
-        new("11", "生成 Android APK/AAB 配置模板 build-android.json", ["init-config", "--config", "build-android.json", "--template", "--platform", "android"])
+        new("11", "生成 Android APK/AAB 配置模板 build-android.json", ["init-config", "--config", "build-android.json", "--template", "--platform", "android"]),
+        new("12", "生成 TikTok 小游戏配置模板 build-tiktok.json", ["init-config", "--config", "build-tiktok.json", "--template", "--platform", "tiktok"])
     ];
 
     public static bool IsShortcut(string? value)

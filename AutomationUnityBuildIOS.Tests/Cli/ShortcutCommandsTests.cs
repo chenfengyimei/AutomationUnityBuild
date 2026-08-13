@@ -48,7 +48,7 @@ public class ShortcutCommandsTests
     public void IsShortcut_UnknownTwoDigit_ReturnsFalse()
     {
         Assert.False(ShortcutCommands.IsShortcut("99"));
-        Assert.False(ShortcutCommands.IsShortcut("12"));
+        Assert.False(ShortcutCommands.IsShortcut("13"));
     }
 
     [Fact]

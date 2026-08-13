@@ -142,107 +142,114 @@
             </StackPanel>
           </Grid>
 
-          <Grid ColumnDefinitions="*,*" Margin="0">
-            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Git 仓库地址" />
-              <TextBox Text="{Binding EditConfig.RepositoryUrl}" Watermark="git@github.com:org/game.git" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="项目目录名" />
-              <TextBox Text="{Binding EditConfig.ProjectDirectoryName}" Watermark="留空自动推断" />
-            </StackPanel>
-          </Grid>
-
-          <Grid ColumnDefinitions="*,*" Margin="0">
-            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Unity 版本" />
-              <TextBox Text="{Binding EditConfig.UnityVersion}" Watermark="6000.0.0f1" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="Unity 工程相对路径" />
-              <TextBox Text="{Binding EditConfig.UnityProjectRelativePath}" Watermark="." />
-            </StackPanel>
-          </Grid>
-
-          <Grid ColumnDefinitions="*,*,*" Margin="0">
-            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Bundle Identifier" />
-              <TextBox Text="{Binding EditConfig.BundleIdentifier}" Watermark="com.company.game" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="8,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Bundle Version" />
-              <TextBox Text="{Binding EditConfig.BundleVersion}" Watermark="1.0.0" />
-            </StackPanel>
-            <StackPanel Grid.Column="2" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="Build Number" />
-              <TextBox Text="{Binding EditConfig.BuildNumber}" Watermark="1" />
-            </StackPanel>
-          </Grid>
-
-          <Grid ColumnDefinitions="*,*" Margin="0">
-            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Workspace Root" />
-              <TextBox Text="{Binding EditConfig.WorkspaceRoot}" Watermark="~/UnityBuildWorkspace" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="Artifacts Root" />
-              <TextBox Text="{Binding EditConfig.ArtifactsRoot}" Watermark="~/UnityBuildArtifacts" />
-            </StackPanel>
-          </Grid>
-
-          <TextBlock Text="{Binding EditConfig.ProductName, FallbackValue=''}" />
-
-          <Grid ColumnDefinitions="*,*" Margin="0">
-            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-              <TextBlock Classes="FieldLabel" Text="Product Name" />
-              <TextBox Text="{Binding EditConfig.ProductName}" Watermark="Your Game" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-              <TextBlock Classes="FieldLabel" Text="Unity Build Method" />
-              <TextBox Text="{Binding EditConfig.UnityBuildMethod}" Watermark="留空自动推断" />
-            </StackPanel>
-          </Grid>
-
-          <!-- iOS fields -->
-          <StackPanel Spacing="6" IsVisible="{Binding IsEditIos}">
-            <TextBlock Text="iOS 配置" FontWeight="Bold" Foreground="#2563EB" />
-            <Grid ColumnDefinitions="*,*,*" Margin="0">
+          <!-- 项目信息（应用项目模板后隐藏） -->
+          <StackPanel Spacing="10" IsVisible="{Binding ShowProjectFields}">
+            <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Apple Team ID" />
-                <TextBox Text="{Binding EditConfig.TeamId}" Watermark="ABCDE12345" />
+                <TextBlock Classes="FieldLabel" Text="Git 仓库地址" />
+                <TextBox Text="{Binding EditConfig.RepositoryUrl}" Watermark="git@github.com:org/game.git" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Export Method" />
-                <ComboBox SelectedItem="{Binding EditConfig.ExportMethod}">
-                  <x:String>development</x:String>
-                  <x:String>ad-hoc</x:String>
-                  <x:String>app-store</x:String>
-                  <x:String>enterprise</x:String>
-                </ComboBox>
-              </StackPanel>
-              <StackPanel Grid.Column="2" Margin="8,0,0,0">
-                <TextBlock Classes="FieldLabel" Text="Deployment Target" />
-                <TextBox Text="{Binding EditConfig.IosDeploymentTarget}" Watermark="13.0" />
+              <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="项目目录名" />
+                <TextBox Text="{Binding EditConfig.ProjectDirectoryName}" Watermark="留空自动推断" />
               </StackPanel>
             </Grid>
-            <Grid ColumnDefinitions="*,*,*" Margin="0">
+            <Grid ColumnDefinitions="*,*" Margin="0">
               <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="ASC API Key 路径" />
-                <TextBox Text="{Binding EditConfig.AppStoreConnectApiKeyPath}" Watermark=".p8 路径" />
+                <TextBlock Classes="FieldLabel" Text="Workspace Root" />
+                <TextBox Text="{Binding EditConfig.WorkspaceRoot}" Watermark="~/UnityBuildWorkspace" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="API Key ID" />
-                <TextBox Text="{Binding EditConfig.AppStoreConnectApiKeyId}" />
-              </StackPanel>
-              <StackPanel Grid.Column="2" Margin="8,0,0,0">
-                <TextBlock Classes="FieldLabel" Text="Issuer ID" />
-                <TextBox Text="{Binding EditConfig.AppStoreConnectApiIssuerId}" />
+              <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="Artifacts Root" />
+                <TextBox Text="{Binding EditConfig.ArtifactsRoot}" Watermark="~/UnityBuildArtifacts" />
               </StackPanel>
             </Grid>
-            <CheckBox Content="上传 App Store Connect / TestFlight" IsChecked="{Binding EditConfig.AppStoreConnectUploadEnabled}" />
           </StackPanel>
 
-          <!-- Android fields -->
+          <!-- Unity 工程信息（应用工程模板后隐藏） -->
+          <StackPanel Spacing="10" IsVisible="{Binding ShowUnityFields}">
+            <Grid ColumnDefinitions="*,*" Margin="0">
+              <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Classes="FieldLabel" Text="Unity 版本" />
+                <TextBox Text="{Binding EditConfig.UnityVersion}" Watermark="6000.0.0f1" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="Unity 工程相对路径" />
+                <TextBox Text="{Binding EditConfig.UnityProjectRelativePath}" Watermark="." />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="*,*" Margin="0">
+              <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Classes="FieldLabel" Text="Product Name" />
+                <TextBox Text="{Binding EditConfig.ProductName}" Watermark="Your Game" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="Unity Build Method" />
+                <TextBox Text="{Binding EditConfig.UnityBuildMethod}" Watermark="留空自动推断" />
+              </StackPanel>
+            </Grid>
+            <Grid ColumnDefinitions="*,*,*" Margin="0">
+              <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Classes="FieldLabel" Text="Bundle Identifier" />
+                <TextBox Text="{Binding EditConfig.BundleIdentifier}" Watermark="com.company.game" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                <TextBlock Classes="FieldLabel" Text="Bundle Version" />
+                <TextBox Text="{Binding EditConfig.BundleVersion}" Watermark="1.0.0" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="Build Number" />
+                <TextBox Text="{Binding EditConfig.BuildNumber}" Watermark="1" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+
+          <!-- iOS 签名配置（应用签名模板后隐藏签名部分，应用证书模板后隐藏上传部分） -->
+          <StackPanel Spacing="6" IsVisible="{Binding IsEditIos}">
+            <TextBlock Text="iOS 配置" FontWeight="Bold" Foreground="#2563EB" />
+            <!-- 签名字段 -->
+            <StackPanel Spacing="6" IsVisible="{Binding ShowSigningFields}">
+              <Grid ColumnDefinitions="*,*,*" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="Apple Team ID" />
+                  <TextBox Text="{Binding EditConfig.TeamId}" Watermark="ABCDE12345" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="Export Method" />
+                  <ComboBox SelectedItem="{Binding EditConfig.ExportMethod}">
+                    <x:String>development</x:String>
+                    <x:String>ad-hoc</x:String>
+                    <x:String>app-store</x:String>
+                    <x:String>enterprise</x:String>
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                  <TextBlock Classes="FieldLabel" Text="Deployment Target" />
+                  <TextBox Text="{Binding EditConfig.IosDeploymentTarget}" Watermark="13.0" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+            <!-- 证书/上传字段 -->
+            <StackPanel Spacing="6" IsVisible="{Binding ShowCertFields}">
+              <Grid ColumnDefinitions="*,*,*" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="ASC API Key 路径" />
+                  <TextBox Text="{Binding EditConfig.AppStoreConnectApiKeyPath}" Watermark=".p8 路径" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="API Key ID" />
+                  <TextBox Text="{Binding EditConfig.AppStoreConnectApiKeyId}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                  <TextBlock Classes="FieldLabel" Text="Issuer ID" />
+                  <TextBox Text="{Binding EditConfig.AppStoreConnectApiIssuerId}" />
+                </StackPanel>
+              </Grid>
+              <CheckBox Content="上传 App Store Connect / TestFlight" IsChecked="{Binding EditConfig.AppStoreConnectUploadEnabled}" />
+            </StackPanel>
+          </StackPanel>
+
+          <!-- Android 配置（签名部分应用签名模板后隐藏，上传部分应用证书模板后隐藏） -->
           <StackPanel Spacing="6" IsVisible="{Binding IsEditAndroid}">
             <TextBlock Text="Android 配置" FontWeight="Bold" Foreground="#16A34A" />
             <Grid ColumnDefinitions="*,*,*" Margin="0">
@@ -255,38 +262,44 @@
                 </ComboBox>
               </StackPanel>
               <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Keystore 路径" />
-                <TextBox Text="{Binding EditConfig.AndroidKeystoreName}" Watermark="keystore 路径" />
-              </StackPanel>
-              <StackPanel Grid.Column="2" Margin="8,0,0,0">
                 <TextBlock Classes="FieldLabel" Text="Key Alias" />
                 <TextBox Text="{Binding EditConfig.AndroidKeyaliasName}" />
               </StackPanel>
-            </Grid>
-            <Grid ColumnDefinitions="*,*" Margin="0">
-              <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Keystore 密码" />
-                <TextBox Text="{Binding EditConfig.AndroidKeystorePass}" PasswordChar="*" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                <TextBlock Classes="FieldLabel" Text="Key Alias 密码" />
-                <TextBox Text="{Binding EditConfig.AndroidKeyaliasPass}" PasswordChar="*" />
+              <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                <TextBlock Classes="FieldLabel" Text="Keystore 路径" />
+                <TextBox Text="{Binding EditConfig.AndroidKeystoreName}" Watermark="keystore 路径" />
               </StackPanel>
             </Grid>
-            <Grid ColumnDefinitions="*,*" Margin="0">
-              <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Google Play Package" />
-                <TextBox Text="{Binding EditConfig.GooglePlayPackageName}" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                <TextBlock Classes="FieldLabel" Text="Service Account JSON" />
-                <TextBox Text="{Binding EditConfig.GooglePlayServiceAccountJsonPath}" />
-              </StackPanel>
-            </Grid>
-            <CheckBox Content="上传 Google Play" IsChecked="{Binding EditConfig.GooglePlayUploadEnabled}" />
+            <!-- 签名字段 -->
+            <StackPanel Spacing="6" IsVisible="{Binding ShowSigningFields}">
+              <Grid ColumnDefinitions="*,*" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="Keystore 密码" />
+                  <TextBox Text="{Binding EditConfig.AndroidKeystorePass}" PasswordChar="*" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                  <TextBlock Classes="FieldLabel" Text="Key Alias 密码" />
+                  <TextBox Text="{Binding EditConfig.AndroidKeyaliasPass}" PasswordChar="*" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+            <!-- 证书/上传字段 -->
+            <StackPanel Spacing="6" IsVisible="{Binding ShowCertFields}">
+              <Grid ColumnDefinitions="*,*" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="Google Play Package" />
+                  <TextBox Text="{Binding EditConfig.GooglePlayPackageName}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                  <TextBlock Classes="FieldLabel" Text="Service Account JSON" />
+                  <TextBox Text="{Binding EditConfig.GooglePlayServiceAccountJsonPath}" />
+                </StackPanel>
+              </Grid>
+              <CheckBox Content="上传 Google Play" IsChecked="{Binding EditConfig.GooglePlayUploadEnabled}" />
+            </StackPanel>
           </StackPanel>
 
-          <!-- TikTok fields -->
+          <!-- TikTok 配置（应用证书模板后隐藏上传部分） -->
           <StackPanel Spacing="6" IsVisible="{Binding IsEditTiktok}">
             <TextBlock Text="TikTok 小游戏配置" FontWeight="Bold" Foreground="#000000" />
             <Grid ColumnDefinitions="*,*" Margin="0">
@@ -299,23 +312,25 @@
                 <TextBox Text="{Binding EditConfig.TiktokGameName}" />
               </StackPanel>
             </Grid>
-            <Grid ColumnDefinitions="*,*" Margin="0">
-              <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                <TextBlock Classes="FieldLabel" Text="Access Token" />
-                <TextBox Text="{Binding EditConfig.TiktokAccessToken}" PasswordChar="*" Watermark="开放平台 Access Token" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                <TextBlock Classes="FieldLabel" Text="WebGL 输出目录" />
-                <TextBox Text="{Binding EditConfig.TiktokWebglOutputDirectory}" Watermark="留空自动生成" />
-              </StackPanel>
-            </Grid>
-            <Grid ColumnDefinitions="*" Margin="0">
-              <StackPanel Grid.Column="0">
-                <TextBlock Classes="FieldLabel" Text="API 端点" />
-                <TextBox Text="{Binding EditConfig.TiktokApiEndpoint}" Watermark="https://open-api.tiktokglobalshop.com" />
-              </StackPanel>
-            </Grid>
-            <CheckBox Content="上传 TikTok 小游戏" IsChecked="{Binding EditConfig.TiktokUploadEnabled}" />
+            <StackPanel Spacing="6" IsVisible="{Binding ShowCertFields}">
+              <Grid ColumnDefinitions="*,*" Margin="0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                  <TextBlock Classes="FieldLabel" Text="Access Token" />
+                  <TextBox Text="{Binding EditConfig.TiktokAccessToken}" PasswordChar="*" Watermark="开放平台 Access Token" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                  <TextBlock Classes="FieldLabel" Text="WebGL 输出目录" />
+                  <TextBox Text="{Binding EditConfig.TiktokWebglOutputDirectory}" Watermark="留空自动生成" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*" Margin="0">
+                <StackPanel Grid.Column="0">
+                  <TextBlock Classes="FieldLabel" Text="API 端点" />
+                  <TextBox Text="{Binding EditConfig.TiktokApiEndpoint}" Watermark="https://open-api.tiktokglobalshop.com" />
+                </StackPanel>
+              </Grid>
+              <CheckBox Content="上传 TikTok 小游戏" IsChecked="{Binding EditConfig.TiktokUploadEnabled}" />
+            </StackPanel>
           </StackPanel>
 
           <!-- Save/Cancel buttons -->

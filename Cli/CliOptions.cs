@@ -66,7 +66,7 @@ internal sealed record CliOptions(
                     templatePlatform = NextValue(enumerator, arg).Trim().ToLowerInvariant();
                     if (!BuildPlatforms.IsKnown(templatePlatform))
                     {
-                        throw new ArgumentException("--platform 必须是 ios 或 android。");
+                        throw new ArgumentException("--platform 必须是 ios、android 或 tiktok。");
                     }
                     break;
                 default:

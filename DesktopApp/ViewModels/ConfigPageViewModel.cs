@@ -13,12 +13,14 @@ namespace DesktopApp.ViewModels;
 
 public class ConfigItem : ViewModelBase
 {
-    public string FullPath { get; set; } = "";
+    public string FullPath { get => _fullPath; set => Set(ref _fullPath, value); }
+    private string _fullPath = "";
     public string DisplayName { get; set; } = "";
     public string DisplayPath { get; set; } = "";
     private string _platform = "";
     public string Platform { get => _platform; set => Set(ref _platform, value); }
-    public string ConfigName { get; set; } = "";
+    private string _configName = "";
+    public string ConfigName { get => _configName; set => Set(ref _configName, value); }
     public string RepositoryUrl { get; set; } = "";
     public string Branch { get; set; } = "";
     public string ProductName { get; set; } = "";
@@ -93,7 +95,27 @@ public class ConfigPageViewModel : ViewModelBase
     private void OnEditConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ConfigItem.Platform))
+        {
             RaisePlatformFlags();
+            SyncFileName();
+        }
+        else if (e.PropertyName == nameof(ConfigItem.ConfigName))
+        {
+            SyncFileName();
+        }
+    }
+
+    private void SyncFileName()
+    {
+        if (!IsNewConfig) return;
+        string platform = EditConfig.Platform ?? "ios";
+        string name = string.IsNullOrWhiteSpace(EditConfig.ConfigName) ? "" : EditConfig.ConfigName.Trim();
+        string fileName = string.IsNullOrEmpty(name)
+            ? $"build-{platform}.json"
+            : $"build-{platform}.{name}.json";
+        string dir = Path.GetDirectoryName(EditConfig.FullPath);
+        if (string.IsNullOrEmpty(dir)) dir = Environment.CurrentDirectory;
+        EditConfig.FullPath = Path.Combine(dir, fileName);
     }
 
     private void RaisePlatformFlags()
@@ -134,6 +156,37 @@ public class ConfigPageViewModel : ViewModelBase
     public bool IsEditIos => string.Equals(EditConfig.Platform, "ios", StringComparison.OrdinalIgnoreCase);
     public bool IsEditAndroid => string.Equals(EditConfig.Platform, "android", StringComparison.OrdinalIgnoreCase);
     public bool IsEditTiktok => string.Equals(EditConfig.Platform, "tiktok", StringComparison.OrdinalIgnoreCase);
+
+    // 模板应用后隐藏对应字段区域
+    private bool _hasProjectApplied;
+    public bool HasProjectApplied { get => _hasProjectApplied; set => Set(ref _hasProjectApplied, value); }
+
+    private bool _hasUnityApplied;
+    public bool HasUnityApplied { get => _hasUnityApplied; set => Set(ref _hasUnityApplied, value); }
+
+    private bool _hasSigningApplied;
+    public bool HasSigningApplied { get => _hasSigningApplied; set => Set(ref _hasSigningApplied, value); }
+
+    private bool _hasCertApplied;
+    public bool HasCertApplied { get => _hasCertApplied; set => Set(ref _hasCertApplied, value); }
+
+    // 反转绑定用
+    public bool ShowProjectFields => !HasProjectApplied;
+    public bool ShowUnityFields => !HasUnityApplied;
+    public bool ShowSigningFields => !HasSigningApplied;
+    public bool ShowCertFields => !HasCertApplied;
+
+    private void ResetTemplateFlags()
+    {
+        HasProjectApplied = false;
+        HasUnityApplied = false;
+        HasSigningApplied = false;
+        HasCertApplied = false;
+        Raise(nameof(ShowProjectFields));
+        Raise(nameof(ShowUnityFields));
+        Raise(nameof(ShowSigningFields));
+        Raise(nameof(ShowCertFields));
+    }
 
     // ---- Profile selection ----
     public ObservableCollection<ProjectProfile> AvailableProjects { get; } = new();
@@ -190,24 +243,16 @@ public class ConfigPageViewModel : ViewModelBase
 
     public void ApplyProjectProfile()
     {
-        if (SelectedProjectProfile is null)
-        {
-            StatusMessage = "请先选择一个项目模板。";
-            return;
-        }
+        if (SelectedProjectProfile is null) { StatusMessage = "请先选择一个项目模板。"; return; }
         var p = SelectedProjectProfile;
         if (!string.IsNullOrEmpty(p.RepositoryUrl)) EditConfig.RepositoryUrl = p.RepositoryUrl;
         if (!string.IsNullOrEmpty(p.Branch)) EditConfig.Branch = p.Branch;
         if (!string.IsNullOrEmpty(p.ProjectDirectoryName)) EditConfig.ProjectDirectoryName = p.ProjectDirectoryName;
-        if (!string.IsNullOrEmpty(p.UnityProjectRelativePath)) EditConfig.UnityProjectRelativePath = p.UnityProjectRelativePath;
-        if (!string.IsNullOrEmpty(p.UnityVersion)) EditConfig.UnityVersion = p.UnityVersion;
-        if (!string.IsNullOrEmpty(p.UnityExecutablePath)) EditConfig.UnityExecutablePath = p.UnityExecutablePath;
-        if (!string.IsNullOrEmpty(p.UnityBuildMethod)) EditConfig.UnityBuildMethod = p.UnityBuildMethod;
         if (!string.IsNullOrEmpty(p.WorkspaceRoot)) EditConfig.WorkspaceRoot = p.WorkspaceRoot;
         if (!string.IsNullOrEmpty(p.ArtifactsRoot)) EditConfig.ArtifactsRoot = p.ArtifactsRoot;
-        if (!string.IsNullOrEmpty(p.ProductName)) EditConfig.ProductName = p.ProductName;
-        if (!string.IsNullOrEmpty(p.BundleIdentifier)) EditConfig.BundleIdentifier = p.BundleIdentifier;
-        StatusMessage = $"✅ 已从项目模板「{p.Name}」填充项目信息。";
+        HasProjectApplied = true;
+        Raise(nameof(ShowProjectFields));
+        StatusMessage = $"✅ 已从项目模板「{p.Name}」填充，项目字段已折叠。";
     }
 
     public void ApplyUnityProfile()
@@ -220,7 +265,9 @@ public class ConfigPageViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(u.UnityBuildMethod)) EditConfig.UnityBuildMethod = u.UnityBuildMethod;
         if (!string.IsNullOrEmpty(u.ProductName)) EditConfig.ProductName = u.ProductName;
         if (!string.IsNullOrEmpty(u.BundleIdentifier)) EditConfig.BundleIdentifier = u.BundleIdentifier;
-        StatusMessage = $"✅ 已从工程模板「{u.Name}」填充 Unity 工程信息。";
+        HasUnityApplied = true;
+        Raise(nameof(ShowUnityFields));
+        StatusMessage = $"✅ 已从工程模板「{u.Name}」填充，Unity 工程字段已折叠。";
     }
 
     public void ApplySigningProfile()
@@ -234,7 +281,9 @@ public class ConfigPageViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(s.AndroidKeystorePass)) EditConfig.AndroidKeystorePass = s.AndroidKeystorePass;
         if (!string.IsNullOrEmpty(s.AndroidKeyaliasName)) EditConfig.AndroidKeyaliasName = s.AndroidKeyaliasName;
         if (!string.IsNullOrEmpty(s.AndroidKeyaliasPass)) EditConfig.AndroidKeyaliasPass = s.AndroidKeyaliasPass;
-        StatusMessage = $"✅ 已从签名模板「{s.Name}」填充签名信息。";
+        HasSigningApplied = true;
+        Raise(nameof(ShowSigningFields));
+        StatusMessage = $"✅ 已从签名模板「{s.Name}」填充，签名字段已折叠。";
     }
 
     public void ApplyCertificateProfile()
@@ -268,7 +317,9 @@ public class ConfigPageViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(c.TiktokGameName)) EditConfig.TiktokGameName = c.TiktokGameName;
         if (!string.IsNullOrEmpty(c.TiktokApiEndpoint)) EditConfig.TiktokApiEndpoint = c.TiktokApiEndpoint;
         EditConfig.TiktokUploadEnabled = c.TiktokUploadEnabled;
-        StatusMessage = $"✅ 已从证书模板「{c.Name}」填充签名信息。";
+        HasCertApplied = true;
+        Raise(nameof(ShowCertFields));
+        StatusMessage = $"✅ 已从证书模板「{c.Name}」填充，证书字段已折叠。";
     }
 
     public ConfigPageViewModel()
@@ -355,12 +406,9 @@ public class ConfigPageViewModel : ViewModelBase
 
     public void StartEdit()
     {
-        if (SelectedConfig is null)
-        {
-            StatusMessage = "请先选择一个配置文件。";
-            return;
-        }
+        if (SelectedConfig is null) { StatusMessage = "请先选择一个配置文件。"; return; }
         EditConfig = CloneConfig(SelectedConfig);
+        ResetTemplateFlags();
         IsEditing = true;
         IsNewConfig = false;
         StatusMessage = "正在编辑配置，修改后点击保存。";
@@ -385,10 +433,11 @@ public class ConfigPageViewModel : ViewModelBase
 
             EditConfig = new ConfigItem
             {
-                FullPath = Path.Combine(Environment.CurrentDirectory, fileName),
+                FullPath = Path.Combine(Environment.CurrentDirectory, "configs", fileName),
                 Platform = platform,
                 RawJson = template
             };
+            ResetTemplateFlags();
             LoadConfigDetails(EditConfig);
             IsEditing = true;
             IsNewConfig = true;
