@@ -8,6 +8,9 @@ public sealed class LinuxGatewayOptions
     public List<string> AllowedOrigins { get; set; } = [];
     public int JobRefreshIntervalSeconds { get; set; } = 15;
     public int MaxSseConnectionsPerUser { get; set; } = 5;
+    public string UpdateRepoOwner { get; set; } = "chenfengloveyuri";
+    public string UpdateRepoName { get; set; } = "automation-unity-build-ios";
+    public string UpdateSource { get; set; } = "gitee";
 
     public static LinuxGatewayOptions Load(IConfiguration configuration, IWebHostEnvironment environment)
     {
@@ -20,6 +23,10 @@ public sealed class LinuxGatewayOptions
         options.JobRefreshIntervalSeconds = EnvInt("LINUX_GATEWAY_JOB_REFRESH_INTERVAL_SECONDS", options.JobRefreshIntervalSeconds);
         options.MaxSseConnectionsPerUser = EnvInt("LINUX_GATEWAY_MAX_SSE_CONNECTIONS_PER_USER", options.MaxSseConnectionsPerUser);
         OverrideListFromEnv(options.AllowedOrigins, "LINUX_GATEWAY_ALLOWED_ORIGINS");
+
+        options.UpdateRepoOwner = Env("LINUX_GATEWAY_UPDATE_REPO_OWNER", options.UpdateRepoOwner);
+        options.UpdateRepoName = Env("LINUX_GATEWAY_UPDATE_REPO_NAME", options.UpdateRepoName);
+        options.UpdateSource = Env("LINUX_GATEWAY_UPDATE_SOURCE", options.UpdateSource).Trim().ToLowerInvariant();
 
         if (string.IsNullOrWhiteSpace(options.DataRoot))
         {

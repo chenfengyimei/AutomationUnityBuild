@@ -42,6 +42,10 @@ builder.Services.AddSingleton<EnrollmentService>();
 builder.Services.AddSingleton<DirectNodeTransport>();
 builder.Services.AddSingleton<ReverseNodeTransport>();
 builder.Services.AddSingleton<NodeTransportFactory>();
+builder.Services.AddHttpClient<SelfUpdateService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
 
 var app = builder.Build();
 

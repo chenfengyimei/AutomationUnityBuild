@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity Build Linux Gateway</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-tiktok-platform">
+  <link rel="stylesheet" href="/styles.css?v=20260813-self-update">
 </head>
 <body>
   <main id="app">
@@ -32,6 +32,7 @@
         <button data-tab="builds" type="button">发起打包</button>
         <button data-tab="jobs" type="button">任务队列</button>
         <button data-tab="account" type="button">我的账户</button>
+        <button data-tab="update" type="button">系统更新</button>
         <button id="usersNav" data-tab="users" type="button">用户权限</button>
         <button id="logoutBtn" type="button">退出登录</button>
       </aside>
@@ -225,6 +226,42 @@
           </section>
         </section>
 
+        <section id="updateTab" class="tab hidden">
+          <section class="grid">
+            <article class="panel">
+              <p class="eyebrow">版本信息</p>
+              <h2>系统更新</h2>
+              <div class="update-info">
+                <div class="update-row">
+                  <strong>当前版本</strong>
+                  <span id="currentVersion" class="version-badge">-</span>
+                </div>
+                <div class="update-row">
+                  <strong>最新版本</strong>
+                  <span id="latestVersion" class="version-badge">未检查</span>
+                </div>
+                <div class="update-row">
+                  <strong>更新状态</strong>
+                  <span id="updateStatus" class="status Unknown">未检查</span>
+                </div>
+              </div>
+              <div class="update-actions">
+                <button id="checkUpdateBtn" type="button">检查更新</button>
+                <button id="applyUpdateBtn" type="button" class="hidden">立即更新</button>
+              </div>
+              <p id="updateMessage" class="hint"></p>
+            </article>
+
+            <article class="panel">
+              <p class="eyebrow">发布说明</p>
+              <h2>更新内容</h2>
+              <div id="releaseNotes" class="release-notes">
+                <p class="hint">点击「检查更新」查看最新版本信息。</p>
+              </div>
+            </article>
+          </section>
+        </section>
+
         <section id="usersTab" class="tab hidden">
           <section id="adminPanel" class="panel admin-panel hidden">
             <header class="section-toolbar">
@@ -287,7 +324,7 @@
       </form>
     </div>
   </section>
-  <script src="/runtime.js?v=20260813-tiktok-platform"></script>
-  <script src="/app.js?v=20260813-tiktok-platform"></script>
+  <script src="/runtime.js?v=20260813-self-update"></script>
+  <script src="/app.js?v=20260813-self-update"></script>
 </body>
 </html>

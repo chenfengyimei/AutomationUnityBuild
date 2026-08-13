@@ -90,6 +90,8 @@ function bindEvents() {
   $("jobsList").addEventListener("click", handleJobsClick);
   $("generateTokenBtn").addEventListener("click", generateEnrollmentToken);
   $("copyEnrollBtn").addEventListener("click", copyEnrollConfig);
+  $("checkUpdateBtn").addEventListener("click", checkForUpdate);
+  $("applyUpdateBtn").addEventListener("click", applyUpdate);
   $("refreshJobBtn").addEventListener("click", () => {
     if (state.selectedJobId) selectJob(state.selectedJobId);
   });
@@ -180,6 +182,84 @@ function stopDashboardEvents() {
   }
 }
 
+async function checkForUpdate() {
+  clearError();
+  setButtonBusy("checkUpdateBtn", true, "检查中...");
+  $("updateMessage").textContent = "正在从远程仓库检查最新版本...";
+  try {
+    const result = await api("/api/system/update/check");
+    $("currentVersion").textContent = result.currentVersion || "unknown";
+    $("latestVersion").textContent = result.latestVersion || "无";
+    if (result.updateAvailable) {
+      $("updateStatus").textContent = "有新版本可用";
+      $("updateStatus").className = "status Succeeded";
+      $("applyUpdateBtn").classList.remove("hidden");
+      $("updateMessage").textContent = `发现新版本 ${result.latestVersion}，点击「立即更新」下载并应用。`;
+    } else if (result.latestVersion) {
+      $("updateStatus").textContent = "已是最新版本";
+      $("updateStatus").className = "status Succeeded";
+      $("applyUpdateBtn").classList.add("hidden");
+      $("updateMessage").textContent = `当前版本 ${result.currentVersion} 已是最新。`;
+    } else {
+      $("updateStatus").textContent = "未找到 Release";
+      $("updateStatus").className = "status Failed";
+      $("applyUpdateBtn").classList.add("hidden");
+      $("updateMessage").textContent = "仓库还没有发布 Release，请先在 Gitee/GitHub 上创建 Release 并上传 linux-gateway-*.tar.gz。";
+    }
+    $("releaseNotes").innerHTML = formatReleaseNotes(result.releaseNotes, result.releaseName, result.latestVersion, result.assetSize, result.source);
+  } catch (error) {
+    showError(error);
+    $("updateMessage").textContent = "检查更新失败：" + (error.message || error);
+    $("updateStatus").textContent = "检查失败";
+    $("updateStatus").className = "status Failed";
+  } finally {
+    setButtonBusy("checkUpdateBtn", false);
+  }
+}
+
+function formatReleaseNotes(notes, releaseName, latestVersion, assetSize, source) {
+  if (!notes && !releaseName) {
+    return `<p class="hint">没有发布说明。</p>`;
+  }
+  let html = "";
+  if (releaseName) html += `<h3>${escapeHtml(releaseName)}</h3>`;
+  if (latestVersion) html += `<p class="muted small">版本: ${escapeHtml(latestVersion)} | 来源: ${escapeHtml(source)} | 包大小: ${formatBytes(assetSize)}</p>`;
+  if (notes) {
+    html += `<pre class="release-body">${escapeHtml(notes)}</pre>`;
+  }
+  return html;
+}
+
+async function applyUpdate() {
+  if (!confirm("确认开始更新？服务将在几秒后重启，期间会短暂不可用。")) return;
+  clearError();
+  setButtonBusy("applyUpdateBtn", true, "更新中...");
+  setButtonBusy("checkUpdateBtn", true, "更新中...");
+  $("updateMessage").textContent = "正在下载更新包并准备应用，服务将在几秒后重启...";
+  try {
+    const result = await api("/api/system/update/apply", { method: "POST" });
+    if (result.success === false) {
+      $("updateMessage").textContent = result.message || "无需更新。";
+      setButtonBusy("applyUpdateBtn", false);
+      setButtonBusy("checkUpdateBtn", false);
+      return;
+    }
+    $("updateMessage").textContent = result.message || "更新已开始，服务正在重启...";
+    $("updateStatus").textContent = "正在更新...";
+    $("updateStatus").className = "status Running";
+    $("applyUpdateBtn").disabled = true;
+    $("checkUpdateBtn").disabled = true;
+    setTimeout(() => {
+      $("updateMessage").textContent = "服务应该正在重启中。请等待约 10 秒后刷新页面。如果未自动恢复，请检查服务器日志。";
+    }, 5000);
+  } catch (error) {
+    showError(error);
+    $("updateMessage").textContent = "更新失败：" + (error.message || error);
+    setButtonBusy("applyUpdateBtn", false);
+    setButtonBusy("checkUpdateBtn", false);
+  }
+}
+
 function setTab(tab) {
   if (tab === "users" && !isAdmin()) {
     showError(new Error("只有管理员可以进入用户权限模块。"));
@@ -212,6 +292,7 @@ function tabMeta(tab) {
     builds: { title: "发起打包", subtitle: "选择目标设备、项目和配置，提交可追踪的幂等构建任务。" },
     jobs: { title: "任务队列", subtitle: "查看远程任务状态、日志和构建产物。" },
     account: { title: "我的账户", subtitle: "查看当前角色并维护自己的登录密码。" },
+    update: { title: "系统更新", subtitle: "检查 Gitee Release 最新版本并一键更新。" },
     users: { title: "用户权限", subtitle: "集中管理 Gateway 用户、角色和启用状态。" },
   }[tab] || { title: "首页概览", subtitle: "查看节点在线数、配置同步数量和最近任务规模。" };
 }

@@ -41,6 +41,9 @@ public static class ApiRoutes
         app.MapGet("/api/builds/{jobId}/artifacts", ListArtifactsAsync);
         app.MapGet("/api/builds/{jobId}/artifacts/{artifactId}/download", DownloadArtifactAsync);
         app.MapGet("/api/settings", SettingsAsync);
+        app.MapGet("/api/system/version", GetSystemVersionAsync);
+        app.MapGet("/api/system/update/check", CheckForUpdateAsync);
+        app.MapPost("/api/system/update/apply", ApplyUpdateAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, GatewayAuthService auth, JsonGatewayDatabase database, LinuxGatewayOptions options)
@@ -703,6 +706,64 @@ public static class ApiRoutes
         INodeTransport transport = transportFactory.Create(node);
         (Stream stream, string? fileName) = await transport.DownloadArtifactAsync(node, artifactId);
         return Results.File(stream, "application/octet-stream", fileName ?? artifactId);
+    }
+
+    private static async Task<IResult> GetSystemVersionAsync(
+        HttpContext context,
+        GatewayAuthService auth,
+        Services.SelfUpdateService updateService)
+    {
+        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        return Results.Ok(new { version = updateService.GetCurrentVersion() });
+    }
+
+    private static async Task<IResult> CheckForUpdateAsync(
+        HttpContext context,
+        GatewayAuthService auth,
+        Services.SelfUpdateService updateService)
+    {
+        if (!await IsAuthenticatedAsync(context, auth)) return Results.Unauthorized();
+        try
+        {
+            UpdateCheckResult result = await updateService.CheckForUpdateAsync();
+            return Results.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> ApplyUpdateAsync(
+        HttpContext context,
+        GatewayAuthService auth,
+        Services.SelfUpdateService updateService)
+    {
+        CurrentGatewayUser? current = await auth.GetUserAsync(context);
+        if (current is null) return ApiDiagnostics.Unauthorized(context);
+        if (!GatewayAuthService.IsAdmin(current)) return ApiDiagnostics.Forbidden(context);
+
+        try
+        {
+            UpdateCheckResult checkResult = await updateService.CheckForUpdateAsync();
+            if (!checkResult.UpdateAvailable)
+            {
+                return Results.Ok(new { success = false, message = "当前已是最新版本，无需更新。" });
+            }
+
+            UpdateApplyResult result = await updateService.ApplyUpdateAsync(checkResult);
+            return Results.Ok(new
+            {
+                success = result.Success,
+                message = $"更新已开始，服务将在几秒后重启。新版本: {result.NewVersion}",
+                scriptPath = result.ScriptPath,
+                backupDir = result.BackupDir
+            });
+        }
+        catch (Exception ex)
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     private static async Task<IResult> SettingsAsync(HttpContext context, GatewayAuthService auth, LinuxGatewayOptions options)

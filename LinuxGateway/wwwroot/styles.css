@@ -1447,3 +1447,59 @@ a {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--panel-soft, #f8fbff);
+  border-radius: 8px;
+  border: 1px solid var(--line, #d8dee8);
+}
+
+.update-row strong {
+  font-size: 14px;
+  color: var(--muted, #687385);
+  font-weight: 600;
+}
+
+.version-badge {
+  font-family: monospace;
+  font-size: 14px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--primary-soft, #eaf2ff);
+  color: var(--primary, #1f6feb);
+}
+
+.update-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.release-notes {
+  margin-top: 12px;
+}
+
+.release-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.7;
+  background: var(--panel-soft, #f8fbff);
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 8px;
+  padding: 14px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: inherit;
+}
