@@ -907,7 +907,7 @@ public static class ApiRoutes
         return (platforms ?? [])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().ToLowerInvariant())
-            .Where(value => value is "ios" or "android")
+            .Where(GatewayBuildPlatforms.IsKnown)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

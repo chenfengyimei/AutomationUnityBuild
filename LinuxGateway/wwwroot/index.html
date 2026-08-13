@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity Build Linux Gateway</title>
-  <link rel="stylesheet" href="/styles.css?v=20260624-identity-click">
+  <link rel="stylesheet" href="/styles.css?v=20260813-tiktok-platform">
 </head>
 <body>
   <main id="app">
@@ -122,6 +122,7 @@
               <div class="checks">
                 <label><input id="nodeIos" type="checkbox"> iOS</label>
                 <label><input id="nodeAndroid" type="checkbox"> Android</label>
+                <label><input id="nodeTiktok" type="checkbox"> TikTok</label>
                 <label><input id="nodeEnabled" type="checkbox" checked> 启用</label>
               </div>
               <button id="nodeSaveBtn" type="submit">保存设备</button>
@@ -172,7 +173,7 @@
               <h2>提交前检查</h2>
               <ul class="clean-list">
                 <li>目标设备必须在线并已同步远程项目。</li>
-                <li>iOS 任务建议选择 Mac 节点，Android 可选择 Mac 或 Windows 节点。</li>
+                <li>iOS 任务建议选择 Mac 节点，Android 可选择 Mac 或 Windows 节点，TikTok（WebGL）可选择任意节点。</li>
                 <li>首次提交建议保留演练模式（dry-run），确认 Git、Unity 和签名配置无误。</li>
               </ul>
             </article>
@@ -286,7 +287,7 @@
       </form>
     </div>
   </section>
-  <script src="/runtime.js?v=20260624-continuous-log"></script>
-  <script src="/app.js?v=20260624-identity-click"></script>
+  <script src="/runtime.js?v=20260813-tiktok-platform"></script>
+  <script src="/app.js?v=20260813-tiktok-platform"></script>
 </body>
 </html>

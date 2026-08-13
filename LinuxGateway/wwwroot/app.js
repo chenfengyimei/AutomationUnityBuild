@@ -25,6 +25,7 @@ const ROLE_LABELS = {
 const PLATFORM_LABELS = {
   ios: "iOS",
   android: "Android",
+  tiktok: "TikTok",
   auto: "自动",
 };
 
@@ -331,6 +332,7 @@ function selectedNodePlatforms() {
   const platforms = [];
   if ($("nodeIos").checked) platforms.push("ios");
   if ($("nodeAndroid").checked) platforms.push("android");
+  if ($("nodeTiktok").checked) platforms.push("tiktok");
   return platforms;
 }
 
@@ -787,6 +789,7 @@ function fillNodeForm(nodeId) {
   $("nodeToken").value = "";
   $("nodeIos").checked = (node.platforms || []).includes("ios");
   $("nodeAndroid").checked = (node.platforms || []).includes("android");
+  $("nodeTiktok").checked = (node.platforms || []).includes("tiktok");
   $("nodeEnabled").checked = node.enabled;
   showNotice("已载入设备信息。Gateway Token 不会回显；不修改 token 时可以留空。");
 }
