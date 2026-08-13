@@ -133,13 +133,7 @@ const CONFIG_FIELD_HELP = {
     title: "配置文件路径",
     subtitle: "已有 JSON 配置文件的位置。",
     body: "如果你已经手动准备好了配置 JSON，就在这里填它在 BuildServer 这台机器上的路径。勾选“生成新的配置文件”后，这里会自动预览新文件保存位置。",
-    tips: ["路径是运行 BuildServer 的机器上的路径，不是你浏览器电脑的路径。", "如果不想手改 JSON，建议勾选“生成新的配置文件”。"]
-  },
-  configCreateFile: {
-    title: "生成新的配置文件",
-    subtitle: "让网页帮你生成 JSON。",
-    body: "开启后，你在下面表单里填的信息会被保存成一个新的 JSON 配置文件，同时登记到 BuildServer 里。以后打包直接选这个配置即可。",
-    tips: ["推荐新手开启。", "不开启时，必须自己准备已有配置文件路径。"]
+    tips: ["路径是运行 BuildServer 的机器上的路径，不是你浏览器电脑的路径。", "切换到「创建新配置」模式可以让网页自动生成 JSON。"]
   },
   configFileName: {
     title: "文件名",
@@ -529,7 +523,9 @@ function bindEvents() {
     if (event.key === "Escape" && isConfigDeleteModalOpen()) closeConfigDeleteModal();
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
   });
-  $("configCreateFile").addEventListener("change", toggleConfigFileFields);
+  document.querySelectorAll('input[name="configMode"]').forEach((radio) => {
+    radio.addEventListener("change", toggleConfigFileFields);
+  });
   $("configAppStoreConnectUploadEnabled").addEventListener("change", toggleUploadSections);
   $("configGooglePlayUploadEnabled").addEventListener("change", toggleUploadSections);
   $("configBuildPlatform").addEventListener("change", () => {
@@ -548,7 +544,7 @@ function bindEvents() {
   $("configName").addEventListener("input", fillConfigFileDefaults);
   $("configFileName").addEventListener("input", updateConfigPathPreview);
   $("configPath").addEventListener("input", () => {
-    if (!$("configCreateFile").checked) {
+    if (!$("configModeCreate").checked) {
       state.manualConfigPath = $("configPath").value;
     }
   });
@@ -1400,7 +1396,7 @@ async function createConfig(event) {
   clearMessage();
   setButtonBusy("configSaveBtn", true, state.editingConfigId ? "更新中..." : "保存中...");
   try {
-    const createFile = $("configCreateFile").checked;
+    const createFile = $("configModeCreate").checked;
     if (state.editingConfigId && createFile) {
       await api(`/api/config-files/${encodeURIComponent(state.editingConfigId)}`, {
         method: "PUT",
@@ -1499,12 +1495,13 @@ function collectConfigFilePayload() {
 }
 
 function toggleConfigFileFields() {
-  const createFile = $("configCreateFile").checked;
+  const createFile = $("configModeCreate").checked;
   if (createFile && !state.editingConfigId) {
     state.manualConfigPath = $("configPath").value;
   }
 
   $("configFileFields").classList.toggle("hidden", !createFile);
+  $("configPathLabel").classList.toggle("hidden", createFile);
   $("configPath").disabled = createFile;
   $("configPath").required = !createFile;
   if (createFile) {
@@ -1544,7 +1541,7 @@ function fillConfigFileDefaults(options = {}) {
 }
 
 function updateConfigPathPreview() {
-  if (!$("configCreateFile").checked) return;
+  if (!$("configModeCreate").checked) return;
   if (state.editingConfigId) {
     $("configPath").value = state.editingConfigPath;
     return;
@@ -1590,6 +1587,8 @@ function resetConfigForm() {
   state.editingConfigPath = "";
   state.manualConfigPath = "";
   $("configForm").reset();
+  $("configModeCreate").checked = true;
+  $("configModeExisting").checked = false;
   $("configFormTitle").textContent = "新增配置";
   $("configSaveBtn").textContent = "保存配置";
   $("configSaveBtn").dataset.defaultText = "保存配置";
@@ -1752,14 +1751,16 @@ async function editConfig(configId) {
   $("configBuildPlatform").value = config.buildPlatform || "ios";
   $("configPath").value = config.configPath || "";
   $("configAllowMcp").checked = Boolean(config.allowMcpBuild);
-  $("configCreateFile").checked = false;
+  $("configModeCreate").checked = false;
+  $("configModeExisting").checked = true;
   toggleConfigFileFields();
   togglePlatformFields();
 
   try {
     const file = await api(`/api/configs/${encodeURIComponent(config.id)}/file`);
     fillConfigFormFromJson(file.content || {}, config);
-    $("configCreateFile").checked = true;
+    $("configModeCreate").checked = true;
+    $("configModeExisting").checked = false;
     toggleConfigFileFields();
     showMessage("配置已载入，可以直接修改后保存。");
   } catch (error) {

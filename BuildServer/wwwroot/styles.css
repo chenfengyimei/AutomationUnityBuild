@@ -1086,6 +1086,53 @@ input:disabled {
   margin-bottom: 0;
 }
 
+.config-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.config-mode-option {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.config-mode-option:hover {
+  border-color: #a8c4f0;
+  background: #f6faff;
+}
+
+.config-mode-option:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 3px rgba(29, 95, 209, 0.1);
+}
+
+.config-mode-option input[type="radio"] {
+  width: 16px;
+  min-height: 16px;
+  margin: 0 0 2px;
+  accent-color: var(--primary);
+}
+
+.config-mode-option span {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.config-mode-option small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .platform-section {
   display: grid;
   gap: 11px;

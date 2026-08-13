@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-merge-project-selector">
+  <link rel="stylesheet" href="/styles.css?v=20260813-config-mode-toggle">
 </head>
 <body>
   <main id="app">
@@ -135,9 +135,20 @@
                   <option value="tiktok">TikTok 小游戏</option>
                 </select>
               </label>
-              <label>配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
-              <label><input id="configCreateFile" type="checkbox"> 生成新的配置文件</label>
-              <div id="configFileFields" class="config-sections hidden">
+              <div class="config-mode-toggle">
+                <label class="config-mode-option">
+                  <input type="radio" name="configMode" id="configModeCreate" value="create" checked>
+                  <span>创建新配置</span>
+                  <small>填写表单自动生成 JSON 配置文件</small>
+                </label>
+                <label class="config-mode-option">
+                  <input type="radio" name="configMode" id="configModeExisting" value="existing">
+                  <span>选择已有配置文件</span>
+                  <small>指定服务器上已有的 JSON 文件路径</small>
+                </label>
+              </div>
+              <label id="configPathLabel" class="hidden">已有配置文件路径<input id="configPath" placeholder="/Users/buildbot/app/configs/build-android.release.json"></label>
+              <div id="configFileFields" class="config-sections">
                 <details class="config-section" open>
                   <summary>
                     <span>配置文件</span>
@@ -911,7 +922,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-merge-project-selector"></script>
-  <script src="/app.js?v=20260813-merge-project-selector"></script>
+  <script src="/runtime.js?v=20260813-config-mode-toggle"></script>
+  <script src="/app.js?v=20260813-config-mode-toggle"></script>
 </body>
 </html>
