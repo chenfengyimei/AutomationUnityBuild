@@ -96,7 +96,7 @@ public static class ApiRoutes
         app.MapPost("/api/data/export", ExportDataAsync);
         app.MapPost("/api/data/import", ImportDataAsync);
 
-        app.MapGet("/api/config-files/list", ListConfigFilesAsync);
+        app.MapPost("/api/config-files/upload", UploadConfigFileAsync);
     }
 
     private static async Task<IResult> DashboardAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
@@ -1842,24 +1842,46 @@ public static class ApiRoutes
         }
     }
 
-    private static async Task<IResult> ListConfigFilesAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
+    private static async Task<IResult> UploadConfigFileAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
         if (!AuthService.CanManage(user)) return Results.Forbid();
 
-        var files = new List<object>();
-        foreach (string root in options.AllowedConfigRoots)
+        try
         {
-            string fullPath = BuildServerEnvironment.ExpandHome(root);
-            if (!Directory.Exists(fullPath)) continue;
-            foreach (string file in Directory.EnumerateFiles(fullPath, "*.json", SearchOption.TopDirectoryOnly))
+            IFormCollection form = await context.Request.ReadFormAsync();
+            IFormFile? file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
             {
-                files.Add(new { path = file, name = Path.GetFileName(file) });
+                throw new InvalidOperationException("没有收到文件。");
             }
-        }
 
-        return Results.Ok(files);
+            string fileName = SafeConfigFileName(file.FileName, "uploaded", "ios");
+            string configRoot = options.AllowedConfigRoots.FirstOrDefault()
+                ?? throw new InvalidOperationException("服务端没有配置允许的配置文件目录。");
+            string configPath = ValidatePathUnderAllowedRoots(Path.Combine(configRoot, fileName), options.AllowedConfigRoots, "配置文件路径");
+
+            string? dir = Path.GetDirectoryName(configPath);
+            if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+
+            await using (var stream = new FileStream(configPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            await database.UpdateAsync(db =>
+            {
+                AuthService.AddAudit(db, user.Id, user.UserName, "config-file.upload", "config", configPath, $"上传配置文件 {configPath}");
+                return true;
+            });
+
+            return Results.Ok(new { path = configPath, name = fileName });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
     }
 
     // ---- Data Export / Import ----

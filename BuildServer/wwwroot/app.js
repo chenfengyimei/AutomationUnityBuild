@@ -525,7 +525,6 @@ function bindEvents() {
     if (event.key === "Escape" && isFieldHelpOpen()) closeFieldHelp();
     if (event.key === "Escape" && isConfigDeleteModalOpen()) closeConfigDeleteModal();
     if (event.key === "Escape" && isJobModalOpen()) closeJobModal();
-    if (event.key === "Escape" && !$("configFileBrowserModal").classList.contains("hidden")) closeConfigFileBrowser();
   });
   document.querySelectorAll('input[name="configMode"]').forEach((radio) => {
     radio.addEventListener("change", toggleConfigFileFields);
@@ -595,18 +594,7 @@ function bindEvents() {
   $("exportAllBtn").addEventListener("click", toggleExportAll);
   $("exportBtn").addEventListener("click", exportData);
   $("importBtn").addEventListener("click", importData);
-  $("browseConfigBtn").addEventListener("click", openConfigFileBrowser);
-  $("configFileBrowserClose").addEventListener("click", closeConfigFileBrowser);
-  $("configFileBrowserModal").addEventListener("click", (event) => {
-    if (event.target === $("configFileBrowserModal")) closeConfigFileBrowser();
-  });
-  $("configFileBrowserList").addEventListener("click", (event) => {
-    const item = event.target.closest("[data-config-file-path]");
-    if (!item) return;
-    $("configPath").value = item.dataset.configFilePath;
-    closeConfigFileBrowser();
-    showMessage("已选择配置文件。");
-  });
+  $("uploadConfigBtn").addEventListener("click", uploadConfigFile);
 
 
 
@@ -3775,40 +3763,37 @@ function renderSigningProfiles() {
   </article>`).join("");
 }
 
-// ---- Config File Browser ----
+// ---- Config File Upload ----
 
-async function openConfigFileBrowser() {
-  const modal = $("configFileBrowserModal");
-  const listEl = $("configFileBrowserList");
-  listEl.innerHTML = loadingItem("正在读取配置文件列表...");
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden", "false");
-
-  try {
-    const files = await api("/api/config-files/list");
-    if (!files.length) {
-      listEl.innerHTML = `<div class="empty-state compact">配置目录下暂无 JSON 文件。</div>`;
-      return;
-    }
-
-    listEl.innerHTML = files.map((f) => `<article class="item" style="cursor: pointer;" data-config-file-path="${escapeHtml(f.path)}">
-      <header>
-        <div>
-          <strong>${escapeHtml(f.name)}</strong>
-          <div class="muted small">${escapeHtml(f.path)}</div>
-        </div>
-        <button class="secondary" type="button">选择</button>
-      </header>
-    </article>`).join("");
-  } catch (error) {
-    listEl.innerHTML = `<div class="empty-state compact">读取失败：${escapeHtml(error.message || error)}</div>`;
+async function uploadConfigFile() {
+  const fileInput = $("uploadConfigInput");
+  const file = fileInput.files?.[0];
+  if (!file) {
+    showError(new Error("请先选择要上传的 JSON 文件。"));
+    return;
   }
-}
 
-function closeConfigFileBrowser() {
-  const modal = $("configFileBrowserModal");
-  modal.classList.add("hidden");
-  modal.setAttribute("aria-hidden", "true");
+  setButtonBusy("uploadConfigBtn", true, "上传中...");
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/config-files/upload", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    $("configPath").value = result.path;
+    fileInput.value = "";
+    showMessage(`已上传配置文件：${result.name}`);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("uploadConfigBtn", false);
+  }
 }
 
 // ---- Data Manager ----
