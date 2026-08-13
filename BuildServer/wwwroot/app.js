@@ -1283,7 +1283,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", dataManager: "数据管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "项目设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", dataManager: "数据管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "邮件通知", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {

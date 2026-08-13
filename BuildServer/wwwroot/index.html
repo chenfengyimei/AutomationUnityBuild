@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260813-config-upload">
+  <link rel="stylesheet" href="/styles.css?v=20260813-sidebar-groups">
 </head>
 <body>
   <main id="app">
@@ -27,20 +27,29 @@
           <p class="eyebrow">Unity 自动化</p>
           <h2>BuildServer</h2>
         </div>
-        <button data-tab="builds" class="active">打包任务</button>
-        <button data-tab="projects">配置管理</button>
-        <button data-tab="projectProfiles">项目管理</button>
-        <button data-tab="unityProfiles">工程管理</button>
-        <button data-tab="signingProfiles">签名管理</button>
-        <button data-tab="certProfiles">证书管理</button>
-        <button data-tab="dataManager">数据管理</button>
-        <button data-tab="workers">Worker 节点</button>
-        <button data-tab="audit">审计日志</button>
-        <button id="usersNav" data-tab="users">用户权限</button>
-        <button data-tab="help">填写说明</button>
-        <button data-tab="settings">项目设置</button>
-        <button data-tab="storage">存储管理</button>
-        <button data-tab="gateway">Gateway 连接</button>
+        <div class="side-group">
+          <p class="side-group-label">构建</p>
+          <button data-tab="builds" class="active">打包任务</button>
+          <button data-tab="storage">存储管理</button>
+        </div>
+        <div class="side-group">
+          <p class="side-group-label">配置</p>
+          <button data-tab="projects">配置管理</button>
+          <button data-tab="projectProfiles">项目管理</button>
+          <button data-tab="unityProfiles">工程管理</button>
+          <button data-tab="signingProfiles">签名管理</button>
+          <button data-tab="certProfiles">证书管理</button>
+          <button data-tab="dataManager">数据管理</button>
+        </div>
+        <div class="side-group">
+          <p class="side-group-label">运维</p>
+          <button data-tab="workers">Worker 节点</button>
+          <button data-tab="gateway">Gateway 连接</button>
+          <button data-tab="audit">审计日志</button>
+          <button id="usersNav" data-tab="users">用户权限</button>
+          <button data-tab="settings">邮件通知</button>
+          <button data-tab="help">填写说明</button>
+        </div>
         <button id="logoutBtn">退出登录</button>
       </aside>
 
@@ -1061,7 +1070,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260813-config-upload"></script>
-  <script src="/app.js?v=20260813-config-upload"></script>
+  <script src="/runtime.js?v=20260813-sidebar-groups"></script>
+  <script src="/app.js?v=20260813-sidebar-groups"></script>
 </body>
 </html>

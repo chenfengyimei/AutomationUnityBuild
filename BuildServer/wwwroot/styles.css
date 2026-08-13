@@ -208,6 +208,26 @@ button.danger:hover {
   box-shadow: inset 3px 0 0 var(--primary);
 }
 
+.side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.side-group-label {
+  margin: 10px 4px 2px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.side-group:first-of-type .side-group-label {
+  margin-top: 0;
+}
+
 #logoutBtn {
   margin-top: auto;
   color: #65758c;
@@ -1630,18 +1650,28 @@ pre {
   .sidebar {
     position: static;
     min-height: auto;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
   .side-brand {
-    grid-column: 1 / -1;
+    width: 100%;
     margin-bottom: 6px;
+  }
+
+  .side-group {
+    flex: 1 1 200px;
+  }
+
+  .side-group-label {
+    margin-top: 0;
   }
 
   #logoutBtn {
     margin-top: 4px;
+    flex: 1 1 100%;
   }
 
   .grid.two,
