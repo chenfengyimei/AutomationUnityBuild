@@ -1495,7 +1495,8 @@ a {
   word-break: break-word;
   font-size: 13px;
   line-height: 1.7;
-  background: var(--panel-soft, #f8fbff);
+  color: #2d3748;
+  background: #ffffff;
   border: 1px solid var(--line, #d8dee8);
   border-radius: 8px;
   padding: 14px;
