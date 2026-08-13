@@ -3781,48 +3781,48 @@ function attachFileUploadButton(inputId, accept = "") {
   if (!label) return;
 
   const wrapper = document.createElement("div");
-  wrapper.className = "file-upload-row";
-
-  const fileInput = document.createElement("input");
-  fileInput.type = "file";
-  if (accept) fileInput.accept = accept;
-  fileInput.style.marginBottom = "6px";
+  wrapper.className = "file-upload-inline";
 
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "secondary file-upload-btn";
-  btn.textContent = "上传文件";
-  btn.style.marginBottom = "10px";
+  btn.textContent = "上传";
 
-  btn.addEventListener("click", async () => {
-    const file = fileInput.files?.[0];
-    if (!file) {
-      showError(new Error("请先选择要上传的文件。"));
-      return;
-    }
-    btn.disabled = true;
-    btn.textContent = "上传中...";
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/secrets/upload", { method: "POST", body: formData });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+  btn.addEventListener("click", () => {
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    if (accept) fileInput.accept = accept;
+    fileInput.style.display = "none";
+    document.body.appendChild(fileInput);
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      btn.disabled = true;
+      btn.textContent = "上传中...";
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch("/api/secrets/upload", { method: "POST", body: formData });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        input.value = result.path;
+        showMessage(`已上传文件：${result.name}`);
+      } catch (error) {
+        showError(error);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "上传";
+        document.body.removeChild(fileInput);
       }
-      const result = await response.json();
-      input.value = result.path;
-      fileInput.value = "";
-      showMessage(`已上传文件：${result.name}`);
-    } catch (error) {
-      showError(error);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "上传文件";
-    }
+    });
+
+    fileInput.click();
   });
 
-  wrapper.appendChild(fileInput);
   wrapper.appendChild(btn);
   label.appendChild(wrapper);
 }

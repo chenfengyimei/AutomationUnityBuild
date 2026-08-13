@@ -243,10 +243,7 @@ button.danger:hover {
   padding: 20px;
 }
 
-.file-upload-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+.file-upload-inline {
   margin-top: 4px;
 }
 
