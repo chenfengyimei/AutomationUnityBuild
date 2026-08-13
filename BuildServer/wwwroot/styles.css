@@ -1863,15 +1863,18 @@ pre {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel);
   font-size: 13px;
-  cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.cli-candidate-item:hover {
+.cli-candidate-item.is-clickable {
+  cursor: pointer;
+}
+.cli-candidate-item.is-clickable:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
@@ -1889,6 +1892,7 @@ pre {
   font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
   font-size: 12px;
   word-break: break-all;
+  min-width: 0;
   flex: 1;
 }
 .cli-candidate-type {

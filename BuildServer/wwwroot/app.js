@@ -4004,21 +4004,42 @@ function renderCliTool(data) {
     return;
   }
 
-  candidates.forEach((c, idx) => {
+  candidates.forEach((c) => {
     const isActive = data.activePath && c.path &&
       c.path.replace(/\\/g, "/").toLowerCase() === data.activePath.replace(/\\/g, "/").toLowerCase();
+    const clickable = c.exists && !isActive;
     const item = document.createElement("div");
-    item.className = "cli-candidate-item" + (isActive ? " is-active" : "") + (!c.exists ? " is-missing" : "");
-    item.innerHTML =
-      '<input type="radio" name="cliCandidate" class="cli-candidate-radio" value="' + escapeHtml(c.path) + '"' +
-      (isActive ? " checked" : "") + ' disabled>' +
-      '<span class="cli-candidate-path">' + escapeHtml(c.path) + '</span>' +
-      '<span class="cli-candidate-type">' + escapeHtml(c.type) + '</span>' +
-      (c.exists
-        ? '<span class="cli-candidate-exists">✓ 存在</span>'
-        : '<span class="cli-candidate-missing">✗ 不存在</span>');
-    if (c.exists && !isActive) {
-      item.querySelector("input").disabled = false;
+    item.className = "cli-candidate-item" +
+      (isActive ? " is-active" : "") +
+      (!c.exists ? " is-missing" : "") +
+      (clickable ? " is-clickable" : "");
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "cliCandidate";
+    radio.className = "cli-candidate-radio";
+    radio.value = c.path;
+    radio.checked = isActive;
+    radio.disabled = !clickable;
+
+    const pathSpan = document.createElement("span");
+    pathSpan.className = "cli-candidate-path";
+    pathSpan.textContent = c.path;
+
+    const typeSpan = document.createElement("span");
+    typeSpan.className = "cli-candidate-type";
+    typeSpan.textContent = c.type;
+
+    const statusSpan = document.createElement("span");
+    statusSpan.className = c.exists ? "cli-candidate-exists" : "cli-candidate-missing";
+    statusSpan.textContent = c.exists ? "✓ 存在" : "✗ 不存在";
+
+    item.appendChild(radio);
+    item.appendChild(pathSpan);
+    item.appendChild(typeSpan);
+    item.appendChild(statusSpan);
+
+    if (clickable) {
       item.addEventListener("click", function () {
         $("cliModeSelect").value = "manual";
         toggleCliMode();
