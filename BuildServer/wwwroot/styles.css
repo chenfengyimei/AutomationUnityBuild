@@ -981,12 +981,14 @@ h3 {
 }
 
 label {
-  display: grid;
-  gap: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin-bottom: 10px;
   color: #26384f;
   font-weight: 700;
   font-size: 13px;
+  line-height: 1.4;
 }
 
 .label-text {
