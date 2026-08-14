@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/tests-256%2B%20passing-brightgreen)](docs/usage.md#回归验证)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-中文 | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [完整使用文档](docs/usage.md) | [架构说明](docs/architecture.md)
+中文 | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [Español](README.es.md) | [完整使用文档](docs/usage.md) | [架构说明](docs/architecture.md)
 
 ---
 
