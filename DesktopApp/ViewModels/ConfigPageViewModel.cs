@@ -194,32 +194,79 @@ public class ConfigPageViewModel : ViewModelBase
     public ObservableCollection<SigningProfile> AvailableSigningProfiles { get; } = new();
     public ObservableCollection<CertificateProfile> AvailableCertificates { get; } = new();
 
+    // Avalonia 11 ComboBox 在布局变化（如 IsVisible 切换）时会将 SelectedItem 重置为 null，
+    // 双向绑定会把 null 传播回 ViewModel，导致选择永久丢失。
+    // 通过 _suppressClearSelection 标志拒绝意外的 null，并重新 Raise 恢复 ComboBox 显示。
+    private bool _suppressClearSelection = true;
+
     private ProjectProfile? _selectedProjectProfile;
     public ProjectProfile? SelectedProjectProfile
     {
         get => _selectedProjectProfile;
-        set => Set(ref _selectedProjectProfile, value);
+        set
+        {
+            if (value is null && _selectedProjectProfile is not null && _suppressClearSelection)
+            {
+                Raise(nameof(SelectedProjectProfile));
+                return;
+            }
+            Set(ref _selectedProjectProfile, value);
+        }
     }
 
     private UnityProfile? _selectedUnityProfile;
     public UnityProfile? SelectedUnityProfile
     {
         get => _selectedUnityProfile;
-        set => Set(ref _selectedUnityProfile, value);
+        set
+        {
+            if (value is null && _selectedUnityProfile is not null && _suppressClearSelection)
+            {
+                Raise(nameof(SelectedUnityProfile));
+                return;
+            }
+            Set(ref _selectedUnityProfile, value);
+        }
     }
 
     private SigningProfile? _selectedSigningProfile;
     public SigningProfile? SelectedSigningProfile
     {
         get => _selectedSigningProfile;
-        set => Set(ref _selectedSigningProfile, value);
+        set
+        {
+            if (value is null && _selectedSigningProfile is not null && _suppressClearSelection)
+            {
+                Raise(nameof(SelectedSigningProfile));
+                return;
+            }
+            Set(ref _selectedSigningProfile, value);
+        }
     }
 
     private CertificateProfile? _selectedCertificateProfile;
     public CertificateProfile? SelectedCertificateProfile
     {
         get => _selectedCertificateProfile;
-        set => Set(ref _selectedCertificateProfile, value);
+        set
+        {
+            if (value is null && _selectedCertificateProfile is not null && _suppressClearSelection)
+            {
+                Raise(nameof(SelectedCertificateProfile));
+                return;
+            }
+            Set(ref _selectedCertificateProfile, value);
+        }
+    }
+
+    private void ClearTemplateSelections()
+    {
+        _suppressClearSelection = false;
+        SelectedProjectProfile = null;
+        SelectedUnityProfile = null;
+        SelectedSigningProfile = null;
+        SelectedCertificateProfile = null;
+        _suppressClearSelection = true;
     }
 
     public void LoadProfiles()
@@ -407,6 +454,8 @@ public class ConfigPageViewModel : ViewModelBase
     public void StartEdit()
     {
         if (SelectedConfig is null) { StatusMessage = "请先选择一个配置文件。"; return; }
+        LoadProfiles();
+        ClearTemplateSelections();
         EditConfig = CloneConfig(SelectedConfig);
         ResetTemplateFlags();
         IsEditing = true;
@@ -418,6 +467,8 @@ public class ConfigPageViewModel : ViewModelBase
     {
         try
         {
+            LoadProfiles();
+            ClearTemplateSelections();
             string fileName = platform switch
             {
                 "android" => "build-android.json",

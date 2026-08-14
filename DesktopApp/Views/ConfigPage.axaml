@@ -73,7 +73,7 @@
                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
                   <TextBlock Classes="FieldLabel" Text="📦 项目模板" />
                   <ComboBox ItemsSource="{Binding AvailableProjects}"
-                            SelectedItem="{Binding SelectedProjectProfile}"
+                            SelectedItem="{Binding SelectedProjectProfile, Mode=TwoWay}"
                             DisplayMemberBinding="{Binding Name}"
                             PlaceholderText="选择项目模板…" />
                 </StackPanel>
@@ -83,7 +83,7 @@
                 <StackPanel Grid.Column="2" Margin="8,0,8,0">
                   <TextBlock Classes="FieldLabel" Text="🎮 工程模板" />
                   <ComboBox ItemsSource="{Binding AvailableUnityProfiles}"
-                            SelectedItem="{Binding SelectedUnityProfile}"
+                            SelectedItem="{Binding SelectedUnityProfile, Mode=TwoWay}"
                             DisplayMemberBinding="{Binding Name}"
                             PlaceholderText="选择工程模板…" />
                 </StackPanel>
@@ -95,7 +95,7 @@
                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
                   <TextBlock Classes="FieldLabel" Text="✍️ 签名模板" />
                   <ComboBox ItemsSource="{Binding AvailableSigningProfiles}"
-                            SelectedItem="{Binding SelectedSigningProfile}"
+                            SelectedItem="{Binding SelectedSigningProfile, Mode=TwoWay}"
                             DisplayMemberBinding="{Binding Name}"
                             PlaceholderText="选择签名模板…" />
                 </StackPanel>
@@ -105,7 +105,7 @@
                 <StackPanel Grid.Column="2" Margin="8,0,8,0">
                   <TextBlock Classes="FieldLabel" Text="🔑 证书模板" />
                   <ComboBox ItemsSource="{Binding AvailableCertificates}"
-                            SelectedItem="{Binding SelectedCertificateProfile}"
+                            SelectedItem="{Binding SelectedCertificateProfile, Mode=TwoWay}"
                             DisplayMemberBinding="{Binding Name}"
                             PlaceholderText="选择证书模板…" />
                 </StackPanel>
