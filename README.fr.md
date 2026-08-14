@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/tests-256%2B%20passing-brightgreen)](docs/usage.fr.md#tests-de-régression)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Guide complet](docs/usage.fr.md) | [Architecture](docs/architecture.fr.md)
+[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [Guide complet](docs/usage.fr.md) | [Architecture](docs/architecture.fr.md)
 
 ---
 
