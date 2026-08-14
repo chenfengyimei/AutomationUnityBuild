@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260814-unity-3fields">
+  <link rel="stylesheet" href="/styles.css?v=20260814-version-profile">
 </head>
 <body>
   <main id="app">
@@ -37,6 +37,7 @@
           <button data-tab="projects">配置管理</button>
           <button data-tab="projectProfiles">项目管理</button>
           <button data-tab="unityProfiles">工程管理</button>
+          <button data-tab="versionProfiles">版本管理</button>
           <button data-tab="signingProfiles">签名管理</button>
           <button data-tab="certProfiles">证书管理</button>
           <button data-tab="dataManager">数据管理</button>
@@ -148,6 +149,11 @@
                       <option value="">不使用</option>
                     </select>
                   </label>
+                  <label>版本模板
+                    <select id="quickFillVersion">
+                      <option value="">不使用</option>
+                    </select>
+                  </label>
                 </div>
               </div>
               <label>配置名<input id="configName" placeholder="release"></label>
@@ -202,7 +208,7 @@
                   </div>
                 </details>
 
-                <details class="config-section">
+                <details id="appInfoSection" class="config-section">
                   <summary>
                     <span>App 信息与版本号</span>
                     <small>包名、产品名、版本号和 Build Number</small>
@@ -461,6 +467,40 @@
           </div>
         </section>
 
+        <section id="versionProfilesTab" class="tab hidden">
+          <div class="grid two">
+            <form id="versionProfileForm" class="panel">
+              <h3 id="versionProfileFormTitle">新增版本模板</h3>
+              <p class="muted">管理 App 信息与版本号：Product Name、Bundle ID、版本号和 Build Number。</p>
+              <input id="versionProfileId" type="hidden">
+              <label>模板名称<input id="versionProfileName" placeholder="例如：正式版 v1.0" required></label>
+              <div class="form-grid">
+                <label>Product Name<input id="versionProfileProductName" placeholder="Your Game"></label>
+                <label>Bundle Identifier<input id="versionProfileBundleId" placeholder="com.company.game"></label>
+                <label>Bundle Version<input id="versionProfileBundleVersion" value="1.0.0"></label>
+                <label>Build Number<input id="versionProfileBuildNumber" value="1"></label>
+                <label><input id="versionProfileSyncUnity" type="checkbox" checked> 版本号同步 Unity 项目</label>
+                <label><input id="versionProfileAutoIncrement" type="checkbox" checked> Build Number 自动 +1</label>
+              </div>
+              <div class="form-actions">
+                <button id="versionProfileSaveBtn" type="submit">保存模板</button>
+                <button id="versionProfileCancelBtn" class="secondary hidden" type="button">取消编辑</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <header class="section-toolbar">
+                <div>
+                  <p class="eyebrow">模板登记</p>
+                  <h3>已有版本模板</h3>
+                  <p class="muted">新建配置时选择版本模板填充 Product Name、Bundle ID、版本号等字段。</p>
+                </div>
+              </header>
+              <div id="versionProfilesList" class="list"></div>
+            </section>
+          </div>
+        </section>
+
         <section id="certProfilesTab" class="tab hidden">
           <div class="grid two">
             <form id="certProfileForm" class="panel">
@@ -644,6 +684,7 @@
                 <label><input type="checkbox" class="export-cat" value="unityProjectProfiles" checked> 工程模板</label>
                 <label><input type="checkbox" class="export-cat" value="signingProfiles" checked> 签名模板</label>
                 <label><input type="checkbox" class="export-cat" value="certificateProfiles" checked> 证书模板</label>
+                <label><input type="checkbox" class="export-cat" value="versionProfiles" checked> 版本模板</label>
                 <label><input type="checkbox" class="export-cat" value="notificationContacts" checked> 通知联系人</label>
                 <label><input type="checkbox" class="export-cat" value="emailSettings" checked> 邮件设置</label>
               </div>
@@ -1155,7 +1196,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260814-unity-3fields"></script>
-  <script src="/app.js?v=20260814-unity-3fields"></script>
+  <script src="/runtime.js?v=20260814-version-profile"></script>
+  <script src="/app.js?v=20260814-version-profile"></script>
 </body>
 </html>

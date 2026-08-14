@@ -18,6 +18,7 @@ public sealed class BuildServerDatabase
     public List<CertificateProfileRecord> CertificateProfiles { get; set; } = [];
     public List<SigningProfileRecord> SigningProfiles { get; set; } = [];
     public List<UnityProjectProfileRecord> UnityProjectProfiles { get; set; } = [];
+    public List<VersionProfileRecord> VersionProfiles { get; set; } = [];
     public AutomationToolSettingsRecord? AutomationToolSettings { get; set; }
 }
 
@@ -104,6 +105,19 @@ public sealed class SigningProfileRecord
     public string AndroidKeystorePass { get; set; } = "";
     public string AndroidKeyaliasName { get; set; } = "";
     public string AndroidKeyaliasPass { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public sealed class VersionProfileRecord
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string ProductName { get; set; } = "";
+    public string BundleIdentifier { get; set; } = "";
+    public string BundleVersion { get; set; } = "1.0.0";
+    public string BuildNumber { get; set; } = "1";
+    public bool SyncBundleVersionFromUnity { get; set; } = true;
+    public bool AutoIncrementBuildNumber { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
@@ -447,6 +461,15 @@ public sealed record SigningProfileRequest(
     string? AndroidKeystorePass = null,
     string? AndroidKeyaliasName = null,
     string? AndroidKeyaliasPass = null);
+
+public sealed record VersionProfileRequest(
+    string Name,
+    string? ProductName = null,
+    string? BundleIdentifier = null,
+    string? BundleVersion = "1.0.0",
+    string? BuildNumber = "1",
+    bool SyncBundleVersionFromUnity = true,
+    bool AutoIncrementBuildNumber = true);
 
 public sealed record BatchDeleteRequest(string[] JobIds);
 

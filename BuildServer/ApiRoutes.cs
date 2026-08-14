@@ -93,6 +93,11 @@ public static class ApiRoutes
         app.MapPut("/api/unity-project-profiles/{profileId}", UpdateUnityProjectProfileAsync);
         app.MapDelete("/api/unity-project-profiles/{profileId}", DeleteUnityProjectProfileAsync);
 
+        app.MapGet("/api/version-profiles", ListVersionProfilesAsync);
+        app.MapPost("/api/version-profiles", CreateVersionProfileAsync);
+        app.MapPut("/api/version-profiles/{profileId}", UpdateVersionProfileAsync);
+        app.MapDelete("/api/version-profiles/{profileId}", DeleteVersionProfileAsync);
+
         app.MapPost("/api/data/export", ExportDataAsync);
         app.MapPost("/api/data/import", ImportDataAsync);
 
@@ -166,6 +171,7 @@ public static class ApiRoutes
             certificateProfiles = db.CertificateProfiles.OrderBy(c => c.Name).ToList(),
             signingProfiles = db.SigningProfiles.OrderBy(s => s.Name).ToList(),
             unityProjectProfiles = db.UnityProjectProfiles.OrderBy(u => u.Name).ToList(),
+            versionProfiles = db.VersionProfiles.OrderBy(v => v.Name).ToList(),
             settings = new
             {
                 options.DataRoot,
@@ -1941,6 +1947,103 @@ public static class ApiRoutes
         }
     }
 
+    // ---- Version Profiles ----
+
+    private static async Task<IResult> ListVersionProfilesAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        return Results.Ok(await database.ReadAsync(db => db.VersionProfiles.OrderBy(v => v.Name).ToList()));
+    }
+
+    private static async Task<IResult> CreateVersionProfileAsync(VersionProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            VersionProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                var profile = new VersionProfileRecord
+                {
+                    Id = Ids.New("vp"),
+                    Name = Required(request.Name, "模板名称"),
+                    ProductName = request.ProductName ?? "",
+                    BundleIdentifier = request.BundleIdentifier ?? "",
+                    BundleVersion = string.IsNullOrWhiteSpace(request.BundleVersion) ? "1.0.0" : request.BundleVersion.Trim(),
+                    BuildNumber = string.IsNullOrWhiteSpace(request.BuildNumber) ? "1" : request.BuildNumber.Trim(),
+                    SyncBundleVersionFromUnity = request.SyncBundleVersionFromUnity,
+                    AutoIncrementBuildNumber = request.AutoIncrementBuildNumber,
+                    CreatedAt = DateTimeOffset.Now
+                };
+                db.VersionProfiles.Add(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "version-profile.create", "version-profile", profile.Id, $"创建版本模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> UpdateVersionProfileAsync(string profileId, VersionProfileRequest request, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            VersionProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                VersionProfileRecord? profile = db.VersionProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("版本模板不存在。");
+                profile.Name = Required(request.Name, "模板名称");
+                profile.ProductName = request.ProductName ?? "";
+                profile.BundleIdentifier = request.BundleIdentifier ?? "";
+                profile.BundleVersion = string.IsNullOrWhiteSpace(request.BundleVersion) ? "1.0.0" : request.BundleVersion.Trim();
+                profile.BuildNumber = string.IsNullOrWhiteSpace(request.BuildNumber) ? "1" : request.BuildNumber.Trim();
+                profile.SyncBundleVersionFromUnity = request.SyncBundleVersionFromUnity;
+                profile.AutoIncrementBuildNumber = request.AutoIncrementBuildNumber;
+                AuthService.AddAudit(db, user.Id, user.UserName, "version-profile.update", "version-profile", profile.Id, $"更新版本模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(profile);
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
+    private static async Task<IResult> DeleteVersionProfileAsync(string profileId, HttpContext context, AuthService auth, JsonDatabase database)
+    {
+        CurrentUser? user = await auth.GetUserAsync(context);
+        if (user is null) return Results.Unauthorized();
+        if (!AuthService.CanManage(user)) return Results.Forbid();
+
+        try
+        {
+            VersionProfileRecord profile = await database.UpdateAsync(db =>
+            {
+                VersionProfileRecord? profile = db.VersionProfiles.FirstOrDefault(p => p.Id == profileId)
+                    ?? throw new FileNotFoundException("版本模板不存在。");
+                db.VersionProfiles.Remove(profile);
+                AuthService.AddAudit(db, user.Id, user.UserName, "version-profile.delete", "version-profile", profile.Id, $"删除版本模板 {profile.Name}");
+                return profile;
+            });
+            return Results.Ok(new { deleted = true, profile });
+        }
+        catch (Exception ex) when (IsClientInputError(ex))
+        {
+            return ApiDiagnostics.ClientError(context, ex);
+        }
+    }
+
     private static async Task<IResult> UploadConfigFileAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
@@ -2034,7 +2137,7 @@ public static class ApiRoutes
     private static readonly string[] ExportCategories =
     [
         "projects", "configs", "projectProfiles", "unityProjectProfiles",
-        "signingProfiles", "certificateProfiles", "notificationContacts", "emailSettings"
+        "signingProfiles", "certificateProfiles", "versionProfiles", "notificationContacts", "emailSettings"
     ];
 
     private static async Task<IResult> ExportDataAsync(HttpContext context, AuthService auth, JsonDatabase database)
@@ -2073,6 +2176,9 @@ public static class ApiRoutes
                         break;
                     case "certificateprofiles":
                         dict["certificateProfiles"] = db.CertificateProfiles.OrderBy(c => c.Name).ToList();
+                        break;
+                    case "versionprofiles":
+                        dict["versionProfiles"] = db.VersionProfiles.OrderBy(v => v.Name).ToList();
                         break;
                     case "notificationcontacts":
                         dict["notificationContacts"] = db.NotificationContacts.OrderBy(c => c.Title).ToList();
@@ -2179,6 +2285,19 @@ public static class ApiRoutes
                         if (!db.CertificateProfiles.Any(p => p.Id == item.Id))
                         {
                             db.CertificateProfiles.Add(item);
+                            imported++;
+                        }
+                    }
+                }
+
+                if (payload["versionProfiles"] is JsonNode vNode)
+                {
+                    var items = vNode.Deserialize<List<VersionProfileRecord>>(CamelizeOptions) ?? [];
+                    foreach (var item in items)
+                    {
+                        if (!db.VersionProfiles.Any(p => p.Id == item.Id))
+                        {
+                            db.VersionProfiles.Add(item);
                             imported++;
                         }
                     }

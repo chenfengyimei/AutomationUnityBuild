@@ -10,6 +10,7 @@ const state = {
   projectProfiles: [],
   certificateProfiles: [],
   signingProfiles: [],
+  versionProfiles: [],
   unityProjectProfiles: [],
   storageOverview: null,
   storageJobs: [],
@@ -581,6 +582,7 @@ function bindEvents() {
   $("quickFillUnity").addEventListener("change", () => applyTemplateFill("unity"));
   $("quickFillSigning").addEventListener("change", () => applyTemplateFill("signing"));
   $("quickFillCert").addEventListener("change", () => applyTemplateFill("cert"));
+  $("quickFillVersion").addEventListener("change", () => applyTemplateFill("version"));
   $("projectProfileForm").addEventListener("submit", saveProjectProfile);
   $("projectProfileCancelBtn").addEventListener("click", resetProjectProfileForm);
   $("projectProfilesList").addEventListener("click", handleProjectProfilesListClick);
@@ -592,6 +594,9 @@ function bindEvents() {
   $("signingProfileCancelBtn").addEventListener("click", resetSigningProfileForm);
   $("signingProfilesList").addEventListener("click", handleSigningProfilesListClick);
   $("signingProfilePlatform").addEventListener("change", toggleSigningProfilePlatformFields);
+  $("versionProfileForm").addEventListener("submit", saveVersionProfile);
+  $("versionProfileCancelBtn").addEventListener("click", resetVersionProfileForm);
+  $("versionProfilesList").addEventListener("click", handleVersionProfilesListClick);
   $("unityProfileForm").addEventListener("submit", saveUnityProfile);
   $("unityProfileCancelBtn").addEventListener("click", resetUnityProfileForm);
   $("unityProfilesList").addEventListener("click", handleUnityProfilesListClick);
@@ -1237,6 +1242,7 @@ function applyDashboard(dashboard) {
   state.projectProfiles = dashboard.projectProfiles || [];
   state.certificateProfiles = dashboard.certificateProfiles || [];
   state.signingProfiles = dashboard.signingProfiles || [];
+  state.versionProfiles = dashboard.versionProfiles || [];
   state.unityProjectProfiles = dashboard.unityProjectProfiles || [];
   renderProjects();
   renderConfigsSelects();
@@ -1249,6 +1255,7 @@ function applyDashboard(dashboard) {
   renderCertProfiles();
   renderSigningProfiles();
   renderUnityProfiles();
+  renderVersionProfiles();
   updatePermissionControls();
 }
 
@@ -1291,7 +1298,7 @@ function setTab(tab) {
   });
   document.querySelectorAll(".tab").forEach((panel) => panel.classList.add("hidden"));
   $(`${tab}Tab`).classList.remove("hidden");
-  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", certProfiles: "证书管理", signingProfiles: "签名管理", dataManager: "数据管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "邮件通知", systemSettings: "系统设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
+  const title = { builds: "打包任务", projects: "配置管理", projectProfiles: "项目管理", unityProfiles: "工程管理", versionProfiles: "版本管理", certProfiles: "证书管理", signingProfiles: "签名管理", dataManager: "数据管理", workers: "Worker 节点", audit: "审计日志", users: "用户权限", help: "填写说明", settings: "邮件通知", systemSettings: "系统设置", storage: "存储管理", gateway: "Gateway 连接" }[tab];
   $("pageTitle").textContent = title;
   $("activeRouteTag").textContent = title;
   if (tab === "users" && isAdmin()) {
@@ -1641,11 +1648,13 @@ function resetConfigForm() {
   $("quickFillUnity").value = "";
   $("quickFillSigning").value = "";
   $("quickFillCert").value = "";
+  $("quickFillVersion").value = "";
   $("unitySection")?.classList.remove("hidden");
   $("iosSigningSection")?.classList.remove("hidden");
   $("androidSigningSection")?.classList.remove("hidden");
   $("appStoreConnectSection")?.classList.remove("hidden");
   $("googlePlaySection")?.classList.remove("hidden");
+  $("appInfoSection")?.classList.remove("hidden");
   setConfigFileDefaults();
   toggleConfigFileFields();
   togglePlatformFields();
@@ -3195,6 +3204,7 @@ function renderQuickFillDropdowns() {
     { el: $("quickFillUnity"), profiles: state.unityProjectProfiles },
     { el: $("quickFillSigning"), profiles: state.signingProfiles },
     { el: $("quickFillCert"), profiles: state.certificateProfiles },
+    { el: $("quickFillVersion"), profiles: state.versionProfiles },
   ];
   for (const { el, profiles } of updates) {
     if (!el) continue;
@@ -3291,6 +3301,25 @@ function applyTemplateFill(type) {
     if (cert.appStoreConnectUploadEnabled) ascSection?.classList.add("hidden");
     if (cert.googlePlayUploadEnabled) gpSection?.classList.add("hidden");
     showMessage(`已从证书模板「${cert.name}」填充上传配置。`);
+  }
+
+  if (type === "version") {
+    const versionId = $("quickFillVersion").value;
+    const appInfoSection = $("appInfoSection");
+    if (!versionId) {
+      appInfoSection?.classList.remove("hidden");
+      return;
+    }
+    const version = state.versionProfiles.find((v) => v.id === versionId);
+    if (!version) return;
+    if (version.productName) $("configProductName").value = version.productName;
+    if (version.bundleIdentifier) $("configBundleIdentifier").value = version.bundleIdentifier;
+    if (version.bundleVersion) $("configBundleVersion").value = version.bundleVersion;
+    if (version.buildNumber) $("configBuildNumber").value = version.buildNumber;
+    $("configSyncUnityVersion").checked = Boolean(version.syncBundleVersionFromUnity);
+    $("configAutoIncrementBuild").checked = Boolean(version.autoIncrementBuildNumber);
+    appInfoSection?.classList.add("hidden");
+    showMessage(`已从版本模板「${version.name}」填充 App 信息与版本号。`);
   }
 }
 
@@ -3509,6 +3538,117 @@ function renderUnityProfiles() {
       <div><dt>Unity 版本</dt><dd>${escapeHtml(u.unityVersion || "-")}</dd></div>
       <div><dt>工程路径</dt><dd>${escapeHtml(u.unityProjectRelativePath || "-")}</dd></div>
       <div><dt>Unity 路径</dt><dd>${escapeHtml(u.unityExecutablePath || "-")}</dd></div>
+    </dl>
+  </article>`).join("");
+}
+
+// ---- Version Profiles ----
+
+async function saveVersionProfile(event) {
+  event.preventDefault();
+  clearMessage();
+  const profileId = $("versionProfileId").value;
+  const isEditing = Boolean(profileId);
+  setButtonBusy("versionProfileSaveBtn", true, isEditing ? "更新中..." : "保存中...");
+  try {
+    const path = isEditing ? `/api/version-profiles/${encodeURIComponent(profileId)}` : "/api/version-profiles";
+    const method = isEditing ? "PUT" : "POST";
+    await api(path, {
+      method,
+      body: JSON.stringify({
+        name: $("versionProfileName").value,
+        productName: $("versionProfileProductName").value || null,
+        bundleIdentifier: $("versionProfileBundleId").value || null,
+        bundleVersion: $("versionProfileBundleVersion").value || "1.0.0",
+        buildNumber: $("versionProfileBuildNumber").value || "1",
+        syncBundleVersionFromUnity: $("versionProfileSyncUnity").checked,
+        autoIncrementBuildNumber: $("versionProfileAutoIncrement").checked,
+      }),
+    });
+    resetVersionProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage(isEditing ? "版本模板已更新。" : "版本模板已保存。");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonBusy("versionProfileSaveBtn", false);
+  }
+}
+
+function handleVersionProfilesListClick(event) {
+  if (!event.target.closest) return;
+  const editBtn = event.target.closest("[data-edit-vp-id]");
+  if (editBtn) {
+    editVersionProfile(editBtn.dataset.editVpId);
+    return;
+  }
+  const deleteBtn = event.target.closest("[data-delete-vp-id]");
+  if (deleteBtn) {
+    deleteVersionProfile(deleteBtn.dataset.deleteVpId);
+  }
+}
+
+function editVersionProfile(profileId) {
+  const profile = state.versionProfiles.find((v) => v.id === profileId);
+  if (!profile) return;
+  $("versionProfileId").value = profile.id;
+  $("versionProfileName").value = profile.name || "";
+  $("versionProfileProductName").value = profile.productName || "";
+  $("versionProfileBundleId").value = profile.bundleIdentifier || "";
+  $("versionProfileBundleVersion").value = profile.bundleVersion || "1.0.0";
+  $("versionProfileBuildNumber").value = profile.buildNumber || "1";
+  $("versionProfileSyncUnity").checked = Boolean(profile.syncBundleVersionFromUnity);
+  $("versionProfileAutoIncrement").checked = Boolean(profile.autoIncrementBuildNumber);
+  $("versionProfileFormTitle").textContent = "编辑版本模板";
+  $("versionProfileSaveBtn").textContent = "更新模板";
+  $("versionProfileCancelBtn").classList.remove("hidden");
+  $("versionProfileForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetVersionProfileForm() {
+  $("versionProfileForm").reset();
+  $("versionProfileId").value = "";
+  $("versionProfileBundleVersion").value = "1.0.0";
+  $("versionProfileBuildNumber").value = "1";
+  $("versionProfileSyncUnity").checked = true;
+  $("versionProfileAutoIncrement").checked = true;
+  $("versionProfileFormTitle").textContent = "新增版本模板";
+  $("versionProfileSaveBtn").textContent = "保存模板";
+  $("versionProfileCancelBtn").classList.add("hidden");
+}
+
+async function deleteVersionProfile(profileId) {
+  if (!confirm("确认删除这个版本模板？")) return;
+  try {
+    await api(`/api/version-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    if ($("versionProfileId").value === profileId) resetVersionProfileForm();
+    await refreshAll({ showSuccess: false, throwOnError: true });
+    showMessage("版本模板已删除。");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function renderVersionProfiles() {
+  if (state.versionProfiles.length === 0) {
+    $("versionProfilesList").innerHTML = `<div class="empty-state compact">暂无版本模板。使用左侧表单添加。</div>`;
+    return;
+  }
+
+  $("versionProfilesList").innerHTML = state.versionProfiles.map((v) => `<article class="item">
+    <header>
+      <div>
+        <strong>${escapeHtml(v.name)}</strong>
+      </div>
+      <div class="item-actions">
+        <button class="secondary" type="button" data-edit-vp-id="${escapeHtml(v.id)}">编辑</button>
+        <button class="danger" type="button" data-delete-vp-id="${escapeHtml(v.id)}">删除</button>
+      </div>
+    </header>
+    <dl class="project-meta">
+      <div><dt>Product Name</dt><dd>${escapeHtml(v.productName || "-")}</dd></div>
+      <div><dt>Bundle ID</dt><dd>${escapeHtml(v.bundleIdentifier || "-")}</dd></div>
+      <div><dt>Version</dt><dd>${escapeHtml(v.bundleVersion || "-")} (${escapeHtml(v.buildNumber || "-")})</dd></div>
     </dl>
   </article>`).join("");
 }
