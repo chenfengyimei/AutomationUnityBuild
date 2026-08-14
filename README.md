@@ -86,9 +86,9 @@ Avalonia UI 11 原生桌面应用，左侧分类导航覆盖构建、配置、�
 
 ![DesktopApp 桌面客户端](docs/images/desktopapp-buildserver.png)
 
-### LinuxGateway 首页概览
+### LinuxGateway 系统更新
 
-多节点统一调度入口，概览在线设备数、可用配置和最近任务，底部提供调度说明和推荐流程指引。
+多节点网关的在线自更新页面，支持 Gitee / GitHub 双源版本检测、发布说明浏览和一键远程更新。
 
 ![LinuxGateway 首页概览](docs/images/linuxgateway-dashboard.png)
 
