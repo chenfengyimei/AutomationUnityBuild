@@ -81,6 +81,11 @@ public sealed class CertificateProfileRecord
     public string GooglePlayPackageName { get; set; } = "";
     public string GooglePlayServiceAccountJsonPath { get; set; } = "";
     public string GooglePlayTrack { get; set; } = "internal";
+    public string GooglePlayReleaseStatus { get; set; } = "draft";
+    public string GooglePlayReleaseName { get; set; } = "";
+    public string GooglePlayUploadArtifact { get; set; } = "aab";
+    public bool GooglePlayChangesNotSentForReview { get; set; }
+    public double? GooglePlayUserFraction { get; set; }
     public string TiktokAppId { get; set; } = "";
     public string TiktokAccessToken { get; set; } = "";
     public string TiktokGameName { get; set; } = "";
@@ -426,6 +431,11 @@ public sealed record CertificateProfileRequest(
     string? GooglePlayPackageName = null,
     string? GooglePlayServiceAccountJsonPath = null,
     string? GooglePlayTrack = "internal",
+    string? GooglePlayReleaseStatus = "draft",
+    string? GooglePlayReleaseName = null,
+    string? GooglePlayUploadArtifact = "aab",
+    bool GooglePlayChangesNotSentForReview = false,
+    double? GooglePlayUserFraction = null,
     string? TiktokAppId = null,
     string? TiktokAccessToken = null,
     string? TiktokGameName = null,

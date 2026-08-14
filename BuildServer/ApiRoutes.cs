@@ -1653,6 +1653,11 @@ public static class ApiRoutes
                     GooglePlayPackageName = request.GooglePlayPackageName ?? "",
                     GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "",
                     GooglePlayTrack = string.IsNullOrWhiteSpace(request.GooglePlayTrack) ? "internal" : request.GooglePlayTrack.Trim(),
+                    GooglePlayReleaseStatus = string.IsNullOrWhiteSpace(request.GooglePlayReleaseStatus) ? "draft" : request.GooglePlayReleaseStatus.Trim(),
+                    GooglePlayReleaseName = request.GooglePlayReleaseName ?? "",
+                    GooglePlayUploadArtifact = string.IsNullOrWhiteSpace(request.GooglePlayUploadArtifact) ? "aab" : request.GooglePlayUploadArtifact.Trim(),
+                    GooglePlayChangesNotSentForReview = request.GooglePlayChangesNotSentForReview,
+                    GooglePlayUserFraction = request.GooglePlayUserFraction,
                     TiktokAppId = request.TiktokAppId ?? "",
                     TiktokAccessToken = request.TiktokAccessToken ?? "",
                     TiktokGameName = request.TiktokGameName ?? "",
@@ -1695,6 +1700,11 @@ public static class ApiRoutes
                 profile.GooglePlayPackageName = request.GooglePlayPackageName ?? "";
                 profile.GooglePlayServiceAccountJsonPath = request.GooglePlayServiceAccountJsonPath ?? "";
                 profile.GooglePlayTrack = string.IsNullOrWhiteSpace(request.GooglePlayTrack) ? "internal" : request.GooglePlayTrack.Trim();
+                profile.GooglePlayReleaseStatus = string.IsNullOrWhiteSpace(request.GooglePlayReleaseStatus) ? "draft" : request.GooglePlayReleaseStatus.Trim();
+                profile.GooglePlayReleaseName = request.GooglePlayReleaseName ?? "";
+                profile.GooglePlayUploadArtifact = string.IsNullOrWhiteSpace(request.GooglePlayUploadArtifact) ? "aab" : request.GooglePlayUploadArtifact.Trim();
+                profile.GooglePlayChangesNotSentForReview = request.GooglePlayChangesNotSentForReview;
+                profile.GooglePlayUserFraction = request.GooglePlayUserFraction;
                 profile.TiktokAppId = request.TiktokAppId ?? "";
                 profile.TiktokAccessToken = request.TiktokAccessToken ?? "";
                 profile.TiktokGameName = request.TiktokGameName ?? "";

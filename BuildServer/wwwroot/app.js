@@ -3279,6 +3279,11 @@ function applyTemplateFill(type) {
     if (cert.googlePlayPackageName) $("configGooglePlayPackageName").value = cert.googlePlayPackageName;
     if (cert.googlePlayServiceAccountJsonPath) $("configGooglePlayServiceAccountJsonPath").value = cert.googlePlayServiceAccountJsonPath;
     if (cert.googlePlayTrack) $("configGooglePlayTrack").value = cert.googlePlayTrack;
+    if (cert.googlePlayReleaseStatus) $("configGooglePlayReleaseStatus").value = cert.googlePlayReleaseStatus;
+    if (cert.googlePlayReleaseName) $("configGooglePlayReleaseName").value = cert.googlePlayReleaseName;
+    if (cert.googlePlayUploadArtifact) $("configGooglePlayUploadArtifact").value = cert.googlePlayUploadArtifact;
+    $("configGooglePlayChangesNotSentForReview").checked = Boolean(cert.googlePlayChangesNotSentForReview);
+    if (cert.googlePlayUserFraction != null) $("configGooglePlayUserFraction").value = cert.googlePlayUserFraction;
     $("configGooglePlayUploadEnabled").checked = Boolean(cert.googlePlayUploadEnabled);
     if (cert.tiktokAppId) $("configTiktokAppId").value = cert.tiktokAppId;
     if (cert.tiktokAccessToken) $("configTiktokAccessToken").value = cert.tiktokAccessToken;
@@ -3550,6 +3555,13 @@ async function saveCertProfile(event) {
         googlePlayPackageName: $("certProfileGpPackage").value || null,
         googlePlayServiceAccountJsonPath: $("certProfileGpServiceJson").value || null,
         googlePlayTrack: $("certProfileGpTrack").value,
+        googlePlayReleaseStatus: $("certProfileGpReleaseStatus").value,
+        googlePlayReleaseName: $("certProfileGpReleaseName").value || null,
+        googlePlayUploadArtifact: $("certProfileGpUploadArtifact").value,
+        googlePlayChangesNotSentForReview: $("certProfileGpChangesNotSentForReview").checked,
+        googlePlayUserFraction: $("certProfileGpUpload").checked
+          ? parseOptionalNumber($("certProfileGpUserFraction").value)
+          : null,
         tiktokAppId: $("certProfileTiktokAppId").value || null,
         tiktokAccessToken: $("certProfileTiktokToken").value || null,
         tiktokGameName: $("certProfileTiktokGameName").value || null,
@@ -3594,6 +3606,11 @@ function editCertProfile(profileId) {
   $("certProfileGpPackage").value = profile.googlePlayPackageName || "";
   $("certProfileGpServiceJson").value = profile.googlePlayServiceAccountJsonPath || "";
   $("certProfileGpTrack").value = profile.googlePlayTrack || "internal";
+  $("certProfileGpReleaseStatus").value = profile.googlePlayReleaseStatus || "draft";
+  $("certProfileGpReleaseName").value = profile.googlePlayReleaseName || "";
+  $("certProfileGpUploadArtifact").value = profile.googlePlayUploadArtifact || "aab";
+  $("certProfileGpChangesNotSentForReview").checked = Boolean(profile.googlePlayChangesNotSentForReview);
+  $("certProfileGpUserFraction").value = profile.googlePlayUserFraction ?? "";
   $("certProfileGpUpload").checked = Boolean(profile.googlePlayUploadEnabled);
   $("certProfileTiktokAppId").value = profile.tiktokAppId || "";
   $("certProfileTiktokToken").value = profile.tiktokAccessToken || "";
@@ -3613,6 +3630,11 @@ function resetCertProfileForm() {
   $("certProfilePlatform").value = "ios";
   $("certProfileAscUploadTarget").value = "testflight";
   $("certProfileGpTrack").value = "internal";
+  $("certProfileGpReleaseStatus").value = "draft";
+  $("certProfileGpReleaseName").value = "";
+  $("certProfileGpUploadArtifact").value = "aab";
+  $("certProfileGpChangesNotSentForReview").checked = false;
+  $("certProfileGpUserFraction").value = "";
   $("certProfileTiktokEndpoint").value = "https://open-api.tiktokglobalshop.com";
   $("certProfileFormTitle").textContent = "新增证书模板";
   $("certProfileSaveBtn").textContent = "保存模板";

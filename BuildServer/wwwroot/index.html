@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260814-template-fix2">
+  <link rel="stylesheet" href="/styles.css?v=20260814-cert-gp-fields">
 </head>
 <body>
   <main id="app">
@@ -510,6 +510,24 @@
                         <option value="production">正式</option>
                       </select>
                     </label>
+                    <label>Release Status
+                      <select id="certProfileGpReleaseStatus">
+                        <option value="draft">草稿</option>
+                        <option value="inProgress">分阶段发布中</option>
+                        <option value="halted">已暂停</option>
+                        <option value="completed">已完成</option>
+                      </select>
+                    </label>
+                    <label>Release Name<input id="certProfileGpReleaseName"></label>
+                    <label>上传产物
+                      <select id="certProfileGpUploadArtifact">
+                        <option value="aab">AAB 包</option>
+                        <option value="apk">APK 包</option>
+                        <option value="both">APK + AAB</option>
+                      </select>
+                    </label>
+                    <label><input id="certProfileGpChangesNotSentForReview" type="checkbox"> 暂不提交审核</label>
+                    <label>灰度比例<input id="certProfileGpUserFraction" placeholder="0.1 到 1，留空"></label>
                     <label><input id="certProfileGpUpload" type="checkbox"> 上传 Google Play</label>
                   </div>
                 </details>
@@ -1140,7 +1158,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260814-template-fix2"></script>
-  <script src="/app.js?v=20260814-template-fix2"></script>
+  <script src="/runtime.js?v=20260814-cert-gp-fields"></script>
+  <script src="/app.js?v=20260814-cert-gp-fields"></script>
 </body>
 </html>
