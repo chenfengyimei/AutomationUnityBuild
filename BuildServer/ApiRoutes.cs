@@ -2140,7 +2140,7 @@ public static class ApiRoutes
         "signingProfiles", "certificateProfiles", "versionProfiles", "notificationContacts", "emailSettings"
     ];
 
-    private static async Task<IResult> ExportDataAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> ExportDataAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -2188,13 +2188,38 @@ public static class ApiRoutes
                         break;
                 }
             }
+
+            // 收集所有密钥/配置文件路径并打包文件内容
+            var bundledFiles = new Dictionary<string, string>();
+            var pathFields = new List<string?>();
+            pathFields.AddRange(db.CertificateProfiles.Select(c => c.AppStoreConnectApiKeyPath));
+            pathFields.AddRange(db.CertificateProfiles.Select(c => c.GooglePlayServiceAccountJsonPath));
+            pathFields.AddRange(db.SigningProfiles.Select(s => s.AndroidKeystoreName));
+
+            foreach (string? path in pathFields)
+            {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                string full = Path.GetFullPath(path);
+                if (bundledFiles.ContainsKey(full)) continue;
+                if (File.Exists(full))
+                {
+                    byte[] bytes = File.ReadAllBytes(full);
+                    bundledFiles[full] = Convert.ToBase64String(bytes);
+                }
+            }
+
+            if (bundledFiles.Count > 0)
+            {
+                dict["_bundledFiles"] = bundledFiles;
+            }
+
             return dict;
         });
 
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> ImportDataAsync(HttpContext context, AuthService auth, JsonDatabase database)
+    private static async Task<IResult> ImportDataAsync(HttpContext context, AuthService auth, JsonDatabase database, BuildServerOptions options)
     {
         CurrentUser? user = await auth.GetUserAsync(context);
         if (user is null) return Results.Unauthorized();
@@ -2206,6 +2231,40 @@ public static class ApiRoutes
             if (payload is null)
             {
                 throw new InvalidOperationException("导入数据为空。");
+            }
+
+            // 解包并写入密钥文件到目标机器，构建路径映射表
+            var pathRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (payload["_bundledFiles"] is JsonNode bfNode && bfNode.AsObject().Count > 0)
+            {
+                string secretsDir = Path.Combine(options.DataRoot, "secrets");
+                Directory.CreateDirectory(secretsDir);
+                foreach (var entry in bfNode.AsObject())
+                {
+                    string sourcePath = entry.Key;
+                    string? base64 = entry.Value?.GetValue<string>();
+                    if (string.IsNullOrEmpty(base64)) continue;
+                    string fileName = Path.GetFileName(sourcePath);
+                    if (string.IsNullOrWhiteSpace(fileName)) continue;
+                    string targetPath = Path.Combine(secretsDir, fileName);
+                    File.WriteAllBytes(targetPath, Convert.FromBase64String(base64));
+                    pathRemap[sourcePath] = targetPath;
+                }
+            }
+
+            // 辅助：重写路径字段
+            string RemapPath(string? original)
+            {
+                if (string.IsNullOrWhiteSpace(original)) return "";
+                // 精确匹配
+                if (pathRemap.TryGetValue(original, out var mapped)) return mapped;
+                // 尝试文件名匹配（跨平台路径差异）
+                string fileName = Path.GetFileName(original);
+                foreach (var kv in pathRemap)
+                {
+                    if (Path.GetFileName(kv.Key) == fileName) return kv.Value;
+                }
+                return original;
             }
 
             var result = await database.UpdateAsync(db =>
@@ -2271,6 +2330,7 @@ public static class ApiRoutes
                     {
                         if (!db.SigningProfiles.Any(p => p.Id == item.Id))
                         {
+                            item.AndroidKeystoreName = RemapPath(item.AndroidKeystoreName);
                             db.SigningProfiles.Add(item);
                             imported++;
                         }
@@ -2284,6 +2344,8 @@ public static class ApiRoutes
                     {
                         if (!db.CertificateProfiles.Any(p => p.Id == item.Id))
                         {
+                            item.AppStoreConnectApiKeyPath = RemapPath(item.AppStoreConnectApiKeyPath);
+                            item.GooglePlayServiceAccountJsonPath = RemapPath(item.GooglePlayServiceAccountJsonPath);
                             db.CertificateProfiles.Add(item);
                             imported++;
                         }
