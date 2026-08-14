@@ -3190,6 +3190,11 @@ function autoFillProjectFields(projectId) {
 }
 
 function renderQuickFillDropdowns() {
+  // 保存当前已选值，防止轮询刷新重建 innerHTML 后丢失选择
+  const prevUnity = $("quickFillUnity").value;
+  const prevSigning = $("quickFillSigning").value;
+  const prevCert = $("quickFillCert").value;
+
   const unityOptions = ['<option value="">不使用</option>']
     .concat(state.unityProjectProfiles.map((u) => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`))
     .join("");
@@ -3204,6 +3209,17 @@ function renderQuickFillDropdowns() {
     .concat(state.certificateProfiles.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`))
     .join("");
   $("quickFillCert").innerHTML = certOptions;
+
+  // 恢复之前的选择（仅当选项仍存在时）
+  if (prevUnity && state.unityProjectProfiles.some((u) => u.id === prevUnity)) {
+    $("quickFillUnity").value = prevUnity;
+  }
+  if (prevSigning && state.signingProfiles.some((s) => s.id === prevSigning)) {
+    $("quickFillSigning").value = prevSigning;
+  }
+  if (prevCert && state.certificateProfiles.some((c) => c.id === prevCert)) {
+    $("quickFillCert").value = prevCert;
+  }
 }
 
 function applyTemplateFill(type) {
