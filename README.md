@@ -68,6 +68,30 @@ AutomationUnityBuildIOS 是一套为 Unity 移动端项目打造的端到端自�
 
 ## 可视化界面演示
 
+### CLI 交互菜单
+
+终端快捷指令入口，数字编号一键执行打包流程，支持 dry-run 预览和跳过特定步骤。
+
+![CLI 交互菜单](docs/images/cli-menu.png)
+
+### BuildServer 配置管理
+
+网页端配置管理页面，支持四类模板一键填充、折叠面板分区编辑，右侧实时同步状态。
+
+![BuildServer 配置管理](docs/images/buildserver-config.png)
+
+### DesktopApp 桌面客户端
+
+Avalonia UI 11 原生桌面应用，左侧分类导航覆盖构建、配置、运维和服务，右侧为 BuildServer 一键启停面板。
+
+![DesktopApp 桌面客户端](docs/images/desktopapp-buildserver.png)
+
+### LinuxGateway 首页概览
+
+多节点统一调度入口，概览在线设备数、可用配置和最近任务，底部提供调度说明和推荐流程指引。
+
+![LinuxGateway 首页概览](docs/images/linuxgateway-dashboard.png)
+
 ---
 
 ## 快速体验
