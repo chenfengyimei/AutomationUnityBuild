@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/tests-256%2B%20passing-brightgreen)](docs/usage.ko.md#회귀-테스트)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [전체 사용 가이드](docs/usage.ko.md) | [아키텍처](docs/architecture.ko.md)
+[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [전체 사용 가이드](docs/usage.ko.md) | [아키텍처](docs/architecture.ko.md)
 
 ---
 

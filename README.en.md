@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/tests-256%2B%20passing-brightgreen)](docs/usage.en.md#regression-testing)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Full Usage Guide](docs/usage.en.md) | [Architecture](docs/architecture.en.md)
+[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Full Usage Guide](docs/usage.en.md) | [Architecture](docs/architecture.en.md)
 
 ---
 
