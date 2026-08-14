@@ -3190,35 +3190,22 @@ function autoFillProjectFields(projectId) {
 }
 
 function renderQuickFillDropdowns() {
-  // 保存当前已选值，防止轮询刷新重建 innerHTML 后丢失选择
-  const prevUnity = $("quickFillUnity").value;
-  const prevSigning = $("quickFillSigning").value;
-  const prevCert = $("quickFillCert").value;
-
-  const unityOptions = ['<option value="">不使用</option>']
-    .concat(state.unityProjectProfiles.map((u) => `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`))
-    .join("");
-  $("quickFillUnity").innerHTML = unityOptions;
-
-  const signingOptions = ['<option value="">不使用</option>']
-    .concat(state.signingProfiles.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`))
-    .join("");
-  $("quickFillSigning").innerHTML = signingOptions;
-
-  const certOptions = ['<option value="">不使用</option>']
-    .concat(state.certificateProfiles.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`))
-    .join("");
-  $("quickFillCert").innerHTML = certOptions;
-
-  // 恢复之前的选择（仅当选项仍存在时）
-  if (prevUnity && state.unityProjectProfiles.some((u) => u.id === prevUnity)) {
-    $("quickFillUnity").value = prevUnity;
-  }
-  if (prevSigning && state.signingProfiles.some((s) => s.id === prevSigning)) {
-    $("quickFillSigning").value = prevSigning;
-  }
-  if (prevCert && state.certificateProfiles.some((c) => c.id === prevCert)) {
-    $("quickFillCert").value = prevCert;
+  // 只在模板列表实际变化时才重建 innerHTML，避免每次轮询重置用户选择
+  const updates = [
+    { el: $("quickFillUnity"), profiles: state.unityProjectProfiles },
+    { el: $("quickFillSigning"), profiles: state.signingProfiles },
+    { el: $("quickFillCert"), profiles: state.certificateProfiles },
+  ];
+  for (const { el, profiles } of updates) {
+    if (!el) continue;
+    const newKeys = profiles.map((p) => p.id).join(",");
+    const currentKeys = Array.from(el.options).map((o) => o.value).filter(Boolean).join(",");
+    if (newKeys === currentKeys) continue;
+    const prev = el.value;
+    el.innerHTML = ['<option value="">不使用</option>']
+      .concat(profiles.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`))
+      .join("");
+    if (prev && profiles.some((p) => p.id === prev)) el.value = prev;
   }
 }
 
