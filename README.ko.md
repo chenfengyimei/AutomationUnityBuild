@@ -115,66 +115,97 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 
 ```mermaid
 graph TB
-    Dev["개발 머신 / Windows / VS"] --> Publish["CLI / BuildServer / DesktopApp 게시"]
-    Publish --> Mac["Mac 빌드 머신"]
-    Publish --> Win["Windows Android 노드"]
-
-    subgraph CLI["AutomationUnityBuildIOS CLI"]
-        Config["설정 선택 / 설정 편집 / 드라이런"]
-        Git["Git 동기화"]
-        Unity["Unity BatchMode"]
-        Ios["iOS: Xcode archive/export"]
-        Android["Android: APK/AAB"]
-        Tiktok["TikTok: WebGL 빌드"]
-        Logs["로그 / 설정 스냅샷 / 산출물"]
+    subgraph Entry["🚀 사용자 진입"]
+        CLI["💻 CLI 터미널<br/>단축키 · 대화형 마법사 · 드라이런"]
+        WebUI["🌐 BuildServer<br/>웹 콘솔 · 작업 대기열"]
+        Desktop["🖥️ DesktopApp<br/>Avalonia 11 데스크톱 클라이언트"]
+        Gateway["🌍 LinuxGateway<br/>멀티 노드 공용 진입점"]
+        Agent["🤖 MCP / Agent<br/>AI 도구 제어 호출"]
     end
 
-    Mac --> CLI
-    Win --> CLI
-    Config --> Git --> Unity
-    Unity --> Ios --> Logs
-    Unity --> Android --> Logs
-    Unity --> Tiktok --> Logs
-    Ios --> ASC["App Store Connect / TestFlight"]
-    Android --> GP["Google Play"]
-    Tiktok --> TT["TikTok 오픈 플랫폼"]
-
-    subgraph Web["BuildServer"]
-        UI["웹 콘솔"]
+    subgraph Schedule["📋 스케줄 및 관리"]
         Queue["직렬 작업 대기열"]
-        Audit["사용자 / 권한 / 감사"]
-        Email["이메일 알림"]
-        Storage["스토리지 관리"]
-        MCP["MCP / Agent 도구"]
+        Auth["사용자 · 권한 · 감사"]
+        Email["이메일 알림<br/>SMTP 465 암시적 SSL"]
+        Storage["스토리지 관리<br/>산출물 정리 · 일괄 삭제"]
+        Templates["4종 설정 템플릿<br/>프로젝트 / Unity / 서명 / 인증서"]
+        AutoUpdate["온라인 자가 업데이트<br/>Gitee + GitHub 듀얼 소스"]
     end
 
-    UI --> Queue --> CLI
-    MCP --> Queue
-    Audit --> Queue
+    subgraph Engine["⚙️ 빌드 엔진"]
+        Config["설정 선택 · 편집 · 스냅샷"]
+        GitSync["Git 리포지토리 동기화<br/>화이트리스트 · 경로 보안"]
+        Unity["Unity BatchMode<br/>자동화 빌드 실행"]
+        Logs["로그 · 설정 스냅샷 · 산출물 디렉터리"]
+    end
+
+    subgraph Platforms["📱 플랫폼 빌드"]
+        iOS["🍎 iOS<br/>Xcode archive / export"]
+        Android["🤖 Android<br/>APK / AAB"]
+        TikTok["🎵 TikTok<br/>WebGL 빌드"]
+    end
+
+    subgraph Stores["📦 스토어 배포"]
+        ASC["App Store Connect<br/>TestFlight 자동 업로드"]
+        GP["Google Play<br/>Publishing API · 단계적 롤아웃"]
+        TT["TikTok 오픈 플랫폼<br/>API 업로드"]
+    end
+
+    subgraph BuildNodes["🖥️ 빌드 노드"]
+        Mac["Mac 빌드 머신<br/>iOS · Android"]
+        Win["Windows 노드<br/>Android"]
+    end
+
+    %% ── 진입 → 스케줄/엔진 ──
+    CLI --> Config
+    WebUI --> Queue
+    Desktop --> Templates
+    Desktop --> WebUI
+    Gateway --> Queue
+    Agent --> Queue
+
+    %% ── 스케줄 내부 ──
+    Queue --> Config
+    Auth --> Queue
     Email --> Queue
-    Storage --> Audit
+    Storage --> Auth
+    Templates --> WebUI
+    AutoUpdate --> Gateway
 
-    subgraph Desktop["DesktopApp"]
-        DConfig["설정 관리 / 템플릿 적용"]
-        DBuild["빌드 실행 / 실시간 로그"]
-        DArtifacts["산출물 탐색기"]
-        DSync["서버 동기화"]
-    end
+    %% ── 빌드 흐름 ──
+    Config --> GitSync --> Unity
+    Unity --> iOS
+    Unity --> Android
+    Unity --> TikTok
 
-    DConfig --> DSync
-    DSync --> Web
+    iOS --> Logs
+    Android --> Logs
+    TikTok --> Logs
 
-    subgraph Gateway["LinuxGateway"]
-        PublicUI["공용 진입점"]
-        Nodes["Mac / Windows 노드"]
-        Forward["작업 전달 / 로그·산출물 프록시"]
-        Reverse["리버스 연결 채널"]
-        Update["온라인 자가 업데이트"]
-    end
+    %% ── 스토어 배포 ──
+    iOS --> ASC
+    Android --> GP
+    TikTok --> TT
 
-    PublicUI --> Forward --> Nodes --> Web
-    Reverse --> Nodes
-    Update --> Gateway
+    %% ── 빌드 노드 ──
+    Mac --> Unity
+    Win --> Unity
+    Gateway -.->|"리버스 터널"| Mac
+    Gateway -.->|"직접 연결"| Win
+
+    classDef entry fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#e2e8f0
+    classDef schedule fill:#0f172a,stroke:#6366f1,stroke-width:2px,color:#e2e8f0
+    classDef engine fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5
+    classDef platform fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7
+    classDef store fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fecaca
+    classDef buildnode fill:#1e1b4b,stroke:#8b5cf6,stroke-width:2px,color:#e0e7ff
+
+    class CLI,WebUI,Desktop,Gateway,Agent entry
+    class Queue,Auth,Email,Storage,Templates,AutoUpdate schedule
+    class Config,GitSync,Unity,Logs engine
+    class iOS,Android,TikTok platform
+    class ASC,GP,TT store
+    class Mac,Win buildnode
 ```
 
 BuildServer 초안은 싱글 머신, 싱글 Worker, 직렬 대기열 설계를 채택하고 있습니다. 이는 의도적인 설계입니다. Unity, Xcode, Gradle, 서명 인증서, 캐시 디렉터리는 일반적으로 같은 머신에서 동시에 경쟁하는 데 적합하지 않습니다. 다중 머신 확장은 LinuxGateway가 담당하며, 동시 스케줄링을 서로 다른 노드에 분산시킵니다. 직접 연결과 NAT 트래버설을 모두 지원합니다.

@@ -115,66 +115,97 @@ Para la configuración completa, campos de configuración, subidas iOS/Android/T
 
 ```mermaid
 graph TB
-    Dev["Máquina dev / Windows / VS"] --> Publish["Publicar CLI / BuildServer / DesktopApp"]
-    Publish --> Mac["Máquina de build Mac"]
-    Publish --> Win["Nodo Android Windows"]
-
-    subgraph CLI["AutomationUnityBuildIOS CLI"]
-        Config["Selección de config / Edición / dry-run"]
-        Git["Sincronización Git"]
-        Unity["Unity BatchMode"]
-        Ios["iOS: Xcode archive/export"]
-        Android["Android: APK/AAB"]
-        Tiktok["TikTok: Build WebGL"]
-        Logs["Logs / Snapshot de config / Artefactos"]
+    subgraph Entry["🚀 Entrada de Usuario"]
+        CLI["💻 Terminal CLI<br/>Atajos · Asistente interactivo · dry-run"]
+        WebUI["🌐 BuildServer<br/>Consola Web · Cola de tareas"]
+        Desktop["🖥️ DesktopApp<br/>Cliente de escritorio Avalonia 11"]
+        Gateway["🌍 LinuxGateway<br/>Entrada pública multi-nodo"]
+        Agent["🤖 MCP / Agent<br/>Invocación controlada de herramientas IA"]
     end
 
-    Mac --> CLI
-    Win --> CLI
-    Config --> Git --> Unity
-    Unity --> Ios --> Logs
-    Unity --> Android --> Logs
-    Unity --> Tiktok --> Logs
-    Ios --> ASC["App Store Connect / TestFlight"]
-    Android --> GP["Google Play"]
-    Tiktok --> TT["TikTok Open Platform"]
-
-    subgraph Web["BuildServer"]
-        UI["Consola web"]
+    subgraph Schedule["📋 Planificación y Gestión"]
         Queue["Cola de tareas serie"]
-        Audit["Usuarios / Permisos / Auditoría"]
-        Email["Notificaciones email"]
-        Storage["Gestión de almacenamiento"]
-        MCP["Herramientas MCP / Agent"]
+        Auth["Usuarios · Permisos · Auditoría"]
+        Email["Notificaciones email<br/>SMTP 465 SSL implícito"]
+        Storage["Gestión de almacenamiento<br/>Limpieza de artefactos · Eliminación por lotes"]
+        Templates["Cuatro plantillas de config<br/>Proyecto / Unity / Firma / Certificado"]
+        AutoUpdate["Actualización en línea<br/>Gitee + GitHub fuente dual"]
     end
 
-    UI --> Queue --> CLI
-    MCP --> Queue
-    Audit --> Queue
+    subgraph Engine["⚙️ Motor de Build"]
+        Config["Selección de config · Edición · Snapshot"]
+        GitSync["Sincronización repositorio Git<br/>Lista blanca · Seguridad de rutas"]
+        Unity["Unity BatchMode<br/>Ejecución de build automatizada"]
+        Logs["Logs · Snapshots de config · Directorios de artefactos"]
+    end
+
+    subgraph Platforms["📱 Builds de Plataforma"]
+        iOS["🍎 iOS<br/>Xcode archive / export"]
+        Android["🤖 Android<br/>APK / AAB"]
+        TikTok["🎵 TikTok<br/>Build WebGL"]
+    end
+
+    subgraph Stores["📦 Publicación en Stores"]
+        ASC["App Store Connect<br/>Subida automática TestFlight"]
+        GP["Google Play<br/>Publishing API · Despliegue por fases"]
+        TT["TikTok Open Platform<br/>Subida por API"]
+    end
+
+    subgraph BuildNodes["🖥️ Nodos de Build"]
+        Mac["Máquina de build Mac<br/>iOS · Android"]
+        Win["Nodo Windows<br/>Android"]
+    end
+
+    %% ── Entrada → Planificación/Motor ──
+    CLI --> Config
+    WebUI --> Queue
+    Desktop --> Templates
+    Desktop --> WebUI
+    Gateway --> Queue
+    Agent --> Queue
+
+    %% ── Planificación interna ──
+    Queue --> Config
+    Auth --> Queue
     Email --> Queue
-    Storage --> Audit
+    Storage --> Auth
+    Templates --> WebUI
+    AutoUpdate --> Gateway
 
-    subgraph Desktop["DesktopApp"]
-        DConfig["Gestión de config / Plantillas"]
-        DBuild["Ejecución de build / Logs en tiempo real"]
-        DArtifacts["Explorador de artefactos"]
-        DSync["Sincronización con servidor"]
-    end
+    %% ── Flujo de build ──
+    Config --> GitSync --> Unity
+    Unity --> iOS
+    Unity --> Android
+    Unity --> TikTok
 
-    DConfig --> DSync
-    DSync --> Web
+    iOS --> Logs
+    Android --> Logs
+    TikTok --> Logs
 
-    subgraph Gateway["LinuxGateway"]
-        PublicUI["Entrada pública"]
-        Nodes["Nodos Mac / Windows"]
-        Forward["Reenvío de tareas / Proxy de logs y artefactos"]
-        Reverse["Canal de conexión inversa"]
-        Update["Actualización en línea"]
-    end
+    %% ── Publicación en stores ──
+    iOS --> ASC
+    Android --> GP
+    TikTok --> TT
 
-    PublicUI --> Forward --> Nodes --> Web
-    Reverse --> Nodes
-    Update --> Gateway
+    %% ── Nodos de build ──
+    Mac --> Unity
+    Win --> Unity
+    Gateway -.->|"Túnel inverso"| Mac
+    Gateway -.->|"Conexión directa"| Win
+
+    classDef entry fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#e2e8f0
+    classDef schedule fill:#0f172a,stroke:#6366f1,stroke-width:2px,color:#e2e8f0
+    classDef engine fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5
+    classDef platform fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7
+    classDef store fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fecaca
+    classDef buildnode fill:#1e1b4b,stroke:#8b5cf6,stroke-width:2px,color:#e0e7ff
+
+    class CLI,WebUI,Desktop,Gateway,Agent entry
+    class Queue,Auth,Email,Storage,Templates,AutoUpdate schedule
+    class Config,GitSync,Unity,Logs engine
+    class iOS,Android,TikTok platform
+    class ASC,GP,TT store
+    class Mac,Win buildnode
 ```
 
 La primera versión de BuildServer utiliza un diseño de máquina única, worker único y cola serie — por diseño: Unity, Xcode, Gradle, los certificados de firma y los directorios de caché generalmente no toleran la contención concurrente en la misma máquina. La escalabilidad multi-máquina es gestionada por LinuxGateway, distribuyendo la planificación concurrente entre diferentes nodos, con soporte de conexión directa y traversal NAT.
