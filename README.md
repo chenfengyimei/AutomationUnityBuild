@@ -136,66 +136,97 @@ codesign --force --deep --sign - ./AutomationUnityBuildIOS
 
 ```mermaid
 graph TB
-    Dev["开发机 / Windows / VS"] --> Publish["发布 CLI / BuildServer / DesktopApp"]
-    Publish --> Mac["Mac 打包机"]
-    Publish --> Win["Windows Android 节点"]
-
-    subgraph CLI["AutomationUnityBuildIOS CLI"]
-        Config["配置选择 / 配置编辑 / dry-run"]
-        Git["Git 同步"]
-        Unity["Unity BatchMode"]
-        Ios["iOS: Xcode archive/export"]
-        Android["Android: APK/AAB"]
-        Tiktok["TikTok: WebGL 构建"]
-        Logs["日志 / 配置快照 / 产物目录"]
+    subgraph Entry["🚀 用户入口"]
+        CLI["💻 CLI 终端<br/>快捷指令 · 交互向导 · dry-run"]
+        WebUI["🌐 BuildServer<br/>Web 控制台 · 任务队列"]
+        Desktop["🖥️ DesktopApp<br/>Avalonia 11 桌面客户端"]
+        Gateway["🌍 LinuxGateway<br/>多节点公网调度入口"]
+        Agent["🤖 MCP / Agent<br/>AI 工具受控调用"]
     end
 
-    Mac --> CLI
-    Win --> CLI
-    Config --> Git --> Unity
-    Unity --> Ios --> Logs
-    Unity --> Android --> Logs
-    Unity --> Tiktok --> Logs
-    Ios --> ASC["App Store Connect / TestFlight"]
-    Android --> GP["Google Play"]
-    Tiktok --> TT["TikTok 开放平台"]
-
-    subgraph Web["BuildServer"]
-        UI["Web 控制台"]
+    subgraph Schedule["📋 调度与管理"]
         Queue["串行任务队列"]
-        Audit["用户 / 权限 / 审计"]
-        Email["邮件通知"]
-        Storage["存储管理"]
-        MCP["MCP / Agent 工具"]
+        Auth["用户 · 权限 · 审计"]
+        Email["邮件通知<br/>SMTP 465 隐式 SSL"]
+        Storage["存储管理<br/>产物清理 · 批量删除"]
+        Templates["四类配置模板<br/>项目 / 工程 / 签名 / 证书"]
+        AutoUpdate["在线自更新<br/>Gitee + GitHub 双源"]
     end
 
-    UI --> Queue --> CLI
-    MCP --> Queue
-    Audit --> Queue
+    subgraph Engine["⚙️ 构建核心引擎"]
+        Config["配置选择 · 编辑 · 快照"]
+        GitSync["Git 仓库同步<br/>白名单 · 路径安全"]
+        Unity["Unity BatchMode<br/>自动化构建执行"]
+        Logs["日志 · 配置快照 · 产物目录"]
+    end
+
+    subgraph Platforms["📱 平台构建"]
+        iOS["🍎 iOS<br/>Xcode archive / export"]
+        Android["🤖 Android<br/>APK / AAB"]
+        TikTok["🎵 TikTok<br/>WebGL 构建"]
+    end
+
+    subgraph Stores["📦 商店发布"]
+        ASC["App Store Connect<br/>TestFlight 自动上传"]
+        GP["Google Play<br/>Publishing API · 灰度"]
+        TT["TikTok 开放平台<br/>API 上传"]
+    end
+
+    subgraph BuildNodes["🖥️ 构建节点"]
+        Mac["Mac 打包机<br/>iOS · Android"]
+        Win["Windows 节点<br/>Android"]
+    end
+
+    %% ── 入口 → 调度/引擎 ──
+    CLI --> Config
+    WebUI --> Queue
+    Desktop --> Templates
+    Desktop --> WebUI
+    Gateway --> Queue
+    Agent --> Queue
+
+    %% ── 调度内部 ──
+    Queue --> Config
+    Auth --> Queue
     Email --> Queue
-    Storage --> Audit
+    Storage --> Auth
+    Templates --> WebUI
+    AutoUpdate --> Gateway
 
-    subgraph Desktop["DesktopApp"]
-        DConfig["配置管理 / 模板填充"]
-        DBuild["打包执行 / 实时日志"]
-        DArtifacts["产物浏览"]
-        DSync["服务器同步"]
-    end
+    %% ── 构建流程 ──
+    Config --> GitSync --> Unity
+    Unity --> iOS
+    Unity --> Android
+    Unity --> TikTok
 
-    DConfig --> DSync
-    DSync --> Web
+    iOS --> Logs
+    Android --> Logs
+    TikTok --> Logs
 
-    subgraph Gateway["LinuxGateway"]
-        PublicUI["公网入口"]
-        Nodes["Mac / Windows 节点"]
-        Forward["任务转发 / 日志产物代理"]
-        Reverse["反向连接通道"]
-        Update["在线自更新"]
-    end
+    %% ── 商店发布 ──
+    iOS --> ASC
+    Android --> GP
+    TikTok --> TT
 
-    PublicUI --> Forward --> Nodes --> Web
-    Reverse --> Nodes
-    Update --> Gateway
+    %% ── 构建节点 ──
+    Mac --> Unity
+    Win --> Unity
+    Gateway -.->|"反向穿透"| Mac
+    Gateway -.->|"直连"| Win
+
+    classDef entry fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#e2e8f0
+    classDef schedule fill:#0f172a,stroke:#6366f1,stroke-width:2px,color:#e2e8f0
+    classDef engine fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5
+    classDef platform fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7
+    classDef store fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fecaca
+    classDef buildnode fill:#1e1b4b,stroke:#8b5cf6,stroke-width:2px,color:#e0e7ff
+
+    class CLI,WebUI,Desktop,Gateway,Agent entry
+    class Queue,Auth,Email,Storage,Templates,AutoUpdate schedule
+    class Config,GitSync,Unity,Logs engine
+    class iOS,Android,TikTok platform
+    class ASC,GP,TT store
+    class Mac,Win buildnode
 ```
 
 第一版 BuildServer 采用单机、单 Worker、串行队列设计，这是有意为之：Unity、Xcode、Gradle、签名证书和缓存目录通常不适合在同一台机器上并发抢占。多机器扩展由 LinuxGateway 负责，把并发调度分散到不同节点，同时支持直接连接和 NAT 穿透两种组网方式。
