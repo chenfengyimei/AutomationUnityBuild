@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unity 自动化打包平台</title>
-  <link rel="stylesheet" href="/styles.css?v=20260814-cert-gp-fields">
+  <link rel="stylesheet" href="/styles.css?v=20260814-unity-3fields">
 </head>
 <body>
   <main id="app">
@@ -434,16 +434,13 @@
           <div class="grid two">
             <form id="unityProfileForm" class="panel">
               <h3 id="unityProfileFormTitle">新增工程模板</h3>
-              <p class="muted">管理 Unity 工程设置：版本、路径、Build Method、Product Name、Bundle ID。</p>
+              <p class="muted">管理 Unity 工程设置：版本、路径。</p>
               <input id="unityProfileId" type="hidden">
               <label>模板名称<input id="unityProfileName" placeholder="例如：Unity 2022 主力工程" required></label>
               <div class="form-grid">
                 <label>Unity 工程相对路径<input id="unityProfileUnityPath" value="." placeholder="相对于仓库根目录，如 . 或 Client"></label>
                 <label>Unity 版本<input id="unityProfileUnityVersion" placeholder="2022.3.62f2c1"></label>
                 <label>Unity 完整路径<input id="unityProfileUnityExe" placeholder="绝对路径，如 /Applications/Unity/Hub/.../Unity.exe，留空自动推导"></label>
-                <label>Unity Build Method<input id="unityProfileBuildMethod" placeholder="留空自动推导"></label>
-                <label>Product Name<input id="unityProfileProductName" placeholder="游戏名称"></label>
-                <label>Bundle Identifier<input id="unityProfileBundleId" placeholder="com.company.game"></label>
               </div>
               <div class="form-actions">
                 <button id="unityProfileSaveBtn" type="submit">保存模板</button>
@@ -1158,7 +1155,7 @@
     </div>
   </section>
 
-  <script src="/runtime.js?v=20260814-cert-gp-fields"></script>
-  <script src="/app.js?v=20260814-cert-gp-fields"></script>
+  <script src="/runtime.js?v=20260814-unity-3fields"></script>
+  <script src="/app.js?v=20260814-unity-3fields"></script>
 </body>
 </html>

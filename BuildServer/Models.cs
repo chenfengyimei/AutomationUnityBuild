@@ -61,9 +61,6 @@ public sealed class UnityProjectProfileRecord
     public string UnityProjectRelativePath { get; set; } = ".";
     public string UnityVersion { get; set; } = "";
     public string UnityExecutablePath { get; set; } = "";
-    public string UnityBuildMethod { get; set; } = "";
-    public string ProductName { get; set; } = "";
-    public string BundleIdentifier { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 }
 
@@ -414,10 +411,7 @@ public sealed record UnityProjectProfileRequest(
     string Name,
     string? UnityProjectRelativePath = null,
     string? UnityVersion = null,
-    string? UnityExecutablePath = null,
-    string? UnityBuildMethod = null,
-    string? ProductName = null,
-    string? BundleIdentifier = null);
+    string? UnityExecutablePath = null);
 
 public sealed record CertificateProfileRequest(
     string Name,

@@ -3224,9 +3224,6 @@ function applyTemplateFill(type) {
     if (unity.unityProjectRelativePath) $("configUnityRelativePath").value = unity.unityProjectRelativePath;
     if (unity.unityVersion) $("configUnityVersion").value = unity.unityVersion;
     if (unity.unityExecutablePath) $("configUnityExecutablePath").value = unity.unityExecutablePath;
-    if (unity.unityBuildMethod) $("configUnityBuildMethod").value = unity.unityBuildMethod;
-    if (unity.productName) $("configProductName").value = unity.productName;
-    if (unity.bundleIdentifier) $("configBundleIdentifier").value = unity.bundleIdentifier;
     unitySection?.classList.add("hidden");
     showMessage(`已从工程模板「${unity.name}」填充 Unity 工程设置。`);
   }
@@ -3432,9 +3429,6 @@ async function saveUnityProfile(event) {
         unityProjectRelativePath: $("unityProfileUnityPath").value || null,
         unityVersion: $("unityProfileUnityVersion").value || null,
         unityExecutablePath: $("unityProfileUnityExe").value || null,
-        unityBuildMethod: $("unityProfileBuildMethod").value || null,
-        productName: $("unityProfileProductName").value || null,
-        bundleIdentifier: $("unityProfileBundleId").value || null,
       }),
     });
     resetUnityProfileForm();
@@ -3468,9 +3462,6 @@ function editUnityProfile(profileId) {
   $("unityProfileUnityPath").value = profile.unityProjectRelativePath || ".";
   $("unityProfileUnityVersion").value = profile.unityVersion || "";
   $("unityProfileUnityExe").value = profile.unityExecutablePath || "";
-  $("unityProfileBuildMethod").value = profile.unityBuildMethod || "";
-  $("unityProfileProductName").value = profile.productName || "";
-  $("unityProfileBundleId").value = profile.bundleIdentifier || "";
   $("unityProfileFormTitle").textContent = "编辑工程模板";
   $("unityProfileSaveBtn").textContent = "更新模板";
   $("unityProfileCancelBtn").classList.remove("hidden");
@@ -3516,8 +3507,8 @@ function renderUnityProfiles() {
     </header>
     <dl class="project-meta">
       <div><dt>Unity 版本</dt><dd>${escapeHtml(u.unityVersion || "-")}</dd></div>
-      <div><dt>Product Name</dt><dd>${escapeHtml(u.productName || "-")}</dd></div>
-      <div><dt>Bundle ID</dt><dd>${escapeHtml(u.bundleIdentifier || "-")}</dd></div>
+      <div><dt>工程路径</dt><dd>${escapeHtml(u.unityProjectRelativePath || "-")}</dd></div>
+      <div><dt>Unity 路径</dt><dd>${escapeHtml(u.unityExecutablePath || "-")}</dd></div>
     </dl>
   </article>`).join("");
 }

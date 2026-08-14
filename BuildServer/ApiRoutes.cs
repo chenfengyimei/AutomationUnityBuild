@@ -1876,9 +1876,6 @@ public static class ApiRoutes
                     UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim(),
                     UnityVersion = request.UnityVersion ?? "",
                     UnityExecutablePath = request.UnityExecutablePath ?? "",
-                    UnityBuildMethod = request.UnityBuildMethod ?? "",
-                    ProductName = request.ProductName ?? "",
-                    BundleIdentifier = request.BundleIdentifier ?? "",
                     CreatedAt = DateTimeOffset.Now
                 };
                 db.UnityProjectProfiles.Add(profile);
@@ -1909,9 +1906,6 @@ public static class ApiRoutes
                 profile.UnityProjectRelativePath = string.IsNullOrWhiteSpace(request.UnityProjectRelativePath) ? "." : request.UnityProjectRelativePath.Trim();
                 profile.UnityVersion = request.UnityVersion ?? "";
                 profile.UnityExecutablePath = request.UnityExecutablePath ?? "";
-                profile.UnityBuildMethod = request.UnityBuildMethod ?? "";
-                profile.ProductName = request.ProductName ?? "";
-                profile.BundleIdentifier = request.BundleIdentifier ?? "";
                 AuthService.AddAudit(db, user.Id, user.UserName, "unity-project-profile.update", "unity-project-profile", profile.Id, $"更新工程模板 {profile.Name}");
                 return profile;
             });
