@@ -1,4 +1,4 @@
-# AutomationUnityBuildIOS — Unity 全平台自动化打包发布系统
+# AutomationUnityBuild — Unity 全平台自动化打包发布系统
 
 > 一套经过生产验证的 Unity 移动端自动化构建与发布工具链。从 Git 同步、Unity BatchMode、Xcode/Android 构建到 App Store Connect / TestFlight、Google Play、TikTok 小游戏上传，再到 Web 打包平台、桌面客户端、多节点网关调度和 AI Agent 接入——它把整个发布流水线串成一条可落地、可追溯、可扩展的完整链路。
 
