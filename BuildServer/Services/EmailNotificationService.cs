@@ -43,14 +43,26 @@ public sealed class EmailNotificationService(
                 string.Equals(c.Email, recipient, StringComparison.OrdinalIgnoreCase));
 
             string body = BuildNotificationBody(job, projectName, configName, contact?.Title);
-            try
+
+            // 失败自动重试 3 次，指数退避，避免瞬时网络抖动导致邮件永久丢失
+            const int maxAttempts = 3;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                await SendEmailAsync(settings, recipient, subject, body);
-                logger.LogInformation("打包通知邮件已发送至 {Recipient}", recipient);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "发送打包通知邮件至 {Recipient} 失败", recipient);
+                try
+                {
+                    await SendEmailAsync(settings, recipient, subject, body);
+                    logger.LogInformation("打包通知邮件已发送至 {Recipient}（第 {Attempt} 次尝试）", recipient, attempt);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "发送打包通知邮件至 {Recipient} 失败（第 {Attempt}/{Max} 次尝试）",
+                        recipient, attempt, maxAttempts);
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
+                    }
+                }
             }
         }
     }
@@ -143,14 +155,21 @@ public sealed class EmailNotificationService(
     private static async Task SendWithImplicitSslAsync(
         EmailSettingsRecord settings, string toEmail, string subject, string body)
     {
+        // 全程 30 秒超时，防止网络异常时无限挂起
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(30));
+        CancellationToken ct = cts.Token;
+
         using TcpClient tcpClient = new();
-        await tcpClient.ConnectAsync(settings.SmtpHost, settings.SmtpPort);
+        await tcpClient.ConnectAsync(settings.SmtpHost, settings.SmtpPort, ct);
 
         using SslStream sslStream = new(
             tcpClient.GetStream(),
             leaveInnerStreamOpen: false,
             userCertificateValidationCallback: (_, _, _, _) => true);
-        await sslStream.AuthenticateAsClientAsync(settings.SmtpHost);
+        await sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+        {
+            TargetHost = settings.SmtpHost
+        }, ct);
 
         using StreamReader reader = new(sslStream, Encoding.ASCII);
         using StreamWriter writer = new(sslStream, Encoding.ASCII) { AutoFlush = true, NewLine = "\r\n" };
@@ -160,16 +179,14 @@ public sealed class EmailNotificationService(
 
         if (!string.IsNullOrWhiteSpace(settings.SmtpUserName))
         {
-            string token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"\0{settings.SmtpUserName}\0{settings.SmtpPassword}"));
-            await SendCommandAsync(writer, reader, "AUTH LOGIN");
-            await SendCommandAsync(writer, reader, Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.SmtpUserName)));
-            await SendCommandAsync(writer, reader, Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.SmtpPassword)));
-            await writer.WriteLineAsync($"AUTH PLAIN {token}");
-            string authResponse = await reader.ReadLineAsync() ?? "";
-            if (!authResponse.StartsWith("235", StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException($"SMTP 认证失败: {authResponse}");
-            }
+            // AUTH LOGIN 一次性完成认证，逐步校验响应码。
+            // 注意：认证成功后不能再发 AUTH（服务器按 RFC 4954 返回 503），
+            // 此前版本多余的 AUTH PLAIN 正是间歇性发送失败的根源。
+            await SendCommandAsync(writer, reader, "AUTH LOGIN", 334);
+            await SendCommandAsync(writer, reader,
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.SmtpUserName)), 334);
+            await SendCommandAsync(writer, reader,
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.SmtpPassword)), 235);
         }
 
         string fromAddress = settings.FromEmail;
@@ -209,20 +226,29 @@ public sealed class EmailNotificationService(
 
         using SmtpClient client = new(settings.SmtpHost, settings.SmtpPort);
         client.EnableSsl = settings.UseSsl;
+        client.Timeout = 30_000;
         if (!string.IsNullOrWhiteSpace(settings.SmtpUserName))
         {
             client.Credentials = new NetworkCredential(settings.SmtpUserName, settings.SmtpPassword);
         }
 
-        await client.SendMailAsync(message);
+        // SendMailAsync 不遵守 Timeout 属性，用超时竞速防止无限挂起
+        Task sendTask = client.SendMailAsync(message);
+        Task completed = await Task.WhenAny(sendTask, Task.Delay(TimeSpan.FromSeconds(35)));
+        if (completed != sendTask)
+        {
+            client.Dispose();
+            throw new TimeoutException($"SMTP 发送超时（35秒）：{settings.SmtpHost}:{settings.SmtpPort}");
+        }
+        await sendTask;
     }
 
-    private static async Task SendCommandAsync(StreamWriter writer, StreamReader reader, string command)
+    private static async Task SendCommandAsync(StreamWriter writer, StreamReader reader, string command, int? expectedCode = null)
     {
         await writer.WriteLineAsync(command);
         if (command != "DATA" && command != "QUIT")
         {
-            await ExpectResponseAsync(reader);
+            await ExpectResponseAsync(reader, expectedCode);
         }
     }
 
