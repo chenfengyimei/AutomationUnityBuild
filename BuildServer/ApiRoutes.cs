@@ -2304,6 +2304,23 @@ public static class ApiRoutes
                 return original;
             }
 
+            // 辅助：重写目录路径（非文件路径），用目标机器的默认值替换跨平台不兼容的绝对路径
+            string RemapRoot(string? original, string defaultRoot)
+            {
+                if (string.IsNullOrWhiteSpace(original)) return defaultRoot;
+                // ~/ 开头的是跨平台兼容的，保留
+                if (original.StartsWith("~/", StringComparison.Ordinal)) return original;
+                // $ 开头的是环境变量格式，保留
+                if (original.StartsWith('$')) return original;
+                // 相对路径保留
+                if (!Path.IsPathRooted(original)) return original;
+                // 绝对路径（如 C:\Users\...\UnityBuildWorkspace）替换为目标机器的默认值
+                return defaultRoot;
+            }
+
+            string defaultWorkspace = options.AllowedWorkspaceRoots.FirstOrDefault() ?? "~/UnityBuildWorkspace";
+            string defaultArtifacts = options.AllowedArtifactsRoots.FirstOrDefault() ?? "~/UnityBuildArtifacts";
+
             var result = await database.UpdateAsync(db =>
             {
                 int imported = 0;
@@ -2315,6 +2332,8 @@ public static class ApiRoutes
                     {
                         if (!db.Projects.Any(p => p.Id == item.Id))
                         {
+                            item.WorkspaceRoot = RemapRoot(item.WorkspaceRoot, defaultWorkspace);
+                            item.ArtifactsRoot = RemapRoot(item.ArtifactsRoot, defaultArtifacts);
                             db.Projects.Add(item);
                             imported++;
                         }
@@ -2342,6 +2361,8 @@ public static class ApiRoutes
                     {
                         if (!db.ProjectProfiles.Any(p => p.Id == item.Id))
                         {
+                            item.WorkspaceRoot = RemapRoot(item.WorkspaceRoot, defaultWorkspace);
+                            item.ArtifactsRoot = RemapRoot(item.ArtifactsRoot, defaultArtifacts);
                             db.ProjectProfiles.Add(item);
                             imported++;
                         }
