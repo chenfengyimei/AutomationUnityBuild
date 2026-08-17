@@ -2260,6 +2260,8 @@ public static class ApiRoutes
             }
 
             // 解包并写入密钥/配置文件到目标机器，构建路径映射表
+            string defaultWorkspace = options.AllowedWorkspaceRoots.FirstOrDefault() ?? "~/UnityBuildWorkspace";
+            string defaultArtifacts = options.AllowedArtifactsRoots.FirstOrDefault() ?? "~/UnityBuildArtifacts";
             var pathRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (payload["_bundledFiles"] is JsonNode bfNode && bfNode.AsObject().Count > 0)
             {
@@ -2267,6 +2269,28 @@ public static class ApiRoutes
                 Directory.CreateDirectory(secretsDir);
                 string configRoot = options.AllowedConfigRoots.FirstOrDefault() ?? Path.Combine(options.DataRoot, "configs");
                 Directory.CreateDirectory(configRoot);
+
+                // 辅助：重写配置文件内的文件路径到目标机器 secrets 目录
+                string RemapConfigFilePath(string? original, string secretsDir)
+                {
+                    if (string.IsNullOrWhiteSpace(original)) return "";
+                    string fileName = GetCrossPlatformFileName(original);
+                    if (string.IsNullOrWhiteSpace(fileName)) return original;
+                    // ~/ 开头或相对路径保留
+                    if (original.StartsWith("~/", StringComparison.Ordinal)) return original;
+                    if (!Path.IsPathRooted(original) && !original.Contains(':')) return original;
+                    return Path.Combine(secretsDir, fileName);
+                }
+
+                // 辅助：重写配置文件内的目录路径
+                string RemapConfigRoot(string? original, string defaultRoot)
+                {
+                    if (string.IsNullOrWhiteSpace(original)) return defaultRoot;
+                    if (original.StartsWith("~/", StringComparison.Ordinal)) return original;
+                    if (original.StartsWith('$')) return original;
+                    if (!Path.IsPathRooted(original) && !original.Contains(':')) return original;
+                    return defaultRoot;
+                }
 
                 foreach (var entry in bfNode.AsObject())
                 {
@@ -2284,7 +2308,54 @@ public static class ApiRoutes
                             || sourcePath.Contains("configs", StringComparison.OrdinalIgnoreCase));
                     string targetDir = isConfigFile ? configRoot : secretsDir;
                     string targetPath = Path.Combine(targetDir, fileName);
-                    File.WriteAllBytes(targetPath, Convert.FromBase64String(base64));
+
+                    if (isConfigFile)
+                    {
+                        // 配置文件内部也含路径字段（keystore/serviceJson/workspaceRoot 等），
+                        // 需要重写为目标机器的路径，否则打包时读到的仍是 Windows 路径
+                        byte[] fileBytes = Convert.FromBase64String(base64);
+                        string jsonContent = System.Text.Encoding.UTF8.GetString(fileBytes);
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(jsonContent);
+                            var jsonObj = System.Text.Json.Nodes.JsonNode.Parse(jsonContent)?.AsObject();
+                            if (jsonObj is not null)
+                            {
+                                // 重写文件内路径字段
+                                if (jsonObj["androidKeystoreName"] is var ks && ks is not null)
+                                    jsonObj["androidKeystoreName"] = RemapConfigFilePath(ks.GetValue<string>(), secretsDir);
+                                if (jsonObj["googlePlayServiceAccountJsonPath"] is var sj && sj is not null)
+                                    jsonObj["googlePlayServiceAccountJsonPath"] = RemapConfigFilePath(sj.GetValue<string>(), secretsDir);
+                                if (jsonObj["appStoreConnectApiKeyPath"] is var ak && ak is not null)
+                                    jsonObj["appStoreConnectApiKeyPath"] = RemapConfigFilePath(ak.GetValue<string>(), secretsDir);
+                                // 重写目录路径
+                                if (jsonObj["workspaceRoot"] is var wr && wr is not null)
+                                    jsonObj["workspaceRoot"] = RemapConfigRoot(wr.GetValue<string>(), defaultWorkspace);
+                                if (jsonObj["artifactsRoot"] is var ar && ar is not null)
+                                    jsonObj["artifactsRoot"] = RemapConfigRoot(ar.GetValue<string>(), defaultArtifacts);
+                                if (jsonObj["allowedWorkspaceRoots"] is var awr && awr is System.Text.Json.Nodes.JsonArray awrArr)
+                                {
+                                    for (int i = 0; i < awrArr.Count; i++)
+                                        awrArr[i] = RemapConfigRoot(awrArr[i]?.GetValue<string>() ?? "", defaultWorkspace);
+                                }
+                                if (jsonObj["allowedArtifactsRoots"] is var aar && aar is System.Text.Json.Nodes.JsonArray aarArr)
+                                {
+                                    for (int i = 0; i < aarArr.Count; i++)
+                                        aarArr[i] = RemapConfigRoot(aarArr[i]?.GetValue<string>() ?? "", defaultArtifacts);
+                                }
+                                jsonContent = jsonObj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                            }
+                        }
+                        catch
+                        {
+                            // JSON 解析失败时原样写入
+                        }
+                        File.WriteAllText(targetPath, jsonContent + Environment.NewLine, System.Text.Encoding.UTF8);
+                    }
+                    else
+                    {
+                        File.WriteAllBytes(targetPath, Convert.FromBase64String(base64));
+                    }
                     pathRemap[sourcePath] = targetPath;
                 }
             }
@@ -2330,9 +2401,6 @@ public static class ApiRoutes
                 // 绝对路径（如 C:\Users\...\UnityBuildWorkspace）替换为目标机器的默认值
                 return defaultRoot;
             }
-
-            string defaultWorkspace = options.AllowedWorkspaceRoots.FirstOrDefault() ?? "~/UnityBuildWorkspace";
-            string defaultArtifacts = options.AllowedArtifactsRoots.FirstOrDefault() ?? "~/UnityBuildArtifacts";
 
             var result = await database.UpdateAsync(db =>
             {
