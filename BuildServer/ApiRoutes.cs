@@ -2376,6 +2376,9 @@ public static class ApiRoutes
                     {
                         if (!db.UnityProjectProfiles.Any(p => p.Id == item.Id))
                         {
+                            // Unity 可执行文件路径是平台特定的（如 C:\Program Files\Unity\...\Unity.exe），
+                            // 无法跨平台迁移。清空后目标机器会按 UnityVersion 自动推导路径。
+                            item.UnityExecutablePath = "";
                             db.UnityProjectProfiles.Add(item);
                             imported++;
                         }
