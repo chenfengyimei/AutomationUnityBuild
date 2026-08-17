@@ -2301,6 +2301,19 @@ public static class ApiRoutes
                 {
                     if (GetCrossPlatformFileName(kv.Key) == fileName) return kv.Value;
                 }
+                // 未找到匹配：如果是绝对路径（如 C:\...\file.p8），按文件名重定向到目标机器
+                if (Path.IsPathRooted(original) || original.Contains(':'))
+                {
+                    if (string.IsNullOrWhiteSpace(fileName)) return "";
+                    string targetDir = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                        && !fileName.EndsWith(".keystore", StringComparison.OrdinalIgnoreCase)
+                        && !fileName.EndsWith(".p8", StringComparison.OrdinalIgnoreCase)
+                        && (fileName.StartsWith("build-", StringComparison.OrdinalIgnoreCase)
+                            || original.Contains("configs", StringComparison.OrdinalIgnoreCase))
+                        ? (options.AllowedConfigRoots.FirstOrDefault() ?? Path.Combine(options.DataRoot, "configs"))
+                        : Path.Combine(options.DataRoot, "secrets");
+                    return Path.Combine(targetDir, fileName);
+                }
                 return original;
             }
 
