@@ -2206,6 +2206,8 @@ public static class ApiRoutes
             pathFields.AddRange(db.CertificateProfiles.Select(c => c.AppStoreConnectApiKeyPath));
             pathFields.AddRange(db.CertificateProfiles.Select(c => c.GooglePlayServiceAccountJsonPath));
             pathFields.AddRange(db.SigningProfiles.Select(s => s.AndroidKeystoreName));
+            // 配置文件（build-*.json）也要打包，否则跨机器导入后 ConfigPath 指向不存在的文件
+            pathFields.AddRange(db.Configs.Select(c => c.ConfigPath));
 
             foreach (string? path in pathFields)
             {
@@ -2257,21 +2259,31 @@ public static class ApiRoutes
                 throw new InvalidOperationException("导入数据为空。");
             }
 
-            // 解包并写入密钥文件到目标机器，构建路径映射表
+            // 解包并写入密钥/配置文件到目标机器，构建路径映射表
             var pathRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (payload["_bundledFiles"] is JsonNode bfNode && bfNode.AsObject().Count > 0)
             {
                 string secretsDir = Path.Combine(options.DataRoot, "secrets");
                 Directory.CreateDirectory(secretsDir);
+                string configRoot = options.AllowedConfigRoots.FirstOrDefault() ?? Path.Combine(options.DataRoot, "configs");
+                Directory.CreateDirectory(configRoot);
+
                 foreach (var entry in bfNode.AsObject())
                 {
                     string sourcePath = entry.Key;
                     string? base64 = entry.Value?.GetValue<string>();
                     if (string.IsNullOrEmpty(base64)) continue;
-                    // 跨平台文件名提取：兼容 / 和 \ 两种分隔符
                     string fileName = GetCrossPlatformFileName(sourcePath);
                     if (string.IsNullOrWhiteSpace(fileName)) continue;
-                    string targetPath = Path.Combine(secretsDir, fileName);
+
+                    // 配置文件（.json）写入 configRoot，密钥文件写入 secretsDir
+                    bool isConfigFile = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                        && !fileName.EndsWith(".keystore", StringComparison.OrdinalIgnoreCase)
+                        && !fileName.EndsWith(".p8", StringComparison.OrdinalIgnoreCase)
+                        && (fileName.StartsWith("build-", StringComparison.OrdinalIgnoreCase)
+                            || sourcePath.Contains("configs", StringComparison.OrdinalIgnoreCase));
+                    string targetDir = isConfigFile ? configRoot : secretsDir;
+                    string targetPath = Path.Combine(targetDir, fileName);
                     File.WriteAllBytes(targetPath, Convert.FromBase64String(base64));
                     pathRemap[sourcePath] = targetPath;
                 }
@@ -2316,6 +2328,7 @@ public static class ApiRoutes
                     {
                         if (!db.Configs.Any(c => c.Id == item.Id))
                         {
+                            item.ConfigPath = RemapPath(item.ConfigPath);
                             db.Configs.Add(item);
                             imported++;
                         }
