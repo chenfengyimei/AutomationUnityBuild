@@ -2134,6 +2134,17 @@ public static class ApiRoutes
 
     // ---- Data Export / Import ----
 
+    /// <summary>
+    /// 跨平台文件名提取：同时兼容 Windows 反斜杠和 Unix 正斜杠分隔符。
+    /// Path.GetFileName 在 Unix 上不认识 '\'，会把整个 Windows 路径当作文件名。
+    /// </summary>
+    private static string GetCrossPlatformFileName(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        int lastSlash = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
+        return lastSlash >= 0 ? path[(lastSlash + 1)..] : path;
+    }
+
     private static readonly string[] ExportCategories =
     [
         "projects", "configs", "projectProfiles", "unityProjectProfiles",
@@ -2199,12 +2210,25 @@ public static class ApiRoutes
             foreach (string? path in pathFields)
             {
                 if (string.IsNullOrWhiteSpace(path)) continue;
-                string full = Path.GetFullPath(path);
-                if (bundledFiles.ContainsKey(full)) continue;
-                if (File.Exists(full))
+                // 候选位置：原样路径、DataRoot/secrets/<文件名>（处理只存文件名的情况）
+                string fileName = GetCrossPlatformFileName(path);
+                var candidates = new List<string>();
+                if (Path.IsPathRooted(path)) candidates.Add(path);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                    candidates.Add(Path.Combine(options.DataRoot, "secrets", fileName));
+
+                foreach (string candidate in candidates)
                 {
-                    byte[] bytes = File.ReadAllBytes(full);
-                    bundledFiles[full] = Convert.ToBase64String(bytes);
+                    string full;
+                    try { full = Path.GetFullPath(candidate); }
+                    catch { continue; }
+                    if (bundledFiles.ContainsKey(full)) continue;
+                    if (File.Exists(full))
+                    {
+                        byte[] bytes = File.ReadAllBytes(full);
+                        bundledFiles[full] = Convert.ToBase64String(bytes);
+                        break;
+                    }
                 }
             }
 
@@ -2244,7 +2268,8 @@ public static class ApiRoutes
                     string sourcePath = entry.Key;
                     string? base64 = entry.Value?.GetValue<string>();
                     if (string.IsNullOrEmpty(base64)) continue;
-                    string fileName = Path.GetFileName(sourcePath);
+                    // 跨平台文件名提取：兼容 / 和 \ 两种分隔符
+                    string fileName = GetCrossPlatformFileName(sourcePath);
                     if (string.IsNullOrWhiteSpace(fileName)) continue;
                     string targetPath = Path.Combine(secretsDir, fileName);
                     File.WriteAllBytes(targetPath, Convert.FromBase64String(base64));
@@ -2259,10 +2284,10 @@ public static class ApiRoutes
                 // 精确匹配
                 if (pathRemap.TryGetValue(original, out var mapped)) return mapped;
                 // 尝试文件名匹配（跨平台路径差异）
-                string fileName = Path.GetFileName(original);
+                string fileName = GetCrossPlatformFileName(original);
                 foreach (var kv in pathRemap)
                 {
-                    if (Path.GetFileName(kv.Key) == fileName) return kv.Value;
+                    if (GetCrossPlatformFileName(kv.Key) == fileName) return kv.Value;
                 }
                 return original;
             }
