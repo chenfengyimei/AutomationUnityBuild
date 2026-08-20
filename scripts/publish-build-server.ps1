@@ -12,8 +12,13 @@ $output = Join-Path $publishRoot "build-server-$Runtime"
 $outputFullPath = [System.IO.Path]::GetFullPath($output)
 $stagingPath = Join-Path $publishRoot (".staging-build-server-$Runtime-" + [Guid]::NewGuid().ToString("N"))
 $executableSuffix = if ($Runtime.StartsWith("win", [System.StringComparison]::OrdinalIgnoreCase)) { ".exe" } else { "" }
+$pathComparison = if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
 
-if (-not $outputFullPath.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $outputFullPath.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, $pathComparison)) {
     throw "Publish output must stay under publish directory: $outputFullPath"
 }
 

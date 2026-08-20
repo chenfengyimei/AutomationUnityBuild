@@ -117,8 +117,9 @@ public class ConfigPageViewModel : ViewModelBase
         string fileName = string.IsNullOrEmpty(name)
             ? $"build-{platform}.json"
             : $"build-{platform}.{name}.json";
+        fileName = DesktopPaths.MakePortableFileName(fileName, $"build-{platform}.json");
         string? dir = Path.GetDirectoryName(EditConfig.FullPath);
-        if (string.IsNullOrEmpty(dir)) dir = Environment.CurrentDirectory;
+        if (string.IsNullOrEmpty(dir)) dir = DesktopPaths.ConfigsDirectory;
         EditConfig.FullPath = Path.Combine(dir, fileName);
     }
 
@@ -384,7 +385,7 @@ public class ConfigPageViewModel : ViewModelBase
         Configs.Clear();
         try
         {
-            var entries = ConfigFileSelector.FindConfigFiles();
+            var entries = ConfigFileSelector.FindConfigFiles(DesktopPaths.DataRoot);
             foreach (var entry in entries)
             {
                 var item = new ConfigItem
@@ -488,7 +489,7 @@ public class ConfigPageViewModel : ViewModelBase
 
             EditConfig = new ConfigItem
             {
-                FullPath = Path.Combine(Environment.CurrentDirectory, "configs", fileName),
+                FullPath = Path.Combine(DesktopPaths.ConfigsDirectory, fileName),
                 Platform = platform,
                 RawJson = template
             };
@@ -651,7 +652,7 @@ public class ConfigPageViewModel : ViewModelBase
     {
         try
         {
-            string dir = Environment.CurrentDirectory;
+            string dir = DesktopPaths.ConfigsDirectory;
             if (OperatingSystem.IsWindows())
                 Process.Start(new ProcessStartInfo("explorer.exe", dir) { UseShellExecute = true });
             else if (OperatingSystem.IsMacOS())
@@ -691,9 +692,11 @@ public class ConfigPageViewModel : ViewModelBase
             }
 
             string srcPath = files[0].Path.LocalPath;
-            string fileName = Path.GetFileName(srcPath);
+            string fileName = DesktopPaths.MakePortableFileName(
+                Path.GetFileName(srcPath),
+                "build-config.json");
 
-            string destDir = Path.Combine(Environment.CurrentDirectory, "configs");
+            string destDir = DesktopPaths.ConfigsDirectory;
             Directory.CreateDirectory(destDir);
             string destPath = Path.Combine(destDir, fileName);
 

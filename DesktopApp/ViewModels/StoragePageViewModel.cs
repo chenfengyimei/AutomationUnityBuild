@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using AutomationUnityBuildIOS;
+using DesktopApp.Services;
 
 namespace DesktopApp.ViewModels;
 
@@ -92,7 +93,7 @@ public class StoragePageViewModel : ViewModelBase
         Configs.Clear();
         try
         {
-            foreach (var entry in ConfigFileSelector.FindConfigFiles())
+            foreach (var entry in ConfigFileSelector.FindConfigFiles(DesktopPaths.DataRoot))
             {
                 var item = new ConfigItem
                 {

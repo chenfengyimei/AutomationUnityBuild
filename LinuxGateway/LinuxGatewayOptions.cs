@@ -38,6 +38,10 @@ public sealed class LinuxGatewayOptions
         }
 
         options.DataRoot = ResolvePath(options.DataRoot, environment.ContentRootPath);
+        if (IsFilesystemRoot(options.DataRoot))
+        {
+            throw new InvalidOperationException($"LINUX_GATEWAY_DATA_ROOT 不能指向文件系统根目录: {options.DataRoot}");
+        }
         options.AllowedOrigins = options.AllowedOrigins
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().TrimEnd('/'))
@@ -82,16 +86,46 @@ public sealed class LinuxGatewayOptions
 
     public static string ExpandHome(string path)
     {
-        if (string.IsNullOrWhiteSpace(path) || path == "~")
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        if (path == "~")
         {
             return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
 
-        if (path.StartsWith("~/") || path.StartsWith("~\\"))
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
         {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path[2..]);
+            string relativePath = path[1..]
+                .TrimStart('/', '\\')
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), relativePath);
         }
 
         return path;
+    }
+
+    private static bool IsFilesystemRoot(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        string? root = Path.GetPathRoot(fullPath);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return true;
+        }
+
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), comparison);
     }
 }

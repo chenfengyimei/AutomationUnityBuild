@@ -82,7 +82,8 @@ public sealed class StorageCleanupService(
         try
         {
             string fullPath = Path.GetFullPath(path);
-            if (IsUnsafeDeleteTarget(fullPath) || !allowedRoots.Any(root => IsSameOrChild(fullPath, root)))
+            if (BuildServerPathSafety.IsFilesystemRoot(fullPath) ||
+                !allowedRoots.Any(root => BuildServerPathSafety.IsSafeSameOrChild(fullPath, root)))
             {
                 logger.LogWarning("拒绝清理危险路径: {Path}", fullPath);
                 return;
@@ -105,33 +106,4 @@ public sealed class StorageCleanupService(
         }
     }
 
-    private static bool IsUnsafeDeleteTarget(string path)
-    {
-        string? root = Path.GetPathRoot(path);
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            return true;
-        }
-
-        string normalized = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return normalized.Length == 0 || normalized.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsSameOrChild(string path, string root)
-    {
-        string normalizedPath = NormalizeDirectory(path);
-        string normalizedRoot = NormalizeDirectory(root);
-        StringComparison comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        return normalizedPath.Equals(normalizedRoot, comparison) ||
-               normalizedPath.StartsWith(normalizedRoot, comparison);
-    }
-
-    private static string NormalizeDirectory(string path)
-    {
-        string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return fullPath + Path.DirectorySeparatorChar;
-    }
 }

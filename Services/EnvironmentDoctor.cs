@@ -23,7 +23,8 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
                     throw new FileNotFoundException(
                         "找不到 Unity 可执行文件。请在配置中设置 unityExecutablePath 或 unityVersion。" + Environment.NewLine +
                         "macOS 默认路径示例: /Applications/Unity/Hub/Editor/2022.3.62f2c1/Unity.app/Contents/MacOS/Unity" + Environment.NewLine +
-                        "Windows 默认路径示例: C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f2c1\\Unity.exe");
+                        "Windows 默认路径示例: C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f2c1\\Unity.exe" + Environment.NewLine +
+                        "Linux 默认路径示例: ~/Unity/Hub/Editor/2022.3.62f2c1/Editor/Unity");
                 }
 
                 _logger.Warn("[dry-run] 未配置 Unity 可执行文件，正式打包时会失败。请设置 unityExecutablePath 或 unityVersion。");
@@ -41,6 +42,16 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
 
         if (_config.IsIos && !_options.SkipXcode)
         {
+            if (!_config.GenerateExportOptionsPlist)
+            {
+                if (!_options.DryRun && !File.Exists(_paths.ExportOptionsPlistPath))
+                {
+                    throw new FileNotFoundException($"ExportOptions.plist 不存在: {_paths.ExportOptionsPlistPath}");
+                }
+
+                _logger.Info($"ExportOptions.plist: {_paths.ExportOptionsPlistPath}");
+            }
+
             if (!OperatingSystem.IsMacOS() && _options.AllowNonMac)
             {
                 _logger.Warn("--allow-non-mac：非 macOS 环境，跳过 xcodebuild 版本检查。Xcode 归档/导出步骤将不可用。");
@@ -52,7 +63,7 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
 
             if (_config.AppStoreConnectUploadEnabled)
             {
-                string apiKeyPath = Path.GetFullPath(PathTools.ExpandHome(_config.AppStoreConnectApiKeyPath));
+                string apiKeyPath = _config.ResolveConfiguredPath(_config.AppStoreConnectApiKeyPath);
                 if (!_options.DryRun && !File.Exists(apiKeyPath))
                 {
                     throw new FileNotFoundException($"App Store Connect API Key .p8 文件不存在: {apiKeyPath}");
@@ -67,7 +78,7 @@ internal sealed class EnvironmentDoctor(BuildRunContext context)
             _logger.Info("Android 打包不需要 Xcode。");
             if (_config.GooglePlayUploadEnabled)
             {
-                string serviceAccountPath = Path.GetFullPath(PathTools.ExpandHome(_config.GooglePlayServiceAccountJsonPath));
+                string serviceAccountPath = _config.ResolveConfiguredPath(_config.GooglePlayServiceAccountJsonPath);
                 if (!_options.DryRun && !File.Exists(serviceAccountPath))
                 {
                     throw new FileNotFoundException($"Google Play Service Account JSON 不存在: {serviceAccountPath}");

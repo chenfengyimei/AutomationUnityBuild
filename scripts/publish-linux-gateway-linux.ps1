@@ -10,8 +10,13 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 $publishRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "publish"))
 $publishDir = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $Output))
+$pathComparison = if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
 
-if (-not $publishDir.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $publishDir.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, $pathComparison)) {
     throw "LinuxGateway publish output must stay under publish directory: $publishDir"
 }
 

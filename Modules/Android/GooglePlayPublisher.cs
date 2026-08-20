@@ -124,9 +124,9 @@ internal sealed class GooglePlayPublisher(BuildRunContext context)
         return artifacts;
     }
 
-    private static string ResolveSecretPath(string path)
+    private string ResolveSecretPath(string path)
     {
-        string fullPath = Path.GetFullPath(PathTools.ExpandHome(path));
+        string fullPath = _config.ResolveConfiguredPath(path);
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException($"Google Play Service Account JSON 不存在: {fullPath}");

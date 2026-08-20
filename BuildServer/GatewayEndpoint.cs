@@ -9,7 +9,7 @@ namespace BuildServer;
 
 public static class GatewayEndpoint
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(BuildServerPathSafety.Comparer);
 
     public static void Map(WebApplication app)
     {
@@ -232,27 +232,9 @@ public static class GatewayEndpoint
         string fullPath = Path.GetFullPath(path);
         string fullRoot = Path.GetFullPath(job.ArtifactRoot);
         bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
-                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(fullPath, root));
-        StringComparison comparison = PathComparison();
+                                options.AllowedArtifactsRoots.Any(root => BuildServerPathSafety.IsSafeSameOrChild(fullPath, root));
         return underAllowedRoot &&
-               (fullPath.Equals(fullRoot, comparison) ||
-                fullPath.StartsWith(fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison));
-    }
-
-    private static bool IsSameOrChild(string path, string root)
-    {
-        string normalizedPath = NormalizeDirectory(path);
-        string normalizedRoot = NormalizeDirectory(root);
-        StringComparison comparison = PathComparison();
-        return normalizedPath.Equals(normalizedRoot, comparison) ||
-               normalizedPath.StartsWith(normalizedRoot, comparison);
-    }
-
-    private static string NormalizeDirectory(string path)
-    {
-        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(path))
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return fullPath + Path.DirectorySeparatorChar;
+               BuildServerPathSafety.IsSafeSameOrChild(fullPath, fullRoot);
     }
 
     private static async Task EnsureZipAsync(string sourceDirectory, string zipPath)
@@ -289,13 +271,6 @@ public static class GatewayEndpoint
         {
             semaphore.Release();
         }
-    }
-
-    private static StringComparison PathComparison()
-    {
-        return OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
     }
 
     private static string OperatingSystemName()

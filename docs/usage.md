@@ -330,6 +330,10 @@ iOS 正式打包仍然必须在 macOS 上执行。
 | `autoIncrementBuildNumber` | 正式构建成功后是否自动递增构建号 |
 | `saveConfigSnapshot` | 是否在日志目录保存本次配置快照 |
 
+仅填写 `unityVersion` 时，默认定位规则分别是 macOS `/Applications/Unity/Hub/Editor/<版本>/Unity.app/Contents/MacOS/Unity`、Windows `Program Files/Unity/Hub/Editor/<版本>/Editor/Unity.exe`、Linux `~/Unity/Hub/Editor/<版本>/Editor/Unity`。若 Unity Hub 安装在自定义目录，请直接填写本机绝对 `unityExecutablePath`。跨机器导入配置时会清空这个平台专属字段，并在目标机器按 `unityVersion` 重新定位。
+
+路径解析不依赖进程启动目录：配置文件里的相对工作区、产物根、Unity 可执行文件、keystore、API Key、Service Account 和外部 `ExportOptions.plist` 均相对于配置文件所在目录；各构建输出字段的相对路径则相对于本次产物目录。`~` 在 Windows、macOS 和 Linux 上均展开为当前用户主目录。直接复用其他系统的绝对路径时会明确报错，而平台专属的 `unityExecutablePath` 会自动改按 `unityVersion` 在当前机器重新定位。
+
 最容易填错的三个值：
 
 ```text
@@ -569,6 +573,8 @@ TikTok 相关代码在 `Modules/Tiktok/` 目录下，与 iOS/Android 完全独�
 
 DesktopApp 是基于 Avalonia UI 11 + .NET 8 的原生 Windows 桌面客户端，复用主项目全部核心逻辑（AutomationWorkflow / BuildConfig / ConfigFileSelector / SampleFiles）。它把 CLI、BuildServer 和模板管理的能力整合到一个桌面应用中，所有操作离线可用。
 
+DesktopApp 的配置和模板不再依赖启动时的当前工作目录，默认保存在操作系统用户数据目录：Windows 为 `%LOCALAPPDATA%/AutomationUnityBuildIOS/DesktopApp`，macOS 为 `~/Library/Application Support/AutomationUnityBuildIOS/DesktopApp`，Linux 通常为 `~/.local/share/AutomationUnityBuildIOS/DesktopApp`。如需便携模式，可用环境变量 `AUTOMATION_UNITY_DESKTOP_DATA_ROOT` 指定数据根目录。升级后首次启动会从旧版启动目录和程序目录复制已有 `profiles/`、`configs/` 文件，已存在的目标文件不会被覆盖。
+
 ### 功能页面
 
 | 页面 | 功能 |
@@ -610,7 +616,7 @@ Stop-Process -Name DesktopApp -Force
 
 ### 模板管理
 
-DesktopApp 提供四类配置模板，数据存储在 `profiles/` 目录下：
+DesktopApp 提供四类配置模板，数据存储在上述数据根目录的 `profiles/` 子目录下：
 
 | 模板 | 文件 | 用途 |
 |------|------|------|
@@ -629,9 +635,9 @@ DesktopApp 可以连接 BuildServer REST API 进行双向同步：
 - **证书模板**：拉取/上传
 - **配置文件**：浏览服务器配置列表 + 下载到本地 `configs/` 目录
 
-连接信息持久化到 `profiles/server-settings.json`。
+连接信息持久化到数据根目录下的 `profiles/server-settings.json`。
 
-配置管理页另提供「导入配置文件」按钮，可从本地任意位置导入 JSON 到 `configs/` 目录。
+配置管理页另提供「导入配置文件」按钮，可从本地任意位置导入 JSON 到数据根目录下的 `configs/` 目录。
 
 ---
 
@@ -1064,6 +1070,7 @@ iOS 任务只能发到支持 `ios` 的 Mac 节点；Windows 节点通常只适�
 - 生产环境必须设置强密码，不要依赖初始密码文件长期使用。
 - `BUILD_SERVER_AGENT_TOKEN`、`BUILD_SERVER_GATEWAY_TOKEN`、Enrollment Token 不要放 URL，使用 Header 或服务端表单保存。
 - LinuxGateway 和 BuildServer 的数据目录会保存用户、任务、节点凭据或 Token，必须限制系统权限。
+- `BUILD_SERVER_DATA_ROOT`、`LINUX_GATEWAY_DATA_ROOT`、`AUTOMATION_UNITY_DESKTOP_DATA_ROOT` 以及 BuildServer 的工作区/产物/配置允许根均不能设置为磁盘/文件系统根目录。工作区、产物和配置白名单采用当前操作系统的大小写规则；安全读写、下载和清理路径不得通过白名单根目录下的符号链接或 Windows Junction 跳转，确需使用链接目录时应把真实物理目录直接加入白名单。
 - BuildServer 建议配置 `BUILD_SERVER_ALLOWED_WORKSPACE_ROOTS`、`BUILD_SERVER_ALLOWED_ARTIFACTS_ROOTS`、`BUILD_SERVER_ALLOWED_CONFIG_ROOTS` 和 `BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS`。
 - 节点后台如果只给 LinuxGateway 使用，尽量不要把普通管理后台直接暴露到公网。
 - iOS 证书、描述文件、App Store Connect `.p8`、Android keystore、Google Play Service Account JSON 都应只放在打包机本地安全目录。
@@ -1110,7 +1117,7 @@ iOS 任务只能发到支持 `ios` 的 Mac 节点；Windows 节点通常只适�
 - Android sample dry-run。
 - 配置编辑器打开并退出。
 
-测试套件覆盖 256+ 个用例，涵盖 CLI 参数解析、配置模型、路径安全、Git 策略、Unity 命令构建、Google Play API、TikTok 配置、BuildServer API 路由、LinuxGateway 节点通信、反向连接、邮件通知等全部模块。
+测试套件覆盖 323+ 个用例，涵盖 CLI 参数解析、配置模型、路径安全、Git 策略、Unity 命令构建、Google Play API、TikTok 配置、BuildServer API 路由、LinuxGateway 节点通信、反向连接、邮件通知等全部模块。
 
 运行完整测试：
 

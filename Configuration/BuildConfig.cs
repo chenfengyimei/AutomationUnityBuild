@@ -5,6 +5,9 @@ namespace AutomationUnityBuildIOS;
 
 internal sealed partial class BuildConfig
 {
+    [JsonIgnore]
+    internal string SourceDirectory { get; private set; } = "";
+
     public string ConfigName { get; set; } = "";
     public string BuildPlatform { get; set; } = BuildPlatforms.Ios;
     public string RepositoryUrl { get; set; } = "";
@@ -104,9 +107,30 @@ internal sealed partial class BuildConfig
             throw new InvalidOperationException($"配置文件为空或格式不正确: {fullPath}");
         }
 
+        config.SourceDirectory = Path.GetDirectoryName(fullPath) ?? System.Environment.CurrentDirectory;
         config.NormalizeLoadedValues();
         config.Validate();
         return config;
+    }
+
+    internal string ResolveConfiguredPath(string path)
+    {
+        string expanded = PathTools.ExpandHome(path);
+        if (Path.IsPathFullyQualified(expanded))
+        {
+            return Path.GetFullPath(expanded);
+        }
+
+        if (PathTools.IsAbsolutePathFromAnyPlatform(expanded))
+        {
+            throw new InvalidOperationException(
+                $"配置路径属于其他操作系统，无法在当前机器上解析: {path}");
+        }
+
+        string baseDirectory = string.IsNullOrWhiteSpace(SourceDirectory)
+            ? System.Environment.CurrentDirectory
+            : SourceDirectory;
+        return Path.GetFullPath(expanded, Path.GetFullPath(baseDirectory));
     }
 
     private void NormalizeLoadedValues()
@@ -117,7 +141,7 @@ internal sealed partial class BuildConfig
         AllowedRepositoryUrls = NormalizeRepositoryList(AllowedRepositoryUrls);
         Branch ??= "";
         WorkspaceRoot ??= "";
-        AllowedWorkspaceRoots = NormalizeStringList(AllowedWorkspaceRoots);
+        AllowedWorkspaceRoots = NormalizePathList(AllowedWorkspaceRoots);
         ProjectDirectoryName ??= "";
         UnityProjectRelativePath ??= "";
         UnityVersion ??= "";
@@ -126,7 +150,7 @@ internal sealed partial class BuildConfig
             ? DefaultUnityBuildMethod()
             : UnityBuildMethod.Trim();
         ArtifactsRoot ??= "";
-        AllowedArtifactsRoots = NormalizeStringList(AllowedArtifactsRoots);
+        AllowedArtifactsRoots = NormalizePathList(AllowedArtifactsRoots);
         XcodeOutputDirectory ??= "";
         ArchivePath ??= "";
         ExportPath ??= "";
@@ -191,6 +215,18 @@ internal sealed partial class BuildConfig
             .ToList() ?? [];
     }
 
+    private static List<string> NormalizePathList(List<string>? values)
+    {
+        StringComparer comparer = OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+        return values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(comparer)
+            .ToList() ?? [];
+    }
+
     private void Validate()
     {
         if (!BuildPlatforms.IsKnown(BuildPlatform))
@@ -206,6 +242,16 @@ internal sealed partial class BuildConfig
         if (string.IsNullOrWhiteSpace(Branch))
         {
             throw new InvalidOperationException("配置 branch 不能为空。");
+        }
+
+        if (string.IsNullOrWhiteSpace(WorkspaceRoot))
+        {
+            throw new InvalidOperationException("配置 workspaceRoot 不能为空。");
+        }
+
+        if (string.IsNullOrWhiteSpace(ArtifactsRoot))
+        {
+            throw new InvalidOperationException("配置 artifactsRoot 不能为空。");
         }
 
         if (string.IsNullOrWhiteSpace(UnityBuildMethod))

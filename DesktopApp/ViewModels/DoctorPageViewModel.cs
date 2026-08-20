@@ -49,7 +49,7 @@ public class DoctorPageViewModel : ViewModelBase
         Configs.Clear();
         try
         {
-            foreach (var entry in ConfigFileSelector.FindConfigFiles())
+            foreach (var entry in ConfigFileSelector.FindConfigFiles(DesktopPaths.DataRoot))
             {
                 var item = new ConfigItem
                 {

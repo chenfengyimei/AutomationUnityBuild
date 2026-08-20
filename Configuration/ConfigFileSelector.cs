@@ -4,21 +4,24 @@ namespace AutomationUnityBuildIOS;
 
 internal static class ConfigFileSelector
 {
-    public static IReadOnlyList<ConfigFileEntry> FindConfigFiles()
+    public static IReadOnlyList<ConfigFileEntry> FindConfigFiles(string? searchRoot = null)
     {
-        var files = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        AddFiles(Environment.CurrentDirectory, "build-ios*.json", files);
-        AddFiles(Environment.CurrentDirectory, "build-android*.json", files);
-        AddFiles(Environment.CurrentDirectory, "*.iosbuild.json", files);
-        AddFiles(Environment.CurrentDirectory, "*.androidbuild.json", files);
+        string root = Path.GetFullPath(string.IsNullOrWhiteSpace(searchRoot)
+            ? Environment.CurrentDirectory
+            : searchRoot);
+        var files = new SortedSet<string>(PathStringComparer());
+        AddFiles(root, "build-ios*.json", files);
+        AddFiles(root, "build-android*.json", files);
+        AddFiles(root, "*.iosbuild.json", files);
+        AddFiles(root, "*.androidbuild.json", files);
 
-        string configsDirectory = Path.Combine(Environment.CurrentDirectory, "configs");
+        string configsDirectory = Path.Combine(root, "configs");
         AddFiles(configsDirectory, "*.json", files);
 
         return files
             .Where(file => !Path.GetFileName(file).Equals("build-ios.sample.json", StringComparison.OrdinalIgnoreCase))
             .Where(file => !Path.GetFileName(file).Equals("build-android.sample.json", StringComparison.OrdinalIgnoreCase))
-            .Select(CreateEntry)
+            .Select(file => CreateEntry(file, root))
             .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.DisplayPath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -92,17 +95,27 @@ internal static class ConfigFileSelector
         }
     }
 
-    private static ConfigFileEntry CreateEntry(string fullPath)
+    private static ConfigFileEntry CreateEntry(string fullPath, string searchRoot)
     {
-        string displayPath = ToDisplayPath(fullPath);
+        string displayPath = ToDisplayPath(fullPath, searchRoot);
         string displayName = ReadDisplayName(fullPath);
         return new ConfigFileEntry(fullPath, displayPath, displayName);
     }
 
-    private static string ToDisplayPath(string fullPath)
+    private static string ToDisplayPath(string fullPath, string searchRoot)
     {
-        string relative = Path.GetRelativePath(Environment.CurrentDirectory, fullPath);
-        return relative.StartsWith("..", StringComparison.Ordinal) ? fullPath : relative;
+        string relative = Path.GetRelativePath(searchRoot, fullPath);
+        bool outsideCurrentDirectory = relative == ".." ||
+                                       relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+                                       relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+        return outsideCurrentDirectory ? fullPath : relative;
+    }
+
+    private static StringComparer PathStringComparer()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
     }
 
     private static string ReadDisplayName(string fullPath)

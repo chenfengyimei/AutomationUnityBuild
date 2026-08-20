@@ -280,11 +280,11 @@ public class SyncPageViewModel : ViewModelBase
                 return;
             }
 
-            string configsDir = Path.Combine(Environment.CurrentDirectory, "configs");
+            string configsDir = DesktopPaths.ConfigsDirectory;
             Directory.CreateDirectory(configsDir);
-            string fileName = $"{SelectedServerConfig.Name}-{SelectedServerConfig.BuildPlatform}.json";
-            foreach (char c in Path.GetInvalidFileNameChars())
-                fileName = fileName.Replace(c, '-');
+            string fileName = DesktopPaths.MakePortableFileName(
+                $"{SelectedServerConfig.Name}-{SelectedServerConfig.BuildPlatform}.json",
+                "build-config.json");
             string path = Path.Combine(configsDir, fileName);
             await File.WriteAllTextAsync(path, json + Environment.NewLine);
             StatusMessage = $"✅ 配置已下载到: {path}";

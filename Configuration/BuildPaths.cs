@@ -28,17 +28,19 @@ internal sealed record BuildPaths(
     public static BuildPaths Create(BuildConfig config)
     {
         string runId = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss-fff");
-        string workspaceRoot = PathTools.ExpandHome(config.WorkspaceRoot);
-        string repositoryRoot = Path.Combine(workspaceRoot, ProjectDirectoryName(config));
+        string workspaceRoot = config.ResolveConfiguredPath(config.WorkspaceRoot);
+        string repositoryRoot = Path.GetFullPath(Path.Combine(workspaceRoot, ProjectDirectoryName(config)));
         string unityProjectRoot = Path.GetFullPath(Path.Combine(repositoryRoot, config.UnityProjectRelativePath));
 
-        string artifactsRoot = PathTools.ExpandHome(config.ArtifactsRoot);
-        string artifactsRunRoot = Path.Combine(artifactsRoot, runId);
+        string artifactsRoot = config.ResolveConfiguredPath(config.ArtifactsRoot);
+        string artifactsRunRoot = Path.GetFullPath(Path.Combine(artifactsRoot, runId));
         string xcodeOutputDirectory = ResolvePath(config.XcodeOutputDirectory, artifactsRunRoot, "XcodeProject");
         string archivePath = ResolvePath(config.ArchivePath, artifactsRunRoot, "Archive.xcarchive");
         string exportPath = ResolvePath(config.ExportPath, artifactsRunRoot, "Export");
         string logsDirectory = ResolvePath(config.LogsDirectory, artifactsRunRoot, "Logs");
-        string exportOptionsPlistPath = ResolvePath(config.ExportOptionsPlistPath, artifactsRunRoot, "ExportOptions.plist");
+        string exportOptionsPlistPath = config.GenerateExportOptionsPlist
+            ? ResolvePath(config.ExportOptionsPlistPath, artifactsRunRoot, "ExportOptions.plist")
+            : config.ResolveConfiguredPath(config.ExportOptionsPlistPath);
         string androidOutputDirectory = ResolvePath(config.AndroidOutputDirectory, artifactsRunRoot, "Android");
         string productFileName = SafeFileName(
             !string.IsNullOrWhiteSpace(config.ProductName)
@@ -90,24 +92,57 @@ internal sealed record BuildPaths(
 
     private static string ResolvePath(string configuredPath, string root, string fallbackName)
     {
-        string path = string.IsNullOrWhiteSpace(configuredPath)
-            ? Path.Combine(root, fallbackName)
-            : PathTools.ExpandHome(configuredPath);
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return Path.GetFullPath(Path.Combine(root, fallbackName));
+        }
 
-        return Path.GetFullPath(path);
+        string expanded = PathTools.ExpandHome(configuredPath);
+        return Path.IsPathFullyQualified(expanded)
+            ? Path.GetFullPath(expanded)
+            : Path.GetFullPath(expanded, Path.GetFullPath(root));
     }
 
     private static string SafeFileName(string value)
     {
-        string sanitized = string.Join("_", value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-        return string.IsNullOrWhiteSpace(sanitized) ? "UnityGame" : sanitized;
+        char[] invalidCharacters = Path.GetInvalidFileNameChars()
+            .Concat(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
+            .Concat(Enumerable.Range(0, 32).Select(number => (char)number))
+            .Distinct()
+            .ToArray();
+        string sanitized = string.Join("_", value.Split(invalidCharacters, StringSplitOptions.RemoveEmptyEntries))
+            .Trim()
+            .TrimEnd('.', ' ');
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            return "UnityGame";
+        }
+
+        return IsReservedWindowsDeviceName(sanitized) ? $"_{sanitized}" : sanitized;
+    }
+
+    private static bool IsReservedWindowsDeviceName(string value)
+    {
+        string stem = value.Split('.')[0];
+        return stem.Equals("CON", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("NUL", StringComparison.OrdinalIgnoreCase) ||
+               (stem.Length == 4 &&
+                (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) ||
+                 stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
+                stem[3] is >= '1' and <= '9');
     }
 
     private static string ResolveUnityExecutable(BuildConfig config)
     {
         if (!string.IsNullOrWhiteSpace(config.UnityExecutablePath))
         {
-            return Path.GetFullPath(PathTools.ExpandHome(config.UnityExecutablePath));
+            string expanded = PathTools.ExpandHome(config.UnityExecutablePath);
+            if (!PathTools.IsAbsolutePathFromAnyPlatform(expanded) || Path.IsPathFullyQualified(expanded))
+            {
+                return config.ResolveConfiguredPath(config.UnityExecutablePath);
+            }
         }
 
         if (OperatingSystem.IsWindows())
@@ -115,14 +150,21 @@ internal sealed record BuildPaths(
             return ResolveWindowsUnityExecutable(config.UnityVersion);
         }
 
-        return ResolveMacUnityExecutable(config.UnityVersion);
+        if (OperatingSystem.IsMacOS())
+        {
+            return ResolveMacUnityExecutable(config.UnityVersion);
+        }
+
+        return OperatingSystem.IsLinux()
+            ? ResolveLinuxUnityExecutable(config.UnityVersion)
+            : "";
     }
 
     private static string ResolveMacUnityExecutable(string? unityVersion)
     {
         if (!string.IsNullOrWhiteSpace(unityVersion))
         {
-            return $"/Applications/Unity/Hub/Editor/{unityVersion}/Unity.app/Contents/MacOS/Unity";
+            return $"/Applications/Unity/Hub/Editor/{unityVersion.Trim()}/Unity.app/Contents/MacOS/Unity";
         }
 
         DirectoryInfo? latest = FindLatestUnityEditorDirectory("/Applications/Unity/Hub/Editor");
@@ -140,6 +182,7 @@ internal sealed record BuildPaths(
 
         if (!string.IsNullOrWhiteSpace(unityVersion))
         {
+            unityVersion = unityVersion.Trim();
             foreach (string root in searchRoots)
             {
                 string exePath = Path.Combine(root, unityVersion, "Editor", "Unity.exe");
@@ -164,6 +207,22 @@ internal sealed record BuildPaths(
         }
 
         return "";
+    }
+
+    private static string ResolveLinuxUnityExecutable(string? unityVersion)
+    {
+        string editorRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Unity",
+            "Hub",
+            "Editor");
+        if (!string.IsNullOrWhiteSpace(unityVersion))
+        {
+            return Path.Combine(editorRoot, unityVersion.Trim(), "Editor", "Unity");
+        }
+
+        DirectoryInfo? latest = FindLatestUnityEditorDirectory(editorRoot);
+        return latest is null ? "" : Path.Combine(latest.FullName, "Editor", "Unity");
     }
 
     internal static DirectoryInfo? FindLatestUnityEditorDirectory(string editorRoot)

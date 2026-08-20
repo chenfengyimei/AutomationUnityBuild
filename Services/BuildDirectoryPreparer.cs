@@ -30,7 +30,10 @@ internal sealed class BuildDirectoryPreparer(BuildRunContext context)
         }
 
         EnsureParentDirectoryExists(_paths.ArchivePath, "Xcode archive 父目录");
-        EnsureParentDirectoryExists(_paths.ExportOptionsPlistPath, "ExportOptions.plist 父目录");
+        if (_config.GenerateExportOptionsPlist)
+        {
+            EnsureParentDirectoryExists(_paths.ExportOptionsPlistPath, "ExportOptions.plist 父目录");
+        }
 
         if (_config.CleanXcodeOutputBeforeBuild && Directory.Exists(_paths.XcodeOutputDirectory))
         {

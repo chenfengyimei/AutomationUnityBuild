@@ -135,7 +135,10 @@ internal sealed class GitRepositoryService(BuildRunContext context)
         string libraryPath = Path.GetFullPath(Path.Combine(_paths.UnityProjectRoot, "Library"));
         string relativePath = Path.GetRelativePath(repositoryRoot, libraryPath);
 
-        if (Path.IsPathRooted(relativePath) || relativePath.StartsWith("..", StringComparison.Ordinal))
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath == ".." ||
+            relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+            relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal))
         {
             return null;
         }

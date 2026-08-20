@@ -26,6 +26,27 @@ public class PathToolsTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("~//subdir")]
+    [InlineData("~\\\\subdir")]
+    public void ExpandHome_RepeatedSeparator_StaysUnderUserProfile(string path)
+    {
+        string result = PathTools.ExpandHome(path);
+        string expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "subdir");
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ExpandHome_WindowsStyleNestedPath_UsesCurrentPlatformSeparators()
+    {
+        string result = PathTools.ExpandHome("~\\first\\second");
+        string expected = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "first",
+            "second");
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void ExpandHome_EmptyString_ReturnsEmptyString()
     {
@@ -64,5 +85,17 @@ public class PathToolsTests
     public void EnsureParentDirectory_RootPath_DoesNotThrow()
     {
         PathTools.EnsureParentDirectory("/file.txt");
+    }
+
+    [Theory]
+    [InlineData("C:\\Builds\\Game", true)]
+    [InlineData("D:/Builds/Game", true)]
+    [InlineData("/Users/build/Game", true)]
+    [InlineData("\\\\server\\share\\Game", true)]
+    [InlineData("relative/path", false)]
+    [InlineData("~/portable/path", false)]
+    public void IsAbsolutePathFromAnyPlatform_ClassifiesForeignPaths(string path, bool expected)
+    {
+        Assert.Equal(expected, PathTools.IsAbsolutePathFromAnyPlatform(path));
     }
 }

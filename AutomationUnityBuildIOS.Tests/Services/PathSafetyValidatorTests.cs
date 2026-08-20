@@ -3,7 +3,10 @@ namespace AutomationUnityBuildIOS.Tests;
 
 public class PathSafetyValidatorTests
 {
-    private static BuildRunContext CreateContext(string? workspaceRoot = null, string? artifactsRoot = null)
+    private static BuildRunContext CreateContext(
+        string? workspaceRoot = null,
+        string? artifactsRoot = null,
+        Action<BuildConfig>? configure = null)
     {
         workspaceRoot ??= TestHelpers.CreateTempDir();
         artifactsRoot ??= TestHelpers.CreateTempDir();
@@ -21,6 +24,7 @@ public class PathSafetyValidatorTests
             ArtifactsRoot = artifactsRoot,
             AllowedArtifactsRoots = [artifactsRoot]
         };
+        configure?.Invoke(config);
 
         CliOptions options = CliOptions.Parse(["--dry-run", "--allow-non-mac"]);
         return BuildRunContext.Create(config, options);
@@ -139,5 +143,38 @@ public class PathSafetyValidatorTests
         var validator = new PathSafetyValidator(context);
 
         Assert.Throws<InvalidOperationException>(() => validator.Validate());
+    }
+
+    [Fact]
+    public void Validate_ExternalExportOptionsInput_IsAllowedAndItsParentIsNotCreated()
+    {
+        string externalRoot = Path.Combine(Path.GetTempPath(), $"external-plist-{Guid.NewGuid():N}");
+        string externalPlist = Path.Combine(externalRoot, "ExportOptions.plist");
+        using BuildRunContext context = CreateContext(configure: config =>
+        {
+            config.GenerateExportOptionsPlist = false;
+            config.ExportOptionsPlistPath = externalPlist;
+        });
+
+        new PathSafetyValidator(context).Validate();
+        new BuildDirectoryPreparer(context).Prepare();
+
+        Assert.False(Directory.Exists(externalRoot));
+    }
+
+    [Fact]
+    public void Validate_ExternalGeneratedExportOptionsOutput_Throws()
+    {
+        string externalPlist = Path.Combine(
+            Path.GetTempPath(),
+            $"external-generated-plist-{Guid.NewGuid():N}",
+            "ExportOptions.plist");
+        using BuildRunContext context = CreateContext(configure: config =>
+        {
+            config.GenerateExportOptionsPlist = true;
+            config.ExportOptionsPlistPath = externalPlist;
+        });
+
+        Assert.Throws<InvalidOperationException>(() => new PathSafetyValidator(context).Validate());
     }
 }

@@ -16,9 +16,15 @@ internal static class PathTools
 
         if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
         {
-            string relativePath = path[2..]
+            string relativePath = path[1..]
+                .TrimStart('/', '\\')
                 .Replace('/', Path.DirectorySeparatorChar)
                 .Replace('\\', Path.DirectorySeparatorChar);
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), relativePath);
         }
 
@@ -32,5 +38,24 @@ internal static class PathTools
         {
             Directory.CreateDirectory(parent);
         }
+    }
+
+    public static bool IsAbsolutePathFromAnyPlatform(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        string value = path.Trim();
+        if (value[0] is '/' or '\\')
+        {
+            return true;
+        }
+
+        return value.Length >= 3 &&
+               char.IsAsciiLetter(value[0]) &&
+               value[1] == ':' &&
+               value[2] is '/' or '\\';
     }
 }

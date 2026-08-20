@@ -69,12 +69,12 @@ public class DataPageViewModel : ViewModelBase
                         data["certificateProfiles"] = JsonSerializer.SerializeToNode(ProfileStore.LoadCertificates())!;
                         break;
                     case "serverSettings":
-                        var path = Path.Combine(Environment.CurrentDirectory, "profiles", "server-settings.json");
+                        string path = DesktopPaths.ServerSettingsPath;
                         if (File.Exists(path))
                             data["serverSettings"] = JsonNode.Parse(File.ReadAllText(path))!;
                         break;
                     case "configs":
-                        var configsDir = Path.Combine(Environment.CurrentDirectory, "configs");
+                        string configsDir = DesktopPaths.ConfigsDirectory;
                         var configsNode = new JsonObject();
                         if (Directory.Exists(configsDir))
                         {
@@ -156,7 +156,7 @@ public class DataPageViewModel : ViewModelBase
 
             if (root.TryGetProperty("serverSettings", out var ssEl))
             {
-                var dir = Path.Combine(Environment.CurrentDirectory, "profiles");
+                string dir = DesktopPaths.ProfilesDirectory;
                 Directory.CreateDirectory(dir);
                 await File.WriteAllTextAsync(Path.Combine(dir, "server-settings.json"),
                     JsonSerializer.Serialize(JsonSerializer.Deserialize<object>(ssEl.GetRawText()),
@@ -166,10 +166,14 @@ public class DataPageViewModel : ViewModelBase
 
             if (root.TryGetProperty("configs", out var cfgEl) && cfgEl.ValueKind == JsonValueKind.Object)
             {
-                var configsDir = Path.Combine(Environment.CurrentDirectory, "configs");
+                string configsDir = DesktopPaths.ConfigsDirectory;
                 Directory.CreateDirectory(configsDir);
                 foreach (var prop in cfgEl.EnumerateObject())
                 {
+                    if (!DesktopPaths.IsPortableFileName(prop.Name))
+                    {
+                        throw new InvalidDataException($"导入数据包含不安全的配置文件名: {prop.Name}");
+                    }
                     string filePath = Path.Combine(configsDir, prop.Name);
                     await File.WriteAllTextAsync(filePath, prop.Value.GetRawText());
                     imported++;

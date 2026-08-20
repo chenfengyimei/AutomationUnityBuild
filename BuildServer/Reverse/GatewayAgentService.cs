@@ -861,28 +861,10 @@ public sealed class GatewayAgentService(
             return false;
         }
 
-        bool underJobRoot = IsSameOrChild(path, job.ArtifactRoot);
+        bool underJobRoot = BuildServerPathSafety.IsSafeSameOrChild(path, job.ArtifactRoot);
         bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
-                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(path, root));
+                                options.AllowedArtifactsRoots.Any(root => BuildServerPathSafety.IsSafeSameOrChild(path, root));
         return underJobRoot && underAllowedRoot;
-    }
-
-    private static bool IsSameOrChild(string path, string root)
-    {
-        string normalizedPath = NormalizeDirectory(path);
-        string normalizedRoot = NormalizeDirectory(root);
-        StringComparison comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        return normalizedPath.Equals(normalizedRoot, comparison) ||
-               normalizedPath.StartsWith(normalizedRoot, comparison);
-    }
-
-    private static string NormalizeDirectory(string path)
-    {
-        string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(path))
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return fullPath + Path.DirectorySeparatorChar;
     }
 
     private static async Task<string> TailLogAsync(string path, int lines)

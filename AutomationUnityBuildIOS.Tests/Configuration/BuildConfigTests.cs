@@ -88,6 +88,22 @@ public class BuildConfigTests
     }
 
     [Fact]
+    public void Validate_EmptyWorkspaceRoot_Throws()
+    {
+        BuildConfig config = CreateValidIosConfig();
+        config.WorkspaceRoot = "";
+        Assert.Throws<InvalidOperationException>(() => config.EnsureValid());
+    }
+
+    [Fact]
+    public void Validate_EmptyArtifactsRoot_Throws()
+    {
+        BuildConfig config = CreateValidIosConfig();
+        config.ArtifactsRoot = "";
+        Assert.Throws<InvalidOperationException>(() => config.EnsureValid());
+    }
+
+    [Fact]
     public void Validate_TeamIdNot10Chars_Throws()
     {
         BuildConfig config = CreateValidIosConfig();

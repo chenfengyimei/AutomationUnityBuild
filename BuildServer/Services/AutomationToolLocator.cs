@@ -93,7 +93,7 @@ public static class AutomationToolLocator
             bool exists = File.Exists(path);
             string type = typeLabels.Length > i ? typeLabels[i] : "auto-detect";
 
-            if (!results.Any(r => string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase)))
+            if (!results.Any(r => BuildServerPathSafety.PathsEqual(r.Path, path)))
             {
                 results.Add(new CliCandidate(path, type, exists));
             }

@@ -93,8 +93,8 @@ internal sealed class AndroidBuildService(BuildRunContext context)
             ["error", "exception", "executeMethod", "BuildAutomation", "AndroidBuilder", "Gradle", "SDK", "JDK", "license"]);
     }
 
-    private static string ResolveOptionalPath(string path)
+    private string ResolveOptionalPath(string path)
     {
-        return string.IsNullOrWhiteSpace(path) ? "" : Path.GetFullPath(PathTools.ExpandHome(path));
+        return string.IsNullOrWhiteSpace(path) ? "" : _config.ResolveConfiguredPath(path);
     }
 }

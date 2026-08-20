@@ -10,7 +10,7 @@ namespace BuildServer;
 
 public static class ApiRoutes
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ZipLocks = new(BuildServerPathSafety.Comparer);
     private static readonly ConcurrentDictionary<string, int> SseConnectionsByUser = new(StringComparer.Ordinal);
 
     private static readonly JsonSerializerOptions CamelizeOptions = new()
@@ -611,7 +611,7 @@ public static class ApiRoutes
 
                 BuildConfigRecord? existingConfig = db.Configs.FirstOrDefault(config =>
                     config.ProjectId == project.Id &&
-                    string.Equals(config.ConfigPath, configPath, StringComparison.OrdinalIgnoreCase));
+                    BuildServerPathSafety.PathsEqual(config.ConfigPath, configPath));
                 if (existingConfig is not null)
                 {
                     existingConfig.Name = configName;
@@ -802,7 +802,7 @@ public static class ApiRoutes
                 if (deleteFile)
                 {
                     string configPath = ValidatePathUnderAllowedRoots(record.ConfigPath, options.AllowedConfigRoots, "配置文件路径");
-                    if (db.Configs.Any(other => other.Id != record.Id && string.Equals(Path.GetFullPath(BuildServerEnvironment.ExpandHome(other.ConfigPath)), configPath, StringComparison.OrdinalIgnoreCase)))
+                    if (db.Configs.Any(other => other.Id != record.Id && BuildServerPathSafety.PathsEqual(other.ConfigPath, configPath)))
                     {
                         throw new InvalidOperationException("还有其他配置引用同一个 JSON 文件，不能同时删除文件。");
                     }
@@ -2101,9 +2101,14 @@ public static class ApiRoutes
                 throw new InvalidOperationException("没有收到文件。");
             }
 
-            string fileName = Path.GetFileName(file.FileName);
+            string fileName = GetCrossPlatformFileName(file.FileName);
             if (string.IsNullOrWhiteSpace(fileName) ||
+                fileName.EndsWith('.') ||
+                fileName.EndsWith(' ') ||
+                IsReservedWindowsDeviceName(fileName) ||
+                fileName.IndexOfAny(['/', '\\', '<', '>', ':', '"', '|', '?', '*']) >= 0 ||
                 fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                fileName.Any(char.IsControl) ||
                 fileName.Contains("..", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("文件名不合法。");
@@ -2278,7 +2283,8 @@ public static class ApiRoutes
                     if (string.IsNullOrWhiteSpace(fileName)) return original;
                     // ~/ 开头或相对路径保留
                     if (original.StartsWith("~/", StringComparison.Ordinal)) return original;
-                    if (!Path.IsPathRooted(original) && !original.Contains(':')) return original;
+                    if (!BuildServerPathSafety.IsAbsolutePathFromAnyPlatform(original)) return original;
+                    EnsurePortableImportedFileName(fileName);
                     return Path.Combine(secretsDir, fileName);
                 }
 
@@ -2288,7 +2294,7 @@ public static class ApiRoutes
                     if (string.IsNullOrWhiteSpace(original)) return defaultRoot;
                     if (original.StartsWith("~/", StringComparison.Ordinal)) return original;
                     if (original.StartsWith('$')) return original;
-                    if (!Path.IsPathRooted(original) && !original.Contains(':')) return original;
+                    if (!BuildServerPathSafety.IsAbsolutePathFromAnyPlatform(original)) return original;
                     return defaultRoot;
                 }
 
@@ -2299,6 +2305,7 @@ public static class ApiRoutes
                     if (string.IsNullOrEmpty(base64)) continue;
                     string fileName = GetCrossPlatformFileName(sourcePath);
                     if (string.IsNullOrWhiteSpace(fileName)) continue;
+                    EnsurePortableImportedFileName(fileName);
 
                     // 配置文件（.json）写入 configRoot，密钥文件写入 secretsDir
                     bool isConfigFile = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
@@ -2308,6 +2315,10 @@ public static class ApiRoutes
                             || sourcePath.Contains("configs", StringComparison.OrdinalIgnoreCase));
                     string targetDir = isConfigFile ? configRoot : secretsDir;
                     string targetPath = Path.Combine(targetDir, fileName);
+                    if (pathRemap.Values.Any(existing => BuildServerPathSafety.PathsEqual(existing, targetPath)))
+                    {
+                        throw new InvalidOperationException($"导入数据包含重复文件名: {fileName}");
+                    }
 
                     if (isConfigFile)
                     {
@@ -2328,6 +2339,8 @@ public static class ApiRoutes
                                     jsonObj["googlePlayServiceAccountJsonPath"] = RemapConfigFilePath(sj.GetValue<string>(), secretsDir);
                                 if (jsonObj["appStoreConnectApiKeyPath"] is var ak && ak is not null)
                                     jsonObj["appStoreConnectApiKeyPath"] = RemapConfigFilePath(ak.GetValue<string>(), secretsDir);
+                                // Unity Editor 可执行文件路径属于目标操作系统，跨机器导入后一律按 unityVersion 重新定位。
+                                jsonObj["unityExecutablePath"] = "";
                                 // 重写目录路径
                                 if (jsonObj["workspaceRoot"] is var wr && wr is not null)
                                     jsonObj["workspaceRoot"] = RemapConfigRoot(wr.GetValue<string>(), defaultWorkspace);
@@ -2373,9 +2386,10 @@ public static class ApiRoutes
                     if (GetCrossPlatformFileName(kv.Key) == fileName) return kv.Value;
                 }
                 // 未找到匹配：如果是绝对路径（如 C:\...\file.p8），按文件名重定向到目标机器
-                if (Path.IsPathRooted(original) || original.Contains(':'))
+                if (BuildServerPathSafety.IsAbsolutePathFromAnyPlatform(original))
                 {
                     if (string.IsNullOrWhiteSpace(fileName)) return "";
+                    EnsurePortableImportedFileName(fileName);
                     string targetDir = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
                         && !fileName.EndsWith(".keystore", StringComparison.OrdinalIgnoreCase)
                         && !fileName.EndsWith(".p8", StringComparison.OrdinalIgnoreCase)
@@ -2397,7 +2411,7 @@ public static class ApiRoutes
                 // $ 开头的是环境变量格式，保留
                 if (original.StartsWith('$')) return original;
                 // 相对路径保留
-                if (!Path.IsPathRooted(original)) return original;
+                if (!BuildServerPathSafety.IsAbsolutePathFromAnyPlatform(original)) return original;
                 // 绝对路径（如 C:\Users\...\UnityBuildWorkspace）替换为目标机器的默认值
                 return defaultRoot;
             }
@@ -2892,7 +2906,7 @@ public static class ApiRoutes
         if (db.Configs.Any(config =>
                 config.Id != currentConfigId &&
                 config.ProjectId == projectId &&
-                string.Equals(Path.GetFullPath(BuildServerEnvironment.ExpandHome(config.ConfigPath)), configPath, StringComparison.OrdinalIgnoreCase)))
+                BuildServerPathSafety.PathsEqual(config.ConfigPath, configPath)))
         {
             throw new InvalidOperationException("同一个项目下已经存在使用这个配置文件路径的配置。");
         }
@@ -2906,13 +2920,26 @@ public static class ApiRoutes
         fileName = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? fileName : $"{fileName}.json";
 
         if (fileName != Path.GetFileName(fileName) ||
+            fileName.EndsWith('.') ||
+            fileName.EndsWith(' ') ||
+            IsReservedWindowsDeviceName(fileName) ||
+            fileName.IndexOfAny(['/', '\\', '<', '>', ':', '"', '|', '?', '*']) >= 0 ||
             fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            fileName.Any(char.IsControl) ||
             fileName.Contains("..", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("配置文件名只能填写文件名，不能包含目录或特殊字符。");
         }
 
         return fileName;
+    }
+
+    private static void EnsurePortableImportedFileName(string fileName)
+    {
+        if (!BuildServerPathSafety.IsPortableFileName(fileName))
+        {
+            throw new InvalidOperationException($"导入数据包含非法文件名: {fileName}");
+        }
     }
 
     private static string SafeFileNamePart(string value)
@@ -2925,7 +2952,12 @@ public static class ApiRoutes
     private static string SafePathComponent(string value, string field)
     {
         if (value != Path.GetFileName(value) ||
+            value.EndsWith('.') ||
+            value.EndsWith(' ') ||
+            IsReservedWindowsDeviceName(value) ||
+            value.IndexOfAny(['/', '\\', '<', '>', ':', '"', '|', '?', '*']) >= 0 ||
             value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            value.Any(char.IsControl) ||
             value.Contains("..", StringComparison.Ordinal))
         {
             throw new InvalidOperationException($"{field} 只能填写单个文件夹名，不能包含路径。");
@@ -2945,6 +2977,19 @@ public static class ApiRoutes
         }
 
         return SafePathComponent(string.IsNullOrWhiteSpace(name) ? project.Name : name, "仓库目录名");
+    }
+
+    private static bool IsReservedWindowsDeviceName(string value)
+    {
+        string stem = value.Split('.')[0];
+        return stem.Equals("CON", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("NUL", StringComparison.OrdinalIgnoreCase) ||
+               (stem.Length == 4 &&
+                (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) ||
+                 stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
+                stem[3] is >= '1' and <= '9');
     }
 
     private static string ChoiceOrDefault(string? value, IReadOnlyList<string> allowedValues, string defaultValue, string field)
@@ -3104,12 +3149,12 @@ public static class ApiRoutes
     private static string ValidatePathUnderAllowedRoots(string value, IReadOnlyList<string> allowedRoots, string field)
     {
         string fullPath = Path.GetFullPath(BuildServerEnvironment.ExpandHome(value));
-        if (IsUnsafeRoot(fullPath))
+        if (BuildServerPathSafety.IsFilesystemRoot(fullPath))
         {
             throw new InvalidOperationException($"{field} 不能指向磁盘根目录。");
         }
 
-        if (allowedRoots.Count > 0 && !allowedRoots.Any(root => IsSameOrChild(fullPath, root)))
+        if (allowedRoots.Count > 0 && !allowedRoots.Any(root => BuildServerPathSafety.IsSafeSameOrChild(fullPath, root)))
         {
             throw new InvalidOperationException($"{field} 不在服务端允许目录内: {fullPath}");
         }
@@ -3117,49 +3162,14 @@ public static class ApiRoutes
         return fullPath;
     }
 
-    private static bool IsUnsafeRoot(string path)
-    {
-        string? root = Path.GetPathRoot(path);
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            return true;
-        }
-
-        string normalized = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return normalized.Length == 0 || normalized.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool IsAllowedArtifactPath(string path, BuildJobRecord job, BuildServerOptions options)
     {
         string? jobRoot = string.IsNullOrWhiteSpace(job.WorkerLogPath) ? null : Path.GetDirectoryName(job.WorkerLogPath);
-        bool underJobRoot = (!string.IsNullOrWhiteSpace(job.ArtifactRoot) && IsSameOrChild(path, job.ArtifactRoot)) ||
-                            (!string.IsNullOrWhiteSpace(jobRoot) && IsSameOrChild(path, jobRoot));
+        bool underJobRoot = (!string.IsNullOrWhiteSpace(job.ArtifactRoot) && BuildServerPathSafety.IsSafeSameOrChild(path, job.ArtifactRoot)) ||
+                            (!string.IsNullOrWhiteSpace(jobRoot) && BuildServerPathSafety.IsSafeSameOrChild(path, jobRoot));
         bool underAllowedRoot = options.AllowedArtifactsRoots.Count == 0 ||
-                                options.AllowedArtifactsRoots.Any(root => IsSameOrChild(path, root));
+                                options.AllowedArtifactsRoots.Any(root => BuildServerPathSafety.IsSafeSameOrChild(path, root));
         return underJobRoot && underAllowedRoot;
-    }
-
-    private static bool IsSameOrChild(string path, string root)
-    {
-        string normalizedPath = NormalizeDirectory(path);
-        string normalizedRoot = NormalizeDirectory(root);
-        StringComparison comparison = PathComparison();
-        return normalizedPath.Equals(normalizedRoot, comparison) ||
-               normalizedPath.StartsWith(normalizedRoot, comparison);
-    }
-
-    private static string NormalizeDirectory(string path)
-    {
-        string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return fullPath + Path.DirectorySeparatorChar;
-    }
-
-    private static StringComparison PathComparison()
-    {
-        return OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
     }
 
     private static bool CanAccessProject(CurrentUser user, string projectId)

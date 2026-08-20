@@ -7,7 +7,7 @@
 [![BuildServer](https://img.shields.io/badge/BuildServer-Web%20Queue-2563EB)](docs/build-server.md)
 [![DesktopApp](https://img.shields.io/badge/DesktopApp-Avalonia%2011-7C3AED)](docs/usage.md#桌面客户端)
 [![Gateway](https://img.shields.io/badge/LinuxGateway-Multi--Node-16A34A)](docs/linux-gateway.md)
-[![Tests](https://img.shields.io/badge/tests-256%2B%20passing-brightgreen)](docs/usage.md#回归验证)
+[![Tests](https://img.shields.io/badge/tests-323%2B%20passing-brightgreen)](docs/usage.md#回归验证)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 中文 | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Português](README.pt.md) | [完整使用文档](docs/usage.md) | [架构说明](docs/architecture.md)
@@ -282,7 +282,7 @@ AutomationUnityBuildIOS/
 
 这个脚本会执行解决方案编译、CLI 帮助入口、iOS/Android dry-run、配置编辑器打开退出，以及 BuildServer/LinuxGateway 基础编译验证。
 
-测试套件覆盖 256+ 个用例，涵盖 CLI 参数解析、配置模型、路径安全、Git 策略、Unity 命令构建、Google Play API、BuildServer API 路由、LinuxGateway 节点通信、反向连接、TikTok 配置等全部模块。
+测试套件覆盖 323+ 个用例，涵盖 CLI 参数解析、配置模型、路径安全、Git 策略、Unity 命令构建、Google Play API、BuildServer API 路由、LinuxGateway 节点通信、反向连接、TikTok 配置等全部模块。
 
 ---
 

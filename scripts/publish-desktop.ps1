@@ -11,13 +11,18 @@ $projectPath = "DesktopApp/DesktopApp.csproj"
 $solutionRoot = Split-Path -Parent $PSScriptRoot
 $publishRoot = [System.IO.Path]::GetFullPath((Join-Path $solutionRoot "publish"))
 $outputRoot = [System.IO.Path]::GetFullPath((Join-Path $solutionRoot $OutputDir))
+$pathComparison = if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
 
 if (-not (Test-Path -LiteralPath (Join-Path $solutionRoot $projectPath)))
 {
     throw "DesktopApp project was not found under repository root: $solutionRoot"
 }
 
-if (-not $outputRoot.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase))
+if (-not $outputRoot.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, $pathComparison))
 {
     throw "Desktop publish output must stay under publish directory: $outputRoot"
 }

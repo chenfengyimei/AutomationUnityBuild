@@ -14,7 +14,7 @@ public static class ProfileStore
         PropertyNameCaseInsensitive = true
     };
 
-    private static string ProfilesDir => Path.Combine(Environment.CurrentDirectory, "profiles");
+    private static string ProfilesDir => DesktopPaths.ProfilesDirectory;
 
     private static string ProjectsPath => Path.Combine(ProfilesDir, "projects.json");
     private static string UnityProfilesPath => Path.Combine(ProfilesDir, "unity-profiles.json");

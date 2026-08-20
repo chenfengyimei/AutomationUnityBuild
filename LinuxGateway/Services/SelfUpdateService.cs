@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -104,12 +105,14 @@ public sealed class SelfUpdateService(
             throw new InvalidOperationException("没有可下载的更新包。请确认 Release 包含 linux-gateway-*.tar.gz 资产。");
         }
 
-        Directory.CreateDirectory(UpdatesDir);
+        EnsureSafeDirectory(UpdatesDir, options.DataRoot);
 
         string downloadFileName = string.IsNullOrWhiteSpace(checkResult.AssetName)
             ? $"linux-gateway-{checkResult.LatestVersion}.tar.gz"
             : checkResult.AssetName;
+        downloadFileName = SafeDownloadFileName(downloadFileName);
         string downloadPath = Path.Combine(UpdatesDir, downloadFileName);
+        EnsureNoReparsePointsBelowRoot(downloadPath, UpdatesDir);
 
         logger.LogInformation("开始下载更新包: {Url} -> {Path}", checkResult.AssetDownloadUrl, downloadPath);
 
@@ -125,11 +128,12 @@ public sealed class SelfUpdateService(
         logger.LogInformation("下载完成，开始解压到 staging 目录");
 
         string stagingDir = Path.Combine(UpdatesDir, "staging");
+        EnsureNoReparsePointsBelowRoot(stagingDir, UpdatesDir);
         if (Directory.Exists(stagingDir))
         {
             Directory.Delete(stagingDir, recursive: true);
         }
-        Directory.CreateDirectory(stagingDir);
+        EnsureSafeDirectory(stagingDir, UpdatesDir);
 
         await Task.Run(() =>
         {
@@ -140,7 +144,7 @@ public sealed class SelfUpdateService(
             }
             else if (downloadFileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                ZipFile.ExtractToDirectory(downloadPath, stagingDir, overwriteFiles: true);
+                ExtractZip(downloadPath, stagingDir);
             }
             else
             {
@@ -150,6 +154,8 @@ public sealed class SelfUpdateService(
 
         string scriptPath = Path.Combine(UpdatesDir, "apply-update.sh");
         string backupDir = Path.Combine(UpdatesDir, $"backup-{DateTimeOffset.Now:yyyyMMdd-HHmmss}");
+        EnsureNoReparsePointsBelowRoot(scriptPath, UpdatesDir);
+        EnsureNoReparsePointsBelowRoot(backupDir, UpdatesDir);
         await WriteApplyScriptAsync(scriptPath, stagingDir, backupDir, checkResult.LatestVersion);
 
         logger.LogInformation("更新脚本已生成: {ScriptPath}", scriptPath);
@@ -158,12 +164,12 @@ public sealed class SelfUpdateService(
         var startInfo = new ProcessStartInfo
         {
             FileName = "/bin/sh",
-            Arguments = scriptPath,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = false,
             RedirectStandardError = false
         };
+        startInfo.ArgumentList.Add(scriptPath);
 
         Process.Start(startInfo);
 
@@ -324,18 +330,19 @@ public sealed class SelfUpdateService(
     {
         string appDir = ContentRoot;
         string dataDir = options.DataRoot;
+        string versionComment = newVersion.Replace('\r', ' ').Replace('\n', ' ');
 
         string script = $""""
 #!/bin/sh
 # LinuxGateway 自动更新脚本
 # 生成时间: {DateTimeOffset.Now:O}
-# 目标版本: {newVersion}
+# 目标版本: {versionComment}
 set -e
 
-APP_DIR="{appDir}"
-STAGING_DIR="{stagingDir}"
-BACKUP_DIR="{backupDir}"
-DATA_DIR="{dataDir}"
+APP_DIR={ShellLiteral(appDir)}
+STAGING_DIR={ShellLiteral(stagingDir)}
+BACKUP_DIR={ShellLiteral(backupDir)}
+DATA_DIR={ShellLiteral(dataDir)}
 
 echo "[update] waiting 3 seconds for gateway to exit..."
 sleep 3
@@ -346,13 +353,18 @@ mkdir -p "$BACKUP_DIR"
 # 备份当前应用文件（排除数据目录）
 for item in "$APP_DIR"/*; do
     base=$(basename "$item")
-    case "$base" in
+    case "$item" in
+        "$DATA_DIR"|"$DATA_DIR"/*)
+            # 数据目录可能使用自定义名称并位于应用目录内，必须整体跳过。
+            ;;
+        *) case "$base" in
         linuxgateway-data|updates)
             # 跳过数据目录和更新目录
             ;;
         *)
             cp -r "$item" "$BACKUP_DIR/"
             ;;
+        esac ;;
     esac
 done
 
@@ -362,6 +374,12 @@ cd "$STAGING_DIR"
 # 复制新文件到应用目录
 find . -type f | while read -r f; do
     target="$APP_DIR/$f"
+    case "$target" in
+        "$DATA_DIR"|"$DATA_DIR"/*)
+            echo "[update] skipping data file: $target"
+            continue
+            ;;
+    esac
     mkdir -p "$(dirname "$target")"
     cp "$f" "$target"
 done
@@ -396,25 +414,152 @@ echo "[update] done."
         }
     }
 
-    private static void ExtractTarGz(string archivePath, string destinationDir)
+    internal static void ExtractTarGz(string archivePath, string destinationDir)
     {
-        var processInfo = new ProcessStartInfo
-        {
-            FileName = "tar",
-            Arguments = $"xzf \"{archivePath}\" -C \"{destinationDir}\"",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardError = true
-        };
+        ValidateTarGzEntries(archivePath, destinationDir);
+        using FileStream archive = File.OpenRead(archivePath);
+        using var gzip = new GZipStream(archive, CompressionMode.Decompress);
+        TarFile.ExtractToDirectory(gzip, destinationDir, overwriteFiles: true);
+    }
 
-        using var process = Process.Start(processInfo)
-            ?? throw new InvalidOperationException("无法启动 tar 命令。");
-        process.WaitForExit();
-        if (process.ExitCode != 0)
+    private static void ValidateTarGzEntries(string archivePath, string destinationDir)
+    {
+        using FileStream archive = File.OpenRead(archivePath);
+        using var gzip = new GZipStream(archive, CompressionMode.Decompress);
+        using var reader = new TarReader(gzip);
+        TarEntry? entry;
+        while ((entry = reader.GetNextEntry()) is not null)
         {
-            string error = process.StandardError.ReadToEnd();
-            throw new InvalidOperationException($"tar 解压失败 (exit {process.ExitCode}): {error}");
+            EnsureArchiveEntryStaysUnderDestination(entry.Name, destinationDir);
+            if (entry.EntryType is not (TarEntryType.Directory or
+                                        TarEntryType.DirectoryList or
+                                        TarEntryType.RegularFile or
+                                        TarEntryType.V7RegularFile or
+                                        TarEntryType.ContiguousFile))
+            {
+                throw new InvalidOperationException($"更新包包含不支持的 TAR 条目类型 {entry.EntryType}: {entry.Name}");
+            }
         }
+    }
+
+    private static void ExtractZip(string archivePath, string destinationDir)
+    {
+        using (ZipArchive archive = ZipFile.OpenRead(archivePath))
+        {
+            foreach (ZipArchiveEntry entry in archive.Entries)
+            {
+                EnsureArchiveEntryStaysUnderDestination(entry.FullName, destinationDir);
+                int unixFileType = (entry.ExternalAttributes >> 16) & 0xF000;
+                if (unixFileType == 0xA000)
+                {
+                    throw new InvalidOperationException($"更新包不能包含符号链接: {entry.FullName}");
+                }
+            }
+        }
+
+        ZipFile.ExtractToDirectory(archivePath, destinationDir, overwriteFiles: true);
+    }
+
+    internal static void EnsureArchiveEntryStaysUnderDestination(string entryName, string destinationDir)
+    {
+        if (string.IsNullOrWhiteSpace(entryName) || entryName.Any(char.IsControl))
+        {
+            throw new InvalidOperationException("更新包包含空路径或控制字符路径。");
+        }
+
+        string normalizedEntryName = entryName
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
+        string destinationBase = Path.GetFullPath(destinationDir)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string destinationRoot = destinationBase + Path.DirectorySeparatorChar;
+        string destinationPath = Path.GetFullPath(Path.Combine(destinationBase, normalizedEntryName));
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!destinationPath.Equals(destinationBase, comparison) &&
+            !destinationPath.StartsWith(destinationRoot, comparison))
+        {
+            throw new InvalidOperationException($"更新包包含越界路径: {entryName}");
+        }
+    }
+
+    internal static string SafeDownloadFileName(string value)
+    {
+        string normalized = value.Trim().Replace('\\', '/');
+        string fileName = Path.GetFileName(normalized);
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            fileName is "." or ".." ||
+            !string.Equals(fileName, normalized, StringComparison.Ordinal) ||
+            fileName.IndexOfAny(['<', '>', ':', '"', '/', '\\', '|', '?', '*']) >= 0 ||
+            fileName.Any(char.IsControl))
+        {
+            throw new InvalidOperationException($"更新包文件名不安全: {value}");
+        }
+
+        return fileName;
+    }
+
+    internal static void EnsureNoReparsePointsBelowRoot(string path, string root)
+    {
+        string fullPath = Path.GetFullPath(path);
+        string resolvedRoot = Path.GetFullPath(root);
+        string trimmedRoot = resolvedRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string fullRoot = string.IsNullOrEmpty(trimmedRoot) ? resolvedRoot : trimmedRoot;
+        string rootPrefix = fullRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? fullRoot
+            : fullRoot + Path.DirectorySeparatorChar;
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!fullPath.Equals(fullRoot, comparison) && !fullPath.StartsWith(rootPrefix, comparison))
+        {
+            throw new InvalidOperationException($"更新路径越过数据目录边界: {fullPath}");
+        }
+
+        string relativePath = Path.GetRelativePath(fullRoot, fullPath);
+        string current = fullRoot;
+        foreach (string component in relativePath.Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, component);
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new InvalidOperationException($"更新路径包含符号链接或挂载跳转: {current}");
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new InvalidOperationException($"无法安全检查更新路径: {current}", ex);
+            }
+            catch (IOException ex)
+            {
+                throw new InvalidOperationException($"无法安全检查更新路径: {current}", ex);
+            }
+        }
+    }
+
+    private static void EnsureSafeDirectory(string path, string root)
+    {
+        EnsureNoReparsePointsBelowRoot(path, root);
+        Directory.CreateDirectory(path);
+        EnsureNoReparsePointsBelowRoot(path, root);
+    }
+
+    private static string ShellLiteral(string value)
+    {
+        return $"'{value.Replace("'", "'\"'\"'")}'";
     }
 }
 

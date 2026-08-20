@@ -7,6 +7,7 @@ using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using AutomationUnityBuildIOS;
+using DesktopApp.Services;
 
 namespace DesktopApp.ViewModels;
 
@@ -43,9 +44,7 @@ public class EmailSettingsPageViewModel : ViewModelBase
 
     public EmailSettingsPageViewModel()
     {
-        _settingsPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DesktopApp", "email-settings.json");
+        _settingsPath = DesktopPaths.EmailSettingsPath;
         LoadSettings();
     }
 

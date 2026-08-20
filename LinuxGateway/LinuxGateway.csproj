@@ -9,4 +9,8 @@
     <Content Remove="linuxgateway-data\**" />
     <None Remove="linuxgateway-data\**" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AutomationUnityBuildIOS.Tests" />
+  </ItemGroup>
 </Project>

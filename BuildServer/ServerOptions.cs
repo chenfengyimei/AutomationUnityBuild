@@ -69,6 +69,10 @@ public static class BuildServerEnvironment
         }
 
         options.DataRoot = ResolvePath(options.DataRoot, environment.ContentRootPath);
+        if (BuildServerPathSafety.IsFilesystemRoot(options.DataRoot))
+        {
+            throw new InvalidOperationException($"BUILD_SERVER_DATA_ROOT 不能指向磁盘根目录: {options.DataRoot}");
+        }
         options.AutomationExecutablePath = ExpandOptionalPath(options.AutomationExecutablePath, environment.ContentRootPath);
         options.AutomationDllPath = ExpandOptionalPath(options.AutomationDllPath, environment.ContentRootPath);
         options.AutomationWorkingDirectory = ExpandOptionalPath(options.AutomationWorkingDirectory, environment.ContentRootPath);
@@ -92,6 +96,9 @@ public static class BuildServerEnvironment
         options.AllowedWorkspaceRoots = NormalizeRootList(options.AllowedWorkspaceRoots, environment.ContentRootPath);
         options.AllowedArtifactsRoots = NormalizeRootList(options.AllowedArtifactsRoots, environment.ContentRootPath);
         options.AllowedConfigRoots = NormalizeRootList(options.AllowedConfigRoots, environment.ContentRootPath);
+        RejectFilesystemRoots(options.AllowedWorkspaceRoots, "BUILD_SERVER_ALLOWED_WORKSPACE_ROOTS");
+        RejectFilesystemRoots(options.AllowedArtifactsRoots, "BUILD_SERVER_ALLOWED_ARTIFACTS_ROOTS");
+        RejectFilesystemRoots(options.AllowedConfigRoots, "BUILD_SERVER_ALLOWED_CONFIG_ROOTS");
         options.AllowedRepositoryHosts = options.AllowedRepositoryHosts
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().ToLowerInvariant())
@@ -106,14 +113,28 @@ public static class BuildServerEnvironment
 
     public static string ExpandHome(string path)
     {
-        if (string.IsNullOrWhiteSpace(path) || path == "~")
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        if (path == "~")
         {
             return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
 
-        if (path.StartsWith("~/") || path.StartsWith("~\\"))
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
         {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path[2..]);
+            string relativePath = path[1..]
+                .TrimStart('/', '\\')
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), relativePath);
         }
 
         return path;
@@ -165,8 +186,19 @@ public static class BuildServerEnvironment
         return roots
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => ResolvePath(value.Trim(), contentRootPath))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(BuildServerPathSafety.Comparer)
             .ToList();
+    }
+
+    private static void RejectFilesystemRoots(IEnumerable<string> roots, string settingName)
+    {
+        foreach (string root in roots)
+        {
+            if (BuildServerPathSafety.IsFilesystemRoot(root))
+            {
+                throw new InvalidOperationException($"{settingName} 不能包含磁盘根目录: {root}");
+            }
+        }
     }
 
     private static List<string> NormalizeNodePlatforms(IEnumerable<string> platforms)

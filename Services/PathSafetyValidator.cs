@@ -40,7 +40,10 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
             RequireUnderAnyRoot(_paths.XcodeOutputDirectory, [_paths.ArtifactsRunRoot], "Xcode 输出目录");
             RequireUnderAnyRoot(_paths.ArchivePath, [_paths.ArtifactsRunRoot], "Xcode archive 路径");
             RequireUnderAnyRoot(_paths.ExportPath, [_paths.ArtifactsRunRoot], "导出目录");
-            RequireParentUnderAnyRoot(_paths.ExportOptionsPlistPath, [_paths.ArtifactsRunRoot], "ExportOptions.plist");
+            if (_config.GenerateExportOptionsPlist)
+            {
+                RequireParentUnderAnyRoot(_paths.ExportOptionsPlistPath, [_paths.ArtifactsRunRoot], "ExportOptions.plist");
+            }
         }
 
         RequireUnderAnyRoot(_paths.LogsDirectory, [_paths.ArtifactsRunRoot], "日志目录");
@@ -49,7 +52,7 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
         _logger.Info("路径安全边界校验通过。");
     }
 
-    private static IReadOnlyList<string> ResolveAllowedRoots(IReadOnlyList<string> configuredRoots, string fallbackRoot)
+    private IReadOnlyList<string> ResolveAllowedRoots(IReadOnlyList<string> configuredRoots, string fallbackRoot)
     {
         if (configuredRoots.Count == 0)
         {
@@ -57,7 +60,7 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
         }
 
         return configuredRoots
-            .Select(PathTools.ExpandHome)
+            .Select(_config.ResolveConfiguredPath)
             .Select(PathSafety.NormalizePath)
             .Distinct(StringComparerForPaths())
             .ToArray();
@@ -89,7 +92,7 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
     {
         foreach (string root in allowedRoots)
         {
-            if (PathSafety.IsStrictChildPath(path, root))
+            if (PathSafety.IsStrictChildPathWithoutReparsePoints(path, root))
             {
                 return;
             }
@@ -102,7 +105,7 @@ internal sealed class PathSafetyValidator(BuildRunContext context)
     {
         foreach (string root in allowedRoots)
         {
-            if (PathSafety.IsSameOrChildPath(path, root))
+            if (PathSafety.IsSameOrChildPathWithoutReparsePoints(path, root))
             {
                 return;
             }

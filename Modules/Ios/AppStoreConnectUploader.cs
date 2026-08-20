@@ -16,7 +16,7 @@ internal sealed class AppStoreConnectUploader(BuildRunContext context)
             return;
         }
 
-        string apiKeyPath = Path.GetFullPath(PathTools.ExpandHome(_config.AppStoreConnectApiKeyPath));
+        string apiKeyPath = _config.ResolveConfiguredPath(_config.AppStoreConnectApiKeyPath);
         string uploadOptionsPlistPath = Path.Combine(_paths.ArtifactsRunRoot, "AppStoreConnectUploadOptions.plist");
         string uploadWorkingDirectory = Path.Combine(_paths.ArtifactsRunRoot, "AppStoreConnectUpload");
         string uploadLogPath = Path.Combine(_paths.LogsDirectory, "xcode-upload.log");

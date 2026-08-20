@@ -9,8 +9,13 @@ $output = Join-Path $root "publish/$Runtime"
 $publishRoot = [System.IO.Path]::GetFullPath((Join-Path $root "publish"))
 $outputFullPath = [System.IO.Path]::GetFullPath($output)
 $stagingPath = Join-Path $publishRoot (".staging-$Runtime-" + [Guid]::NewGuid().ToString("N"))
+$pathComparison = if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
 
-if (-not $outputFullPath.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not $outputFullPath.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, $pathComparison)) {
     throw "Publish output must stay under publish directory: $outputFullPath"
 }
 

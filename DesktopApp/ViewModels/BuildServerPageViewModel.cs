@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
-using DesktopApp.ViewModels;
+using DesktopApp.Services;
 
 namespace DesktopApp.ViewModels;
 
@@ -10,7 +10,7 @@ public class BuildServerPageViewModel : ViewModelBase
     private static readonly HttpClient s_healthClient = new() { Timeout = TimeSpan.FromSeconds(2) };
     private Process? _buildServerProcess;
 
-    private static string CustomPathFile => Path.Combine(Environment.CurrentDirectory, "profiles", "buildserver-path.json");
+    private static string CustomPathFile => DesktopPaths.BuildServerPathSettingsPath;
 
     private bool _isRunning;
     private bool _canStart;

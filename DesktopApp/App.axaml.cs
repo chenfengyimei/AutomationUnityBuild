@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using DesktopApp.ViewModels;
 using DesktopApp.Views;
+using DesktopApp.Services;
 
 namespace DesktopApp;
 
@@ -17,6 +18,7 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            DesktopPaths.Initialize();
             desktop.MainWindow = new MainWindow
             {
                 DataContext = new MainWindowViewModel(),

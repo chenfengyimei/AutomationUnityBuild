@@ -76,4 +76,48 @@ public class PathSafetyTests
         string result = PathSafety.NormalizePath("/home/user/work/");
         Assert.False(result.EndsWith(Path.DirectorySeparatorChar));
     }
+
+    [Fact]
+    public void NormalizePath_FilesystemRoot_PreservesRootSemantics()
+    {
+        string root = Path.GetPathRoot(Path.GetFullPath(Path.DirectorySeparatorChar.ToString()))!;
+        Assert.Equal(root, PathSafety.NormalizePath(root));
+        Assert.True(PathSafety.IsFilesystemRoot(PathSafety.NormalizePath(root)));
+    }
+
+    [Fact]
+    public void IsSameOrChildPathWithoutReparsePoints_RejectsDirectoryLinkEscapingRoot()
+    {
+        string allowedRoot = TestHelpers.CreateTempDir();
+        string outsideRoot = TestHelpers.CreateTempDir();
+        string linkPath = Path.Combine(allowedRoot, "outside-link");
+        try
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(linkPath, outsideRoot);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                return;
+            }
+
+            string candidate = Path.Combine(linkPath, "artifact.bin");
+            Assert.True(PathSafety.IsSameOrChildPath(candidate, allowedRoot));
+            Assert.False(PathSafety.IsSameOrChildPathWithoutReparsePoints(candidate, allowedRoot));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(linkPath)) Directory.Delete(linkPath);
+            }
+            catch
+            {
+            }
+
+            TestHelpers.CleanupTempDir(allowedRoot);
+            TestHelpers.CleanupTempDir(outsideRoot);
+        }
+    }
 }

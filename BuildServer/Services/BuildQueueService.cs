@@ -280,28 +280,49 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
 
     private static void NormalizeUnityExecutableForCurrentHost(JsonObject json)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
         string configuredPath = JsonString(json, "unityExecutablePath");
-        if (!string.IsNullOrWhiteSpace(configuredPath) && !LooksLikeMacUnityExecutablePath(configuredPath))
+        if (string.IsNullOrWhiteSpace(configuredPath))
         {
             return;
         }
 
         string unityVersion = JsonString(json, "unityVersion");
-        if (string.IsNullOrWhiteSpace(unityVersion) && !string.IsNullOrWhiteSpace(configuredPath))
+        if (OperatingSystem.IsWindows())
         {
-            unityVersion = ExtractUnityVersionFromMacPath(configuredPath);
+            if (!LooksLikeUnixUnityExecutablePath(configuredPath))
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(unityVersion))
+            {
+                unityVersion = ExtractUnityVersionFromUnixPath(configuredPath);
+            }
+
+            string resolvedPath = ResolveWindowsUnityExecutable(unityVersion);
+            json["unityExecutablePath"] = resolvedPath;
+            return;
         }
 
-        string resolvedPath = ResolveWindowsUnityExecutable(unityVersion);
-        if (!string.IsNullOrWhiteSpace(resolvedPath))
+        if (OperatingSystem.IsMacOS() && BuildServerPathSafety.IsWindowsAbsolutePath(configuredPath))
         {
-            json["unityExecutablePath"] = resolvedPath;
+            json["unityExecutablePath"] = "";
+            return;
         }
+
+        if (OperatingSystem.IsLinux() &&
+            (BuildServerPathSafety.IsWindowsAbsolutePath(configuredPath) || LooksLikeMacUnityExecutablePath(configuredPath)))
+        {
+            json["unityExecutablePath"] = "";
+        }
+    }
+
+    private static bool LooksLikeUnixUnityExecutablePath(string path)
+    {
+        string normalized = path.Replace('\\', '/');
+        return normalized.StartsWith("/", StringComparison.Ordinal) &&
+               (normalized.EndsWith("/Editor/Unity", StringComparison.OrdinalIgnoreCase) ||
+                normalized.EndsWith("/Unity.app/Contents/MacOS/Unity", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool LooksLikeMacUnityExecutablePath(string path)
@@ -311,7 +332,7 @@ public sealed class BuildQueueService(JsonDatabase database, BuildServerOptions 
                normalized.Contains("/Unity.app/Contents/MacOS/Unity", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string ExtractUnityVersionFromMacPath(string path)
+    private static string ExtractUnityVersionFromUnixPath(string path)
     {
         string normalized = path.Replace('\\', '/');
         const string marker = "/Editor/";

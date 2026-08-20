@@ -26,7 +26,7 @@ public sealed class ServerSyncService : IDisposable
 
     // ---- 服务器连接设置持久化 ----
 
-    private static string SettingsPath => Path.Combine(Environment.CurrentDirectory, "profiles", "server-settings.json");
+    private static string SettingsPath => DesktopPaths.ServerSettingsPath;
 
     public ServerSettings LoadSettings()
     {
