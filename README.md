@@ -27,7 +27,7 @@ AutomationUnityBuildIOS 是一套为 Unity 移动端项目打造的端到端自�
 
 它不是简单的脚本封装，而是覆盖了从代码仓库到应用商店全链路的工程化平台。最小形态下，它是一个拷到 Mac 上就能用的 .NET 8 命令行工具：选择配置，自动拉取 Unity 仓库、执行 Unity Editor 构建脚本、导出 iOS Xcode 工程或 Android APK/AAB、生成日志与产物。团队形态下，它变成网页打包平台：负责人在 Web 后台维护项目和配置，构建员点击发起任务，所有人通过浏览器查看队列、日志、产物和审计记录。桌面形态下，它提供原生 Windows 桌面客户端，所有操作离线可用，配置模板一键填充。多设备形态下，它通过 LinuxGateway 把多台 Mac/Windows 打包机统一接入一个公网入口，支持直接连接和反向穿透两种组网方式。
 
-它还覆盖了 TikTok 小游戏的 WebGL 构建与开放平台 API 上传、邮件通知（成功/失败/SMTP 465 隐式 SSL）、存储管理（产物清理/存储概览/批量删除）、四类配置模板（项目/工程/签名/证书）以及 AI Agent 通过 MCP 工具参与构建流程的能力。
+它还覆盖了 TikTok 小游戏的 WebGL 构建与开放平台 API 上传、邮件通知（成功/失败/SMTP 465 隐式 SSL）、存储管理（产物清理/存储概览/批量删除）、五类配置模板（项目/工程/版本/签名/证书）以及 AI Agent 通过 MCP 工具参与构建流程的能力。
 
 它解决的是一个很具体但很疼的问题：Unity 移动端发包不应该每次都靠人记命令、翻路径、找证书、手工看日志。
 
@@ -60,7 +60,7 @@ AutomationUnityBuildIOS 是一套为 Unity 移动端项目打造的端到端自�
 | **LinuxGateway 多节点入口** | 在 Linux 公网服务器上统一调度多台 Mac/Windows BuildServer 节点，支持直接连接和反向穿透 | [LinuxGateway](docs/linux-gateway.md) |
 | **邮件通知** | 构建成功/失败自动发送邮件通知，支持 SMTP 465 隐式 SSL、通知联系人列表、个性化模板 | [邮件通知](docs/usage.md#邮件通知) |
 | **存储管理** | 手动清理历史产物、存储概览、批量删除，防止打包机磁盘膨胀 | [存储管理](docs/usage.md#存储管理) |
-| **配置模板** | 四类模板（项目管理/工程管理/签名管理/证书管理），一键填充配置字段，支持服务端双向同步 | [模板管理](docs/usage.md#模板管理) |
+| **配置模板** | 五类模板（项目管理/工程管理/版本管理/签名管理/证书管理），一键填充配置字段，支持服务端双向同步 | [模板管理](docs/usage.md#模板管理) |
 | **安全边界** | Git 仓库白名单、路径根目录限制、配置快照、敏感信息脱敏、登录与审计 | [架构说明](docs/architecture.md#平台化前置能力) |
 | **日志与产物追溯** | 每次运行生成独立目录，保存总日志、Unity 日志、Xcode/Android 日志和配置快照 | [日志排查](docs/usage.md#日志和产物) |
 
@@ -68,22 +68,29 @@ AutomationUnityBuildIOS 是一套为 Unity 移动端项目打造的端到端自�
 
 ## 可视化界面演示
 
-
-### CLI 交互菜单
-
-![CLI 交互菜单](docs/images/cli-menu.png)
+> 以下为缩略预览，点击图片可查看原图。
 
 ### BuildServer 网页可视化界面
 
-![BuildServer 配置管理](docs/images/buildserver-config.png)
+<p>
+  <a href="docs/images/buildserver-tasks.png"><img src="docs/images/buildserver-tasks.png" width="320" alt="BuildServer 打包任务" title="打包任务"></a>
+  <a href="docs/images/buildserver-config.png"><img src="docs/images/buildserver-config.png" width="320" alt="BuildServer 配置管理" title="配置管理"></a>
+  <a href="docs/images/buildserver-storage.png"><img src="docs/images/buildserver-storage.png" width="320" alt="BuildServer 存储管理" title="存储管理"></a>
+</p>
+
+打包任务（发起构建、队列与历史任务）· 配置管理（模板一键填充、已有项目配置）· 存储管理（产物概览与批量清理）
+
+### CLI 交互菜单
+
+<a href="docs/images/cli-menu.png"><img src="docs/images/cli-menu.png" width="560" alt="CLI 交互菜单"></a>
 
 ### DesktopApp 桌面客户端
 
-![DesktopApp 桌面客户端](docs/images/desktopapp-buildserver.png)
+<a href="docs/images/desktopapp-buildserver.png"><img src="docs/images/desktopapp-buildserver.png" width="560" alt="DesktopApp 桌面客户端"></a>
 
 ### LinuxGateway 多节点网关
 
-![LinuxGateway 首页概览](docs/images/linuxgateway-dashboard.png)
+<a href="docs/images/linuxgateway-dashboard.png"><img src="docs/images/linuxgateway-dashboard.png" width="560" alt="LinuxGateway 首页概览"></a>
 
 ---
 
@@ -149,7 +156,7 @@ graph TB
         Auth["用户 · 权限 · 审计"]
         Email["邮件通知<br/>SMTP 465 隐式 SSL"]
         Storage["存储管理<br/>产物清理 · 批量删除"]
-        Templates["四类配置模板<br/>项目 / 工程 / 签名 / 证书"]
+        Templates["五类配置模板<br/>项目 / 工程 / 版本 / 签名 / 证书"]
         AutoUpdate["在线自更新<br/>Gitee + GitHub 双源"]
     end
 
