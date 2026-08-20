@@ -1,6 +1,11 @@
 <Project>
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);**\bin\**;**\obj\**;**\publish\**;**\.codex\**</DefaultItemExcludes>
+    <!-- 项目正式版本：v8.0，后续发布版本从 v8.0 起递增 -->
+    <Version>8.0.0</Version>
+    <AssemblyVersion>8.0.0.0</AssemblyVersion>
+    <FileVersion>8.0.0.0</FileVersion>
+    <InformationalVersion>8.0.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
