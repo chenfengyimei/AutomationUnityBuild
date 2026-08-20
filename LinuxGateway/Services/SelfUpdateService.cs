@@ -366,6 +366,9 @@ find . -type f | while read -r f; do
     cp "$f" "$target"
 done
 
+# Windows cross-published tar archives do not preserve Unix executable bits.
+chmod 755 "$APP_DIR/LinuxGateway"
+
 echo "[update] files updated."
 
 # 尝试 systemctl 重启

@@ -29,7 +29,8 @@ public class UnityProfile : ViewModelBase
 
     public UnityProfile Clone() => new()
     {
-        Id = Id, Name = Name,
+        Id = Id,
+        Name = Name,
         UnityProjectRelativePath = UnityProjectRelativePath,
         UnityVersion = UnityVersion,
         UnityExecutablePath = UnityExecutablePath,

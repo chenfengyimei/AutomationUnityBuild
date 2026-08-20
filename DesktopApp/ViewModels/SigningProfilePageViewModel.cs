@@ -15,7 +15,16 @@ public class SigningProfilePageViewModel : ViewModelBase
     public SigningProfile EditProfile
     {
         get => _edit;
-        set { if (_edit is not null) _edit.PropertyChanged -= OnPC; Set(ref _edit, value); if (_edit is not null) _edit.PropertyChanged += OnPC; RaiseFlags(); }
+        set
+        {
+            SigningProfile next = value ?? new SigningProfile();
+            if (ReferenceEquals(_edit, next)) return;
+            _edit.PropertyChanged -= OnPC;
+            _edit = next;
+            _edit.PropertyChanged += OnPC;
+            Raise();
+            RaiseFlags();
+        }
     }
     void OnPC(object? s, System.ComponentModel.PropertyChangedEventArgs e) { if (e.PropertyName == nameof(SigningProfile.Platform)) RaiseFlags(); }
     void RaiseFlags() { Raise(nameof(IsEditIos)); Raise(nameof(IsEditAndroid)); }

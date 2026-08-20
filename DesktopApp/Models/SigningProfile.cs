@@ -45,11 +45,17 @@ public class SigningProfile : ViewModelBase
 
     public SigningProfile Clone() => new()
     {
-        Id = Id, Name = Name, Platform = Platform,
-        TeamId = TeamId, ExportMethod = ExportMethod, SigningStyle = SigningStyle,
+        Id = Id,
+        Name = Name,
+        Platform = Platform,
+        TeamId = TeamId,
+        ExportMethod = ExportMethod,
+        SigningStyle = SigningStyle,
         IosDeploymentTarget = IosDeploymentTarget,
-        AndroidKeystoreName = AndroidKeystoreName, AndroidKeystorePass = AndroidKeystorePass,
-        AndroidKeyaliasName = AndroidKeyaliasName, AndroidKeyaliasPass = AndroidKeyaliasPass
+        AndroidKeystoreName = AndroidKeystoreName,
+        AndroidKeystorePass = AndroidKeystorePass,
+        AndroidKeyaliasName = AndroidKeyaliasName,
+        AndroidKeyaliasPass = AndroidKeyaliasPass
     };
 
     public override string ToString() => string.IsNullOrEmpty(Name) ? "(未命名)" : Name;

@@ -6,6 +6,7 @@ using AutomationUnityBuildIOS;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using DesktopApp.Models;
 using DesktopApp.Services;
 
@@ -83,11 +84,14 @@ public class ConfigPageViewModel : ViewModelBase
         get => _editConfig;
         set
         {
-            if (_editConfig is not null)
-                _editConfig.PropertyChanged -= OnEditConfigPropertyChanged;
-            Set(ref _editConfig, value);
-            if (_editConfig is not null)
-                _editConfig.PropertyChanged += OnEditConfigPropertyChanged;
+            ConfigItem next = value ?? new ConfigItem();
+            if (ReferenceEquals(_editConfig, next))
+                return;
+
+            _editConfig.PropertyChanged -= OnEditConfigPropertyChanged;
+            _editConfig = next;
+            _editConfig.PropertyChanged += OnEditConfigPropertyChanged;
+            Raise();
             RaisePlatformFlags();
         }
     }
@@ -108,12 +112,12 @@ public class ConfigPageViewModel : ViewModelBase
     private void SyncFileName()
     {
         if (!IsNewConfig) return;
-        string platform = EditConfig.Platform ?? "ios";
+        string platform = string.IsNullOrWhiteSpace(EditConfig.Platform) ? "ios" : EditConfig.Platform;
         string name = string.IsNullOrWhiteSpace(EditConfig.ConfigName) ? "" : EditConfig.ConfigName.Trim();
         string fileName = string.IsNullOrEmpty(name)
             ? $"build-{platform}.json"
             : $"build-{platform}.{name}.json";
-        string dir = Path.GetDirectoryName(EditConfig.FullPath);
+        string? dir = Path.GetDirectoryName(EditConfig.FullPath);
         if (string.IsNullOrEmpty(dir)) dir = Environment.CurrentDirectory;
         EditConfig.FullPath = Path.Combine(dir, fileName);
     }
@@ -662,25 +666,31 @@ public class ConfigPageViewModel : ViewModelBase
     {
         try
         {
-            var dialog = new OpenFileDialog
+            Window? mainWindow = GetMainWindow();
+            if (mainWindow is null)
+            {
+                StatusMessage = "无法打开文件选择器：主窗口尚未就绪。";
+                return;
+            }
+
+            var files = await mainWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "选择要导入的配置文件",
-                Filters = new List<FileDialogFilter>
+                FileTypeFilter = new List<FilePickerFileType>
                 {
-                    new() { Name = "JSON 配置文件", Extensions = new List<string> { "json" } },
-                    new() { Name = "所有文件", Extensions = new List<string> { "*" } }
+                    new("JSON 配置文件") { Patterns = new List<string> { "*.json" } },
+                    new("所有文件") { Patterns = new List<string> { "*" } }
                 },
                 AllowMultiple = false
-            };
+            });
 
-            string[]? results = await dialog.ShowAsync(GetMainWindow());
-            if (results is null || results.Length == 0)
+            if (files.Count == 0)
             {
                 StatusMessage = "未选择文件。";
                 return;
             }
 
-            string srcPath = results[0];
+            string srcPath = files[0].Path.LocalPath;
             string fileName = Path.GetFileName(srcPath);
 
             string destDir = Path.Combine(Environment.CurrentDirectory, "configs");

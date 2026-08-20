@@ -8,11 +8,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectPath = "DesktopApp/DesktopApp.csproj"
-$solutionRoot = $PSScriptRoot
+$solutionRoot = Split-Path -Parent $PSScriptRoot
+$publishRoot = [System.IO.Path]::GetFullPath((Join-Path $solutionRoot "publish"))
+$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $solutionRoot $OutputDir))
 
-if (-not (Test-Path (Join-Path $solutionRoot $projectPath)))
+if (-not (Test-Path -LiteralPath (Join-Path $solutionRoot $projectPath)))
 {
-    $solutionRoot = Get-Location
+    throw "DesktopApp project was not found under repository root: $solutionRoot"
+}
+
+if (-not $outputRoot.StartsWith($publishRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase))
+{
+    throw "Desktop publish output must stay under publish directory: $outputRoot"
 }
 
 if (-not $WinX64 -and -not $OsxArm64 -and -not $OsxX64 -and -not $All)
@@ -22,49 +29,55 @@ if (-not $WinX64 -and -not $OsxArm64 -and -not $OsxX64 -and -not $All)
 
 function Publish-SingleFile($runtime, $outputName)
 {
-    $outPath = Join-Path $solutionRoot "$OutputDir/$runtime"
+    $outPath = Join-Path $outputRoot $runtime
+    $stagingPath = Join-Path $outputRoot (".staging-$runtime-" + [Guid]::NewGuid().ToString("N"))
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "  Publishing $runtime -> $outputName" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
 
-    if (Test-Path $outPath)
-    {
-        Remove-Item -Recurse -Force $outPath
-    }
+    try {
+        & dotnet publish (Join-Path $solutionRoot $projectPath) `
+            -c Release `
+            -r $runtime `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=embedded `
+            -o $stagingPath
 
-    & dotnet publish (Join-Path $solutionRoot $projectPath) `
-        -c Release `
-        -r $runtime `
-        --self-contained true `
-        -p:PublishSingleFile=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
-        -p:DebugType=embedded `
-        -o $outPath
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "dotnet publish failed for $runtime with exit code $LASTEXITCODE"
+        }
 
-    if ($LASTEXITCODE -ne 0)
-    {
-        Write-Host "FAILED: $runtime" -ForegroundColor Red
-        return
-    }
+        $exeName = if ($runtime.StartsWith("win")) { "$outputName.exe" } else { $outputName }
+        $stagingExePath = Join-Path $stagingPath $exeName
+        if (-not (Test-Path -LiteralPath $stagingExePath))
+        {
+            throw "Published executable was not found: $stagingExePath"
+        }
 
-    $exeName = if ($runtime.StartsWith("win")) { "$outputName.exe" } else { $outputName }
-    $exePath = Join-Path $outPath $exeName
+        if (Test-Path -LiteralPath $outPath)
+        {
+            Remove-Item -LiteralPath $outPath -Recurse -Force
+        }
+        Move-Item -LiteralPath $stagingPath -Destination $outPath
+        $stagingPath = ""
 
-    if (Test-Path $exePath)
-    {
+        $exePath = Join-Path $outPath $exeName
         $size = (Get-Item $exePath).Length / 1MB
         Write-Host ""
         Write-Host "SUCCESS: $exePath" -ForegroundColor Green
         Write-Host ("Size: {0:N1} MB" -f $size) -ForegroundColor Green
         Write-Host "Output dir: $outPath" -ForegroundColor Gray
     }
-    else
-    {
-        Write-Host "WARNING: Expected exe not found at $exePath" -ForegroundColor Yellow
-        Write-Host "Files in output:" -ForegroundColor Gray
-        Get-ChildItem $outPath -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+    finally {
+        if (-not [string]::IsNullOrWhiteSpace($stagingPath) -and (Test-Path -LiteralPath $stagingPath))
+        {
+            Remove-Item -LiteralPath $stagingPath -Recurse -Force
+        }
     }
 }
 
@@ -88,10 +101,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  All done!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Output:" -ForegroundColor White
-Write-Host "  Windows:  $OutputDir/win-x64/DesktopApp.exe" -ForegroundColor Gray
-Write-Host "  Mac ARM:  $OutputDir/osx-arm64/DesktopApp" -ForegroundColor Gray
-Write-Host "  Mac Intel: $OutputDir/osx-x64/DesktopApp" -ForegroundColor Gray
+Write-Host "Output root: $outputRoot" -ForegroundColor White
 Write-Host ""
 Write-Host "Usage:" -ForegroundColor White
 Write-Host "  .\scripts\publish-desktop.ps1              # All platforms" -ForegroundColor Gray

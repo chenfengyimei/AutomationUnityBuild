@@ -19,11 +19,14 @@ public class CertificatePageViewModel : ViewModelBase
         get => _editProfile;
         set
         {
-            if (_editProfile is not null)
-                _editProfile.PropertyChanged -= OnEditProfilePropertyChanged;
-            Set(ref _editProfile, value);
-            if (_editProfile is not null)
-                _editProfile.PropertyChanged += OnEditProfilePropertyChanged;
+            CertificateProfile next = value ?? new CertificateProfile();
+            if (ReferenceEquals(_editProfile, next))
+                return;
+
+            _editProfile.PropertyChanged -= OnEditProfilePropertyChanged;
+            _editProfile = next;
+            _editProfile.PropertyChanged += OnEditProfilePropertyChanged;
+            Raise();
             RaisePlatformFlags();
         }
     }
