@@ -9,17 +9,17 @@
   --bg: #f5f6f8;
   --panel: #ffffff;
   --panel-soft: #fafbfc;
-  --text: #17191d;
-  --muted: #66707e;
+  --text: #16324a;
+  --muted: #5f7089;
   --line: #e4e6ea;
   --line-strong: #d3d6db;
-  --primary: #27272a;
-  --primary-dark: #101012;
-  --primary-soft: #f0f0f2;
+  --primary: #0284c7;
+  --primary-dark: #0369a1;
+  --primary-soft: #e8f4fc;
   --nav: #ffffff;
   --nav-2: #ffffff;
-  --nav-text: #52525b;
-  --nav-active: #27272a;
+  --nav-text: #4c5f76;
+  --nav-active: #0284c7;
   --ok: #16a34a;
   --warn: #b45309;
   --danger: #dc2626;
@@ -27,7 +27,7 @@
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 10px 32px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.14);
-  --radius: 12px;
+  --radius: 0;
   --radius-sm: 0;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-family: Inter, "Segoe UI Variable Text", "Segoe UI", -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
@@ -70,8 +70,8 @@
 }
 
 ::selection {
-  background: #27272a;
-  color: #ffffff;
+  background: #bae6fd;
+  color: #0c4a6e;
 }
 
 body {
@@ -142,18 +142,18 @@ button.is-busy::before {
 }
 
 button.secondary.is-busy::before {
-  border-color: rgba(39, 39, 42, 0.25);
-  border-top-color: #27272a;
+  border-color: rgba(2, 132, 199, 0.25);
+  border-top-color: #0284c7;
 }
 
 button.secondary {
   background: var(--primary-soft);
-  border-color: var(--line-strong);
-  color: var(--text);
+  border-color: #bae6fd;
+  color: #075985;
 }
 
 button.secondary:hover {
-  background: #e4e4e8;
+  background: #d7eaf7;
   border-color: #c3c6cc;
 }
 
@@ -184,7 +184,7 @@ button.danger:hover {
 .login-panel {
   width: min(440px, 100%);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 0;
   background: var(--panel);
   box-shadow: var(--shadow-md);
 }
@@ -194,7 +194,7 @@ button.danger:hover {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #101216;
+  color: #0c4a6e;
 }
 
 .login-copy {
@@ -233,7 +233,7 @@ button.danger:hover {
 
 .side-brand h2 {
   margin: 3px 0 0;
-  color: #101216;
+  color: #0c4a6e;
   font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -241,7 +241,7 @@ button.danger:hover {
 
 .eyebrow {
   margin: 0;
-  color: #8a93a3;
+  color: #0284c7;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -257,7 +257,7 @@ button.danger:hover {
   padding: 7px 10px;
   text-align: left;
   background: transparent;
-  color: #5c6675;
+  color: #4c5f76;
   font-weight: 600;
   font-size: 13px;
   transition: background 0.15s var(--ease), color 0.15s var(--ease);
@@ -265,13 +265,13 @@ button.danger:hover {
 
 .sidebar button:hover {
   background: var(--primary-soft);
-  color: #17191d;
+  color: #075985;
 }
 
 .sidebar button.active {
-  border-color: var(--line);
+  border-color: #bae6fd;
   background: var(--primary-soft);
-  color: #101216;
+  color: #075985;
   font-weight: 700;
   box-shadow: inset 3px 0 0 var(--nav-active);
 }
@@ -284,7 +284,7 @@ button.danger:hover {
 
 .side-group-label {
   margin: 12px 4px 3px;
-  color: #9ca3af;
+  color: #64809b;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -392,7 +392,7 @@ button.danger:hover {
   border-radius: 0;
   padding: 3px 12px;
   background: var(--panel-soft);
-  color: #52525b;
+  color: #4c5f76;
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -404,7 +404,7 @@ button.danger:hover {
   height: 8px;
   margin-right: 8px;
   border-radius: 0;
-  background: #9ca3af;
+  background: #64809b;
 }
 
 .live-status.ok {
@@ -486,7 +486,7 @@ h2,
 h3 {
   margin-top: 0;
   letter-spacing: -0.02em;
-  color: #101216;
+  color: #0c4a6e;
 }
 
 h1 {
@@ -554,7 +554,7 @@ h3 {
 .identity-stats strong {
   display: block;
   margin-top: 5px;
-  color: #101216;
+  color: #0c4a6e;
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -584,7 +584,7 @@ h3 {
 
 .data-table th {
   background: var(--panel-soft);
-  color: #7a8493;
+  color: #64809b;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -730,7 +730,7 @@ h3 {
 .user-list-item:focus-visible {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08), inset 3px 0 0 var(--primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.16), inset 3px 0 0 var(--primary);
 }
 
 .user-list-main {
@@ -1077,7 +1077,7 @@ h3 {
 }
 
 .metrics strong {
-  color: #101216;
+  color: #0c4a6e;
   font-size: 27px;
   line-height: 1;
   font-weight: 800;
@@ -1102,7 +1102,7 @@ label {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 10px;
-  color: #2b3340;
+  color: #28536f;
   font-weight: 650;
   font-size: 13px;
   line-height: 1.45;
@@ -1135,7 +1135,7 @@ label {
 }
 
 .field-help-button:hover {
-  background: #e4e4e8;
+  background: #d7eaf7;
 }
 
 input,
@@ -1160,7 +1160,7 @@ textarea:hover:not(:disabled) {
 
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af;
+  color: #93a8bf;
 }
 
 textarea {
@@ -1172,7 +1172,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.07);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.14);
 }
 
 label:has(> input[type="checkbox"]) {
@@ -1192,7 +1192,7 @@ input[type="checkbox"] {
 
 input:disabled {
   background: var(--panel-soft);
-  color: #9ca3af;
+  color: #93a8bf;
 }
 
 .form-error {
@@ -1221,7 +1221,7 @@ input:disabled {
   gap: 8px;
   min-height: 34px;
   margin: 0;
-  color: #52525b;
+  color: #4c5f76;
   font-weight: 600;
 }
 
@@ -1515,7 +1515,7 @@ input:disabled {
   border: 1px solid var(--line-strong);
   border-radius: 0;
   padding: 2px 9px;
-  color: #5c6675;
+  color: #4c5f76;
   background: var(--panel-soft);
   font-size: 12px;
   font-weight: 750;
@@ -1545,7 +1545,7 @@ input:disabled {
 }
 
 .status.Canceled {
-  color: #52525b;
+  color: #4c5f76;
   background: var(--panel-soft);
   border-color: var(--line-strong);
 }
@@ -1599,7 +1599,7 @@ input:disabled {
 .help-grid ol {
   margin: 0;
   padding-left: 20px;
-  color: #52525b;
+  color: #4c5f76;
   line-height: 1.65;
 }
 
@@ -1701,7 +1701,7 @@ pre {
 .confirm-body {
   display: grid;
   gap: 8px;
-  color: #374151;
+  color: #28536f;
   line-height: 1.65;
 }
 
@@ -1739,7 +1739,7 @@ pre {
 .field-help-body {
   display: grid;
   gap: 14px;
-  color: #374151;
+  color: #28536f;
   line-height: 1.7;
 }
 
@@ -1827,7 +1827,7 @@ pre {
 }
 
 .download-link:hover {
-  background: #e4e4e8;
+  background: #d7eaf7;
 }
 
 .modal pre {
