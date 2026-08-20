@@ -87,6 +87,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-linux-gate
 publish/linux-gateway
 ```
 
+默认产物使用 `linux-x64` RID，适用于 glibc 系 Linux 发行版，不适用于 Alpine 等 musl 环境。自包含发布仍依赖宿主的基础原生库（例如 `libstdc++` 和 `libgcc`）；精简系统建议直接使用 `deploy/docker/linux-gateway.Dockerfile`，或按目标发行版改用匹配的 RID 并安装其运行时依赖。
+
 复制到 Linux 后运行：
 
 ```bash

@@ -820,21 +820,27 @@ BuildServer 会为每个任务生成独立配置快照，并调用 CLI：
 AutomationUnityBuildIOS run --config <job-config.json>
 ```
 
-### 发布 BuildServer 到 Mac
+### 发布 BuildServer 到 macOS / Windows
 
 Apple Silicon Mac：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server-mac.ps1 -Runtime osx-arm64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime osx-arm64
 ```
 
 Intel Mac：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server-mac.ps1 -Runtime osx-x64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime osx-x64
 ```
 
-发布目录会同时包含 BuildServer 和 AutomationUnityBuildIOS CLI。生产环境可配合：
+Windows x64 Android 节点：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime win-x64
+```
+
+发布目录会同时包含 BuildServer 和 AutomationUnityBuildIOS CLI。旧的 `publish-build-server-mac.ps1` 入口继续保留兼容。macOS 生产环境可配合：
 
 ```text
 deploy/launchd/com.automationunity.buildserver.plist
@@ -930,6 +936,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-linux-gate
 ```text
 publish/linux-gateway
 ```
+
+默认产物使用 `linux-x64` RID，适用于 glibc 系 Linux 发行版，不适用于 Alpine 等 musl 环境。自包含发布仍依赖宿主的基础原生库（例如 `libstdc++` 和 `libgcc`）；精简系统建议直接使用 `deploy/docker/linux-gateway.Dockerfile`，或按目标发行版改用匹配的 RID 并安装其运行时依赖。
 
 复制到 Linux 后运行：
 

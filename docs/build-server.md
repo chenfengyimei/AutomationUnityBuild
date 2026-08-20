@@ -62,13 +62,17 @@ export BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS="github.com"
 - Git 仓库默认允许 HTTPS/SSH 地址；生产环境建议设置 `BUILD_SERVER_ALLOWED_REPOSITORY_HOSTS`，例如 `github.com` 或公司 Git 服务器域名。
 - 如果经过 Nginx/Caddy 等反向代理访问网页，设置 `BUILD_SERVER_PUBLIC_BASE_URL` 和 `BUILD_SERVER_ALLOWED_ORIGINS`，否则跨站请求防护会拒绝来源不一致的写操作。
 
-## Mac 发布
+## macOS / Windows 发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server-mac.ps1 -Runtime osx-arm64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime osx-arm64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime osx-x64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-build-server.ps1 -Runtime win-x64
 ```
 
-发布后可配合 `deploy/launchd/com.automationunity.buildserver.plist` 作为 `buildbot` 用户启动。证书、描述文件、Unity License、Git SSH Key 都应安装在这个固定 macOS 用户下。
+三个发布目录都会同时包含 BuildServer 和 AutomationUnityBuildIOS CLI，避免服务启动后找不到实际打包工具。旧的 `publish-build-server-mac.ps1` 入口继续保留兼容。
+
+macOS 发布后可配合 `deploy/launchd/com.automationunity.buildserver.plist` 作为 `buildbot` 用户启动。证书、描述文件、Unity License、Git SSH Key 都应安装在这个固定 macOS 用户下。
 
 ## 必填数据
 
