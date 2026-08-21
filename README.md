@@ -1,6 +1,7 @@
 # AutomationUnityBuild — Unity 全平台自动化打包发布系统
 
-> 一套经过生产验证的 Unity 移动端自动化构建与发布工具链。从 Git 同步、Unity BatchMode、Xcode/Android 构建到 App Store Connect / TestFlight、Google Play、TikTok 小游戏上传，再到 Web 打包平台、桌面客户端、多节点网关调度和 AI Agent 接入——它把整个发布流水线串成一条可落地、可追溯、可扩展的完整链路。
+> AutomationUnityBuild 是一个基于 .net 的 Unity 游戏项目自动化打包到发布解决方案，一键式多平台构建，让游戏开发团队从繁琐的手动打包流程中解放出来。
+一套经过生产验证的 Unity 移动端自动化构建与发布工具链。从 Git 同步、Unity BatchMode、Xcode/Android 构建到 App Store Connect / TestFlight、Google Play、TikTok 小游戏上传，再到 Web 打包平台、桌面客户端、多节点网关调度和 AI Agent 接入——它把整个发布流水线串成一条可落地、可追溯、可扩展的完整链路。
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Unity](https://img.shields.io/badge/Unity-iOS%20%7C%20Android%20%7C%20TikTok-black?logo=unity&logoColor=white)](https://unity.com/)
