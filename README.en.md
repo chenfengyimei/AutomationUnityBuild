@@ -21,13 +21,45 @@
 
 ---
 
+## Fully Automated Pipeline
+
+A complete game release is never an isolated "just build it" action — it is an interlocking production line. **AutomationUnityBuild turns this line from manual craft into reusable, traceable, and extensible system capability**, covering every stage from game development to final release:
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Game Dev    │    │  Auto Build  │    │  Test Upload │    │ Store Upload │    │   Release    │
+│   (Unity)    │ ─▶ │  (CLI/Web)   │ ─▶ │ (TestFlight) │ ─▶ │ (App Store)  │ ─▶ │(Staged/Prod) │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       ▲                                                                              │
+       └───────────────── Email / Logs / Config Reuse ◀───────────────────────────────┘
+```
+
+| Stage | Traditional Way | The AutomationUnityBuild Way |
+|------|---------|---------------------------|
+| **Game Development** | Open Unity manually after coding, click Build, wait half an hour | Git repos as config, one click pulls the latest code, unattended Unity BatchMode builds |
+| **Automated Build** | Memorizing commands, digging through paths, hunting certificates, reading logs by hand | CLI numeric shortcuts / Web console buttons / DesktopApp client — three entry points to choose from |
+| **Test Upload** | Open Transporter manually, drag the `.ipa`, wait for upload, then submit in App Store Connect | Auto-calls the App Store Connect API after build, TestFlight distributes to test groups automatically |
+| **Store Upload** | Fill in version numbers, pick the build, submit for review by hand | Version auto-increment, configurable Google Play staged rollout, direct TikTok Open Platform API upload |
+| **Game Release** | "Package is ready" message in a chat group, testers download manually | Success/failure email notifications, centralized artifact storage, traceable build history, complete audit logs |
+
+### The Value of the Closed Loop
+
+- **One config, usable everywhere**: once the five template types (project / Unity / version / signing / certificate) are captured, a new teammate populates the fields with one click and starts a build — no more "only one person knows how to package"
+- **One build, many destinations**: the same Unity project produces iOS `.ipa` + Android `.apk/.aab` + TikTok Mini-Game packages, each heading to its own store
+- **One failure, fully traceable**: master logs, Unity logs, Xcode logs, and Android logs are stored in layers, and email notifications pinpoint problems immediately
+- **One entry, many forms**: CLI for developers, Web for team collaboration, DesktopApp for offline work, LinuxGateway for multi-machine scheduling — the same core logic, four ways to use it
+
+This is why AutomationUnityBuild exists: **let game teams spend their energy on the game itself, not on repetitive release chores.**
+
+---
+
 ## What Is It
 
 AutomationUnityBuildIOS is an end-to-end automated build and release system built for Unity mobile projects.
 
 It is not a simple script wrapper — it is an engineering platform covering the full pipeline from source repository to app store. At its minimum, it is a .NET 8 command-line tool that runs on a Mac: select a config, and it automatically pulls the Unity repository, executes Unity Editor build scripts, exports an iOS Xcode project or Android APK/AAB, and generates logs and artifacts. In team mode, it becomes a web build platform: project leads manage projects and configs in a web backend, builders submit tasks with a click, and everyone views the queue, logs, artifacts, and audit records through a browser. In desktop mode, it provides a native Windows desktop client with full offline capability and one-click template population. In multi-device mode, it uses LinuxGateway to unify multiple Mac/Windows build machines under a single public entry point, supporting both direct-connect and reverse-tunnel networking.
 
-It also covers TikTok Mini-Game WebGL builds with Open Platform API uploads, email notifications (success/failure, SMTP 465 implicit SSL), storage management (artifact cleanup / storage overview / bulk delete), four types of configuration templates (project / Unity / signing / certificate), and AI Agent participation in the build process via MCP tools.
+It also covers TikTok Mini-Game WebGL builds with Open Platform API uploads, email notifications (success/failure, SMTP 465 implicit SSL), storage management (artifact cleanup / storage overview / bulk delete), five types of configuration templates (project / Unity / version / signing / certificate), and AI Agent participation in the build process via MCP tools.
 
 It solves a very specific but painful problem: Unity mobile releases should never require memorizing commands, digging through paths, hunting for certificates, or manually reading logs every single time.
 
@@ -37,7 +69,7 @@ It solves a very specific but painful problem: Unity mobile releases should neve
 
 - **Unity mobile game/app teams**: Need to reliably produce iOS `.ipa`, `.xcarchive`, Android `.apk` / `.aab`, and auto-upload to App Store Connect / TestFlight / Google Play.
 - **TikTok Mini-Game teams**: Need to build WebGL and upload directly to the TikTok Open Platform.
-- **Indie developers**: Want to固化 the Mac build process into a reusable config, reducing manual work before every release.
+- **Indie developers**: Want to turn the Mac build process into a reusable config, reducing manual work before every release.
 - **QA / ops / publishing teams**: Want to trigger builds, download artifacts, and track history through a web UI or desktop client instead of remotely logging into build machines.
 - **Multi-platform build teams**: Mac handles iOS and Android, Windows nodes handle Android, all unified under LinuxGateway.
 - **AI / Agent workflow users**: Want to let Agents query projects, submit dry-runs, check status, and read logs and artifacts via MCP tools.
@@ -60,7 +92,7 @@ It solves a very specific but painful problem: Unity mobile releases should neve
 | **LinuxGateway Multi-Node Entry** | Unifies multiple Mac/Windows BuildServer nodes under a single public entry on Linux, supporting direct-connect and reverse-tunnel | [LinuxGateway](docs/linux-gateway.en.md) |
 | **Email Notifications** | Auto-send success/failure email notifications, supports SMTP 465 implicit SSL, contact lists, personalized templates | [Email Notifications](docs/usage.en.md#email-notifications) |
 | **Storage Management** | Manual artifact cleanup, storage overview, bulk delete, preventing disk bloat on build machines | [Storage Management](docs/usage.en.md#storage-management) |
-| **Configuration Templates** | Four template types (project / Unity / signing / certificate), one-click field population, server bidirectional sync | [Template Management](docs/usage.en.md#template-management) |
+| **Configuration Templates** | Five template types (project / Unity / version / signing / certificate), one-click field population, server bidirectional sync | [Template Management](docs/usage.en.md#template-management) |
 | **Security Boundaries** | Git repository whitelist, path root restrictions, config snapshots, sensitive data redaction, login & audit | [Architecture](docs/architecture.en.md#security-foundations) |
 | **Log & Artifact Traceability** | Each run creates an independent directory with full logs, Unity logs, Xcode/Android logs, and config snapshot | [Log Troubleshooting](docs/usage.en.md#logs-and-artifacts) |
 
@@ -128,7 +160,7 @@ graph TB
         Auth["Users · Permissions · Audit"]
         Email["Email Notifications<br/>SMTP 465 Implicit SSL"]
         Storage["Storage Management<br/>Artifact Cleanup · Batch Delete"]
-        Templates["Four Config Templates<br/>Project / Unity / Signing / Certificate"]
+        Templates["Five Config Templates<br/>Project / Unity / Version / Signing / Certificate"]
         AutoUpdate["Online Self-Update<br/>Gitee + GitHub Dual Source"]
     end
 

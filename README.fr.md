@@ -21,13 +21,45 @@
 
 ---
 
+## Pipeline Entièrement Automatisé
+
+Une publication de jeu complète n'a jamais été un acte isolé qui s'arrête à « un simple build » — c'est une chaîne où chaque maillon compte. **AutomationUnityBuild transforme cette chaîne, d'un savoir-faire manuel en une capacité système réutilisable, traçable et extensible**, couvrant chaque étape du développement du jeu à la publication officielle :
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ Développement│    │  Build Auto  │    │  Upload Test │    │ Upload Store │    │  Publication │
+│    (Unity)   │ ─▶ │  (CLI/Web)   │ ─▶ │ (TestFlight) │ ─▶ │ (App Store)  │ ─▶ │(Progressif)  │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+       ▲                                                                              │
+       └─────────────── E-mails / Logs / Configs ◀────────────────────────────────────┘
+```
+
+| Étape | Méthode traditionnelle | Avec AutomationUnityBuild |
+|------|---------|---------------------------|
+| **Développement du jeu** | Ouvrir Unity manuellement après le dev, cliquer Build, attendre une demi-heure | Dépôts Git configurés, récupération du dernier code en un clic, builds Unity BatchMode sans surveillance |
+| **Build automatisé** | Mémoriser des commandes, fouiller les chemins, chercher les certificats, lire les logs à la main | Raccourcis numériques CLI / boutons Web / client DesktopApp — trois points d'entrée au choix |
+| **Upload de test** | Ouvrir Transporter, glisser le `.ipa`, attendre l'upload, puis soumettre sur App Store Connect | Appel automatique de l'API App Store Connect après le build, distribution TestFlight automatique aux groupes de test |
+| **Upload store** | Saisir les numéros de version, choisir le build, soumettre à examen à la main | Incrément automatique de version, déploiement progressif Google Play configurable, upload direct via l'API TikTok Open Platform |
+| **Publication du jeu** | Message « le paquet est prêt » dans un groupe de discussion, téléchargement manuel des testeurs | Notifications e-mail succès/échec, stockage centralisé des artefacts, historique de builds traçable, journaux d'audit complets |
+
+### La valeur de la boucle fermée
+
+- **Une config, utilisable partout** : une fois les cinq types de modèles (projet / Unity / version / signature / certificat) capturés, un nouveau membre remplit les champs en un clic et lance un build — fini le « seul untel sait packager »
+- **Un build, plusieurs destinations** : le même projet Unity produit des `.ipa` iOS + `.apk/.aab` Android + paquets TikTok Mini-Jeu, chacun vers son store
+- **Un échec, entièrement traçable** : logs généraux, Unity, Xcode et Android conservés par couches, les e-mails localisent le problème immédiatement
+- **Une entrée, plusieurs formes** : CLI pour les développeurs, Web pour la collaboration d'équipe, DesktopApp pour le travail hors ligne, LinuxGateway pour l'orchestration multi-machines — la même logique centrale, quatre façons de l'utiliser
+
+Voilà pourquoi AutomationUnityBuild existe : **rendre son énergie à l'équipe de jeu pour le jeu lui-même, pas pour les tâches de publication répétitives.**
+
+---
+
 ## Présentation
 
 AutomationUnityBuildIOS est un système de build et de release automatisé de bout en bout, conçu pour les projets Unity mobiles.
 
 Ce n'est pas un simple wrapper de scripts — c'est une plateforme d'ingénierie couvrant l'ensemble du pipeline, du dépôt de code au store d'applications. Dans sa forme minimale, c'est un outil en ligne de commande .NET 8 qui s'exécute sur un Mac : sélectionnez une config, et il pull automatiquement le dépôt Unity, exécute les scripts de build Unity Editor, exporte un projet Xcode iOS ou un APK/AAB Android, et génère logs et artefacts. En mode équipe, il devient une plateforme web de build : les responsables gèrent les projets et configs dans un backend web, les builders soumettent des tâches d'un clic, et tout le monde consulte la file d'attente, les logs, les artefacts et les audits via un navigateur. En mode desktop, il fournit un client desktop Windows natif avec capacités hors-ligne complètes et application de templates en un clic. En mode multi-appareils, il utilise LinuxGateway pour unifier plusieurs machines de build Mac/Windows sous une seule entrée publique, avec support des connexions directes et des tunnels inversés.
 
-Il couvre également les builds WebGL TikTok Mini-Game avec upload via l'API Open Platform, les notifications email (succès/échec, SMTP 465 SSL implicite), la gestion du stockage (nettoyage d'artefacts / vue d'ensemble / suppression en lot), quatre types de templates de configuration (projet / Unity / signature / certificat), et la participation d'AI Agents au processus de build via les outils MCP.
+Il couvre également les builds WebGL TikTok Mini-Game avec upload via l'API Open Platform, les notifications email (succès/échec, SMTP 465 SSL implicite), la gestion du stockage (nettoyage d'artefacts / vue d'ensemble / suppression en lot), cinq types de templates de configuration (projet / Unity / version / signature / certificat), et la participation d'AI Agents au processus de build via les outils MCP.
 
 Il résout un problème très spécifique mais douloureux : les releases Unity mobile ne devraient jamais nécessiter de mémoriser des commandes, fouiller des chemins, chercher des certificats ou lire des logs manuellement à chaque fois.
 
@@ -60,7 +92,7 @@ Il résout un problème très spécifique mais douloureux : les releases Unity m
 | **Entrée multi-nœuds LinuxGateway** | Unifie plusieurs nœuds BuildServer Mac/Windows sous une entrée publique Linux, supporte connexion directe et tunnel inverse | [LinuxGateway](docs/linux-gateway.fr.md) |
 | **Notifications email** | Envoi automatique d'emails succès/échec, supporte SMTP 465 SSL implicite, listes de contacts, templates personnalisés | [Notifications email](docs/usage.fr.md#notifications-email) |
 | **Gestion du stockage** | Nettoyage manuel d'artefacts, vue d'ensemble du stockage, suppression en lot, prévention de l'encombrement disque | [Gestion stockage](docs/usage.fr.md#gestion-du-stockage) |
-| **Templates de configuration** | Quatre types de templates (projet / Unity / signature / certificat), remplissage en un clic, sync bidirectionnelle serveur | [Gestion templates](docs/usage.fr.md#gestion-des-templates) |
+| **Templates de configuration** | Cinq types de templates (projet / Unity / version / signature / certificat), remplissage en un clic, sync bidirectionnelle serveur | [Gestion templates](docs/usage.fr.md#gestion-des-templates) |
 | **Périmètres de sécurité** | Liste blanche de dépôts Git, restriction des chemins racines, snapshots de config, masquage des informations sensibles, login et audit | [Architecture](docs/architecture.fr.md#fondations-de-sécurité) |
 | **Traçabilité logs et artefacts** | Chaque exécution crée un répertoire indépendant avec logs complets, logs Unity, logs Xcode/Android et snapshot de config | [Dépannage logs](docs/usage.fr.md#logs-et-artefacts) |
 
@@ -128,7 +160,7 @@ graph TB
         Auth["Utilisateurs · Permissions · Audit"]
         Email["Notifications email<br/>SMTP 465 SSL implicite"]
         Storage["Gestion stockage<br/>Nettoyage artefacts · Suppression groupée"]
-        Templates["Quatre modèles de config<br/>Projet / Unity / Signature / Certificat"]
+        Templates["Cinq modèles de config<br/>Projet / Unity / Version / Signature / Certificat"]
         AutoUpdate["Mise à jour en ligne<br/>Gitee + GitHub double source"]
     end
 
